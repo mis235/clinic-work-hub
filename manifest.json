@@ -1,0 +1,15 @@
+{
+  "name": "Dr. Nishita's Clinic — Work Hub",
+  "short_name": "Work Hub",
+  "description": "Task assignment, checklists, and WhatsApp-synced status tracking for the clinic team.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F4EADA",
+  "theme_color": "#1C140E",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

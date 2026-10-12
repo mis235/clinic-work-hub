@@ -1,0 +1,34 @@
+# One-click deploy blueprint for Render (render.com).
+# One web service serves BOTH the API and the React app at a single https address.
+services:
+  - type: web
+    name: clinic-work-hub
+    runtime: node
+    plan: starter            # needed for the persistent disk (database + photos). "free" = demo only, data resets.
+    region: singapore        # closest to India
+    buildCommand: cd frontend && npm install && npm run build && cd ../backend && npm install
+    startCommand: cd backend && node src/server.js
+    healthCheckPath: /health
+    disk:
+      name: clinic-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: DATA_DIR
+        value: /var/data
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_EMAIL
+        value: admin@drnishitaranka.com
+      - key: ADMIN_PASSWORD
+        sync: false           # you type this in Render's dashboard — never stored in the code
+      - key: WEBAUTHN_RP_ID
+        sync: false           # fill after first deploy, e.g. clinic-work-hub.onrender.com
+      - key: WEBAUTHN_ORIGIN
+        sync: false           # fill after first deploy, e.g. https://clinic-work-hub.onrender.com
+      - key: WEBAUTHN_RP_NAME
+        value: Dr. Nishita's Clinic
+      - key: ANTHROPIC_API_KEY
+        sync: false
