@@ -1,5 +1,23 @@
 # Dr. Nishita's Clinic — Work Hub
 
+## Quick start (free, on your own computer)
+
+1. Install **Node.js (LTS)** from https://nodejs.org (one time).
+2. Get this project: on GitHub click the green **Code** button → **Download ZIP**, then unzip it.
+3. Start it:
+   - **Windows:** double-click `start-windows.bat`
+   - **Mac:** double-click `start-mac.command` (if it won't open: right-click → Open)
+   - **Any computer:** open a terminal in this folder and run `npm start`
+
+The first start takes a few minutes (it installs and builds by itself). The window then shows the
+address to open (`http://localhost:4000`), the admin password, and the address for phones on the same Wi-Fi.
+Stop it with Ctrl+C. Your data is kept in `backend/clinic.db`.
+
+Note: fingerprint attendance needs a secure (https) address, so it works on the computer itself but not on
+phones over plain Wi-Fi. It will work once the app is hosted online.
+
+---
+
 A real, working replacement for the Google Sites work-hub: admin assigns tasks to staff,
 tasks go out over WhatsApp, staff replies update status automatically, and a live
 dashboard shows what everyone is doing.

@@ -1,0 +1,10 @@
+{
+  "name": "clinic-work-hub",
+  "private": true,
+  "description": "Dr. Nishita's Clinic - internal staff operating system",
+  "scripts": {
+    "start": "node scripts/start.mjs",
+    "test": "cd backend && npm test"
+  },
+  "engines": { "node": ">=18" }
+}
