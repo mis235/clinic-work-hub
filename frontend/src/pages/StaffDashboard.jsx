@@ -3,7 +3,9 @@ import { api } from "../api.js";
 import { STATUS, effectiveStatus } from "../constants.js";
 import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
-import BiometricAttendance from "../components/BiometricAttendance.jsx";
+import PunchCard from "../components/PunchCard.jsx";
+import DocumentsPage from "./DocumentsPage.jsx";
+import LearningPage from "./LearningPage.jsx";
 import PoliciesPage from "./PoliciesPage.jsx";
 import TrackerPage from "./TrackerPage.jsx";
 import AssistantPage from "./AssistantPage.jsx";
@@ -43,9 +45,9 @@ export default function StaffDashboard({ user, onLogout }) {
   const done = tasks.filter((t) => t.status === "done");
 
   const shiftSummary = [...shiftToday].sort((x, y) => (y.status === "in_progress") - (x.status === "in_progress"))[0] || null;
-  const NAV_ITEMS = ["My checklist", "Shift Checklist", "Tracker", "My Profile", "Assistant", "Policies"];
-  const ACTIVE_LABEL = { checklist: "My checklist", shiftchecklist: "Shift Checklist", tracker: "Tracker", profile: "My Profile", assistant: "Assistant", policies: "Policies" };
-  const VIEW_FOR_LABEL = { "My checklist": "checklist", "Shift Checklist": "shiftchecklist", "Tracker": "tracker", "My Profile": "profile", "Assistant": "assistant", "Policies": "policies" };
+  const NAV_ITEMS = ["My checklist", "Shift Checklist", "Tracker", "My Profile", "Documents", "Learning", "Assistant", "Policies"];
+  const ACTIVE_LABEL = { checklist: "My checklist", shiftchecklist: "Shift Checklist", tracker: "Tracker", profile: "My Profile", assistant: "Assistant", policies: "Policies", documents: "Documents", learning: "Learning" };
+  const VIEW_FOR_LABEL = { "My checklist": "checklist", "Shift Checklist": "shiftchecklist", "Tracker": "tracker", "My Profile": "profile", "Assistant": "assistant", "Policies": "policies", "Documents": "documents", "Learning": "learning" };
 
   return (
     <div className="app-shell">
@@ -68,6 +70,10 @@ export default function StaffDashboard({ user, onLogout }) {
           <StaffProfilePage user={user} staffId="me" isStaffLayout />
         ) : view === "shiftchecklist" ? (
           <ShiftChecklistPage user={user} isStaffLayout />
+        ) : view === "documents" ? (
+          <DocumentsPage user={user} isStaffLayout />
+        ) : view === "learning" ? (
+          <LearningPage user={user} isStaffLayout />
         ) : view === "assistant" ? (
           <AssistantPage user={user} isStaffLayout />
         ) : (
@@ -86,7 +92,7 @@ export default function StaffDashboard({ user, onLogout }) {
           </div>
         </div>
 
-        <BiometricAttendance />
+        <PunchCard />
 
         {loading && <div className="empty">Loading…</div>}
 

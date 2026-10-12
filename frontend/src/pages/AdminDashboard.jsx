@@ -5,6 +5,7 @@ import { STATUS, effectiveStatus } from "../constants.js";
 import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
 import Icon, { initials } from "../components/Icon.jsx";
+import PunchCard from "../components/PunchCard.jsx";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 function greeting() {
@@ -17,7 +18,7 @@ const firstName = (n = "") => n.split(/\s+/).find((w) => !/^dr\.?$/i.test(w)) ||
 export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfile }) {
   const [roster, setRoster] = useState([]);
   const [tasks, setTasks] = useState([]);
-  const [attendance, setAttendance] = useState([]);
+  const [board, setBoard] = useState(null);
   const [summary, setSummary] = useState(null);
   const [shiftToday, setShiftToday] = useState({ submissions: [], missing: [] });
   const [onboarding, setOnboarding] = useState(null);
@@ -33,12 +34,12 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
     const [r, t, a, s, sh, ob] = await Promise.all([
       api.listRosterFull(),
       api.listTasks(),
-      api.listAttendance().catch(() => []),
+      api.attendanceBoard().catch(() => null),
       api.getReports().catch(() => null),
       api.getShiftChecklistSubmissions({ date: todayISO() }).catch(() => ({ submissions: [], missing: [] })),
       api.getOnboarding().catch(() => null),
     ]);
-    setRoster(r); setTasks(t); setAttendance(a); setSummary(s); setShiftToday(sh); setOnboarding(ob);
+    setRoster(r); setTasks(t); setBoard(a); setSummary(s); setShiftToday(sh); setOnboarding(ob);
     setLoading(false);
   }, []);
 
@@ -72,7 +73,8 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
   const submitted = subs.filter((s) => s.status === "submitted");
   const inProgress = subs.filter((s) => s.status === "in_progress");
   const expected = subs.length + (shiftToday.missing || []).length;
-  const checkedIn = new Set(attendance.filter((a) => a.type === "check_in").map((a) => a.user_id)).size;
+  const checkedIn = board?.present ?? 0;
+  const comp = summary?.completion;
   const obPeople = onboarding?.people || [];
   const obAvg = obPeople.length ? Math.round(obPeople.reduce((s, p) => s + p.pct, 0) / obPeople.length) : null;
   const obIncomplete = obPeople.filter((p) => p.status !== "complete").sort((a, b) => a.pct - b.pct).slice(0, 4);
@@ -120,11 +122,13 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
           </div>
         </div>
 
+        <PunchCard />
+
         <div className="kpi-grid">
-          <Kpi icon="tasks" tone="teal" value={completionRate === null ? "—" : `${completionRate}%`} label="Task completion" hint={`${doneTasks} of ${totalTasks} tasks done`} />
+          <Kpi icon="tasks" tone="teal" value={comp?.overall_pct == null ? "—" : `${comp.overall_pct}%`} label="Work completion · 30 days" hint={comp ? `${comp.done} of ${comp.total} checklist items + tasks done` : `${doneTasks} of ${totalTasks} tasks done`} />
           <Kpi icon="alert" tone={overdueTasks ? "red" : "green"} value={overdueTasks} label="Overdue tasks" hint={overdueTasks ? "Follow up today" : "All on track"} />
           <Kpi icon="clipboard" tone="blue" value={`${submitted.length}/${expected || 0}`} label="Checklists submitted today" hint={inProgress.length ? `${inProgress.length} in progress now` : "Live from staff phones"} />
-          <Kpi icon="fingerprint" tone="violet" value={`${checkedIn}/${assignable.length}`} label="Checked in today" hint="Biometric attendance" />
+          <Kpi icon="fingerprint" tone="violet" value={`${checkedIn}/${board?.total ?? assignable.length}`} label="Checked in today" hint="Open Attendance for details" />
         </div>
 
         <div className="grid-2">
@@ -222,21 +226,18 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
           <div className="empty">{tasks.length === 0 ? "No tasks yet. Assign the first task to get the board moving." : "No tasks in this view."}</div>
         )}
 
-        <div className="section-head"><h2>Today's attendance</h2></div>
-        {attendance.length === 0 ? (
+        <div className="section-head"><h2>Today's attendance</h2><button className="btn btn-ghost btn-sm" onClick={() => onNavigate("Attendance")}>Full board</button></div>
+        {!board || board.present === 0 ? (
           <div className="empty">No check-ins yet today.</div>
         ) : (
           <div className="card">
-            {attendance.slice(0, 20).map((a) => (
-              <div key={a.id} className="task-row">
+            {board.rows.filter((r) => r.status !== "absent").slice(0, 20).map((r) => (
+              <div key={r.id} className="task-row">
                 <div>
-                  <div className="title">{a.user_name}</div>
-                  <div className="meta">{a.department} · {a.method === "manual" ? "manual entry" : "biometric"}</div>
+                  <div className="title">{r.name}</div>
+                  <div className="meta">{r.department} · in {r.first_in ? new Date(r.first_in.replace(" ", "T") + "Z").toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}</div>
                 </div>
-                <div className="right">
-                  <span className={`badge ${a.type === "check_in" ? "done" : "sent"}`}>{a.type === "check_in" ? "Checked in" : "Checked out"}</span>
-                  <span className="meta">{new Date(a.recorded_at).toLocaleTimeString()}</span>
-                </div>
+                <span className={`badge ${r.status === "in" ? "done" : "sent"}`}>{r.status === "in" ? "In clinic" : "Checked out"}</span>
               </div>
             ))}
           </div>

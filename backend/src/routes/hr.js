@@ -1,5 +1,9 @@
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
+import multer from "multer";
+import path from "node:path";
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 import db from "../db.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
 
@@ -120,19 +124,64 @@ router.post("/offer-letters", requireAuth, requirePermission("staff:manage"), (r
 // Program Manager agent needs. Starts empty; admin adds real video links.
 // ---------------------------------------------------------------------------
 router.get("/training-videos", requireAuth, (req, res) => {
-  const videos = db.prepare("SELECT * FROM training_videos ORDER BY department, created_at").all();
+  const videos = db.prepare("SELECT id, department, title, url, description, mime, sort_order, created_at, (file_path IS NOT NULL) AS is_upload FROM training_videos ORDER BY department, sort_order, created_at").all();
   const myViews = new Set(
     db.prepare("SELECT video_id FROM training_video_views WHERE user_id = ?").all(req.user.userId).map((r) => r.video_id)
   );
   res.json(videos.map((v) => ({ ...v, watchedByMe: myViews.has(v.id) })));
 });
 
-router.post("/training-videos", requireAuth, requirePermission("staff:manage"), (req, res) => {
-  const { department, title, url } = req.body || {};
-  if (!department || !title || !url) return res.status(400).json({ error: "department, title, url are required" });
+const VIDEO_DIR = path.join(process.env.DATA_DIR || path.join(path.dirname(fileURLToPath(import.meta.url)), "..", ".."), "private", "videos");
+fs.mkdirSync(VIDEO_DIR, { recursive: true });
+const videoUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, VIDEO_DIR),
+    filename: (req, file, cb) => cb(null, `${randomUUID()}${path.extname(file.originalname || "").toLowerCase() || ".mp4"}`),
+  }),
+  limits: { fileSize: 500 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => cb(null, /^video\//.test(file.mimetype || "")),
+});
+
+// Add a training video: either upload a video file or paste a link (YouTube / Drive / any https link).
+router.post("/training-videos", requireAuth, requirePermission("staff:manage"), videoUpload.single("file"), (req, res) => {
+  const { department, title, url, description } = req.body || {};
+  if (!department || !title) return res.status(400).json({ error: "Choose a department and give the video a title" });
+  if (!req.file && !/^https?:\/\//i.test(url || "")) return res.status(400).json({ error: "Upload a video file, or paste a link starting with https://" });
   const id = randomUUID();
-  db.prepare("INSERT INTO training_videos (id, department, title, url) VALUES (?, ?, ?, ?)").run(id, department, title, url);
+  const next = db.prepare("SELECT COALESCE(MAX(sort_order),0)+1 AS n FROM training_videos WHERE department = ?").get(department).n;
+  db.prepare("INSERT INTO training_videos (id, department, title, url, description, file_path, mime, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+    .run(id, department, title, req.file ? "" : url, description || null, req.file?.path || null, req.file?.mimetype || null, next);
   res.status(201).json({ id });
+});
+
+router.patch("/training-videos/:id", requireAuth, requirePermission("staff:manage"), (req, res) => {
+  const v = db.prepare("SELECT * FROM training_videos WHERE id = ?").get(req.params.id);
+  if (!v) return res.status(404).json({ error: "Not found" });
+  const { title, department, description, url, sortOrder } = req.body || {};
+  db.prepare("UPDATE training_videos SET title = ?, department = ?, description = ?, url = ?, sort_order = ? WHERE id = ?")
+    .run(title?.trim() || v.title, department || v.department, description ?? v.description,
+      v.file_path ? v.url : (url && /^https?:\/\//i.test(url) ? url : v.url), Number.isFinite(sortOrder) ? sortOrder : v.sort_order, v.id);
+  res.json({ ok: true });
+});
+
+router.delete("/training-videos/:id", requireAuth, requirePermission("staff:manage"), (req, res) => {
+  const v = db.prepare("SELECT * FROM training_videos WHERE id = ?").get(req.params.id);
+  if (!v) return res.status(404).json({ error: "Not found" });
+  db.prepare("DELETE FROM training_video_views WHERE video_id = ?").run(v.id);
+  db.prepare("DELETE FROM training_videos WHERE id = ?").run(v.id);
+  if (v.file_path) fs.rm(v.file_path, { force: true }, () => {});
+  res.json({ ok: true });
+});
+
+// Stream an uploaded video (supports seeking). <video> tags cannot send headers, so the token may come as ?token=
+router.get("/training-videos/:id/stream", (req, res, next) => {
+  if (!req.headers.authorization && req.query.token) req.headers.authorization = `Bearer ${req.query.token}`;
+  next();
+}, requireAuth, (req, res) => {
+  const v = db.prepare("SELECT * FROM training_videos WHERE id = ?").get(req.params.id);
+  if (!v?.file_path || !fs.existsSync(v.file_path)) return res.status(404).json({ error: "Not found" });
+  res.type(v.mime || "video/mp4");
+  res.sendFile(v.file_path);
 });
 
 router.post("/training-videos/:id/watched", requireAuth, (req, res) => {
@@ -149,7 +198,7 @@ router.get("/training-videos/progress", requireAuth, requirePermission("reports:
               COUNT(tvv.video_id) AS watched
        FROM users u
        LEFT JOIN departments d ON d.id = u.department_id
-       LEFT JOIN training_videos tv ON tv.department = d.name
+       LEFT JOIN training_videos tv ON (tv.department = d.name OR tv.department = 'All Staff')
        LEFT JOIN training_video_views tvv ON tvv.video_id = tv.id AND tvv.user_id = u.id
        WHERE u.active = 1
        GROUP BY u.id`

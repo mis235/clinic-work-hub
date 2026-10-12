@@ -1,7 +1,7 @@
 {
   "name": "clinic-work-hub-backend",
   "version": "1.0.0",
-  "description": "Backend API for Dr. Nishita's Clinic Work Hub \u2014 task assignment, checklists, and WhatsApp Cloud API integration",
+  "description": "Backend API for Dr. Nishita's Clinic Work Hub — task assignment, checklists, and WhatsApp Cloud API integration",
   "type": "module",
   "main": "src/server.js",
   "scripts": {
@@ -15,12 +15,14 @@
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^11.3.0",
     "cors": "^2.8.5",
+    "docxtemplater": "^3.71.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.4.0",
     "node-cron": "^3.0.3",
     "nodemailer": "^10.0.10",
-    "pdfkit": "^0.20.2"
+    "pdfkit": "^0.20.2",
+    "pizzip": "^3.3.0"
   }
 }

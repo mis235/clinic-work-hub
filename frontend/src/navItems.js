@@ -10,6 +10,8 @@ export const NAV = {
   "Payroll":         { label: "Payroll",             icon: "wallet" },
   "HR":              { label: "Offer Letters",       icon: "file" },
   "Reports":         { label: "Reports & Insights",  icon: "chart" },
+  "Attendance":      { label: "Attendance",          icon: "clock" },
+  "Documents":       { label: "Documents",           icon: "file" },
   "Policies":        { label: "Policies & SOPs",     icon: "shield" },
   "Learning":        { label: "Training Library",    icon: "cap" },
   "Events":          { label: "Events & Culture",    icon: "party" },
@@ -23,16 +25,16 @@ export const NAV = {
 
 export const NAV_GROUPS = [
   { title: "Workspace",   keys: ["Dashboard", "My checklist", "Shift Checklist", "Tracker"] },
-  { title: "People",      keys: ["Shift Logs", "Onboarding", "Staff", "My Profile", "Payroll", "HR"] },
+  { title: "People",      keys: ["Attendance", "Shift Logs", "Onboarding", "Staff", "My Profile", "Payroll", "HR"] },
   { title: "Insights",    keys: ["Reports"] },
-  { title: "Knowledge",   keys: ["Policies", "Learning", "Events"] },
+  { title: "Knowledge",   keys: ["Documents", "Policies", "Learning", "Events"] },
   { title: "AI Tools",    keys: ["Assistant", "AI Advisors"] },
   { title: "Administration", keys: ["System"] },
 ];
 
 export function navItemsFor(user) {
-  const items = ["Dashboard", "Shift Checklist", "Tracker", "Reports", "Policies", "Learning", "Events", "Assistant", "AI Advisors"];
-  if (user.role === "admin" || user.role === "manager") items.push("Shift Logs");
+  const items = ["Dashboard", "Shift Checklist", "Tracker", "Reports", "Documents", "Policies", "Learning", "Events", "Assistant", "AI Advisors"];
+  if (user.role === "admin" || user.role === "manager") items.push("Attendance", "Shift Logs");
   if (user.role === "admin") items.push("Onboarding", "Staff", "Payroll", "HR", "System");
   return items;
 }

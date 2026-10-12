@@ -27,12 +27,72 @@ async function reqForm(path, formData) {
   return data;
 }
 
+
+// Download a protected file: fetch with the login token, then hand the browser a blob to save.
+export async function downloadFile(path, fallbackName = "download", { method = "GET", body } = {}) {
+  const res = await fetch(`${BASE}${path}`, {
+    method, headers: { ...(body ? { "Content-Type": "application/json" } : {}), ...authHeaders() }, body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || "Download failed"); }
+  const cd = res.headers.get("Content-Disposition") || "";
+  const m = cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+  const name = m ? decodeURIComponent(m[1]) : fallbackName;
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+export function videoStreamUrl(id) {
+  return `${BASE}/api/hr/training-videos/${id}/stream?token=${encodeURIComponent(localStorage.getItem("token") || "")}`;
+}
+
 export function assetUrl(path) {
   if (!path) return path;
   return path.startsWith("http") ? path : `${BASE}${path}`;
 }
 
 export const api = {
+  // Documents hub
+  listDocuments: () => req("/api/documents"),
+  addDocument: (formData) => reqForm("/api/documents", formData),
+  deleteDocument: (id) => req(`/api/documents/${id}`, { method: "DELETE" }),
+  downloadDocument: (id, name) => downloadFile(`/api/documents/${id}/file`, name),
+
+  // Word templates + bulk generation
+  templateFields: () => req("/api/doc-templates/fields"),
+  listDocTemplates: (kind) => req(`/api/doc-templates${kind ? `?kind=${kind}` : ""}`),
+  uploadDocTemplate: (formData) => reqForm("/api/doc-templates", formData),
+  deleteDocTemplate: (id) => req(`/api/doc-templates/${id}`, { method: "DELETE" }),
+  downloadSampleTemplate: (kind) => downloadFile(`/api/doc-templates/sample/${kind}`, `sample-${kind}.docx`),
+  downloadTemplate: (id, name) => downloadFile(`/api/doc-templates/${id}/file`, name),
+  generateDocs: (payload) => req("/api/doc-templates/generate", { method: "POST", body: payload }),
+  listGeneratedDocs: (kind) => req(`/api/doc-templates/generated${kind ? `?kind=${kind}` : ""}`),
+  downloadGenerated: (id, name) => downloadFile(`/api/doc-templates/generated/${id}/file`, name),
+  downloadGeneratedZip: (ids) => downloadFile("/api/doc-templates/generated/zip", "documents.zip", { method: "POST", body: { ids } }),
+  deleteGenerated: (id) => req(`/api/doc-templates/generated/${id}`, { method: "DELETE" }),
+
+  // One-tap attendance
+  attendanceToday: () => req("/api/attendance/today"),
+  attendancePunch: (payload) => req("/api/attendance/punch", { method: "POST", body: payload }),
+  attendanceBoard: (date) => req(`/api/attendance/board${date ? `?date=${date}` : ""}`),
+  attendanceMonth: (month) => req(`/api/attendance/month${month ? `?month=${month}` : ""}`),
+  manualAttendance: (userId, type) => req("/api/attendance/manual", { method: "POST", body: { userId, type } }),
+
+  // Staff management
+  listRosterAll: () => req("/api/users/full?includeInactive=1"),
+  removeStaff: (id) => req(`/api/users/${id}/deactivate`, { method: "PATCH" }),
+  restoreStaff: (id) => req(`/api/users/${id}/reactivate`, { method: "PATCH" }),
+
+  // Training library (upload or link, edit, delete)
+  addTrainingVideoForm: (formData) => reqForm("/api/hr/training-videos", formData),
+  updateTrainingVideo: (id, payload) => req(`/api/hr/training-videos/${id}`, { method: "PATCH", body: payload }),
+  deleteTrainingVideo: (id) => req(`/api/hr/training-videos/${id}`, { method: "DELETE" }),
+  trainingProgress: () => req("/api/hr/training-videos/progress"),
+
+  // History import (old Google Sheet export)
+  importChecklistHistory: (formData) => reqForm("/api/shift-checklist/import", formData),
+
   login: (credentials) => req("/api/auth/login", { method: "POST", body: credentials }),
   listRoster: () => req("/api/users"),
   listRosterFull: () => req("/api/users/full"),
@@ -55,7 +115,7 @@ export const api = {
   chatWithAdvisor: (id, messages) => req(`/api/advisors/${id}/chat`, { method: "POST", body: { messages } }),
   listPolicies: () => req("/api/policies"),
   acknowledgePolicy: (id) => req(`/api/policies/${id}/acknowledge`, { method: "POST" }),
-  getReports: () => req("/api/reports/summary"),
+  getReports: (days = 30) => req(`/api/reports/summary?days=${days}`),
   getAbout: () => req("/api/hr/about"),
   listTeam: () => req("/api/hr/team"),
   addTeamProfile: (payload) => req("/api/hr/team", { method: "POST", body: payload }),

@@ -1,3 +1,4 @@
+import { documentsRouter, templatesRouter } from "./routes/documents.js";
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
@@ -88,6 +89,8 @@ app.use("/api/policies", policyRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/hr", hrRoutes);
 app.use("/api/companies", companyRoutes);
+app.use("/api/documents", documentsRouter);
+app.use("/api/doc-templates", templatesRouter);
 app.use("/api/payroll", payrollRoutes);
 app.use("/api/assistant", assistantRoutes);
 app.use("/api/shift-checklist", shiftChecklistRoutes);

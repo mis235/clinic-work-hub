@@ -4,6 +4,53 @@ import { api } from "../api.js";
 import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
 
+function ImportCard({ onDone }) {
+  const [file, setFile] = useState(null);
+  const [result, setResult] = useState(null);
+  const [mapping, setMapping] = useState({});
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  async function run(dryRun) {
+    setBusy(true); setErr("");
+    try {
+      const fd = new FormData();
+      fd.append("file", file); fd.append("dryRun", String(dryRun)); fd.append("mapping", JSON.stringify(mapping));
+      const r = await api.importChecklistHistory(fd);
+      setResult(r); if (!dryRun) onDone?.();
+    } catch (e) { setErr(e.message); }
+    setBusy(false);
+  }
+  return (
+    <div className="card">
+      <div className="card-head"><div><span className="name">Import checklist history</span><span className="dept">From the old Google Sheet / Apps Script dashboard</span></div></div>
+      <p className="meta" style={{ marginTop: 0 }}>In Google Sheets choose File → Download → Comma-separated values (.csv), then pick that file here. Entries already in the app are never overwritten, and duplicates keep the latest submission.</p>
+      <input className="field" type="file" accept=".csv,text/csv" onChange={(e) => { setFile(e.target.files[0] || null); setResult(null); setMapping({}); }} />
+      {err && <div className="login-error" style={{ marginTop: 10 }}>{err}</div>}
+      {result && (
+        <div className="note" style={{ marginTop: 12 }}>
+          {result.dryRun ? "Preview: " : "Done: "}<strong>{result.imported}</strong> checklist{result.imported === 1 ? "" : "s"} {result.dryRun ? "will be imported" : "imported"}
+          {result.alreadyInApp ? `, ${result.alreadyInApp} already in the app` : ""} (from {result.rowsInFile} rows, {result.uniqueEntries} unique person-days).
+          {result.unmatched.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <strong>Names that don’t match a staff member</strong> — pick who they are, or skip:
+              {result.unmatched.map((u) => (
+                <div key={u.name} style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
+                  <span style={{ minWidth: 150 }}>{u.name} ({u.count})</span>
+                  <select className="field" style={{ maxWidth: 220 }} value={mapping[u.name] || ""} onChange={(e) => setMapping((m) => ({ ...m, [u.name]: e.target.value }))}>
+                    <option value="">Leave out</option><option value="skip">Skip</option>
+                    {result.staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>))}
+            </div>)}
+        </div>)}
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <button className="btn btn-outline btn-sm" disabled={!file || busy} onClick={() => run(true)}>{busy ? "Working…" : "Preview"}</button>
+        <button className="btn btn-primary btn-sm" disabled={!file || busy || !result || result.dryRun === false} onClick={() => run(false)}>Import now</button>
+      </div>
+    </div>
+  );
+}
+
 const fmt = (iso) => (iso ? new Date(iso.includes("T") ? iso : iso.replace(" ", "T") + "Z").toLocaleString() : "—");
 const size = (b) => (b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.round(b / 1024)} KB`);
 
@@ -77,6 +124,8 @@ export default function SystemPage({ user, onLogout, onBack }) {
             ))}
           </div>
         </div>
+
+        <ImportCard onDone={load} />
 
         <div className="section-head"><h2>Activity log</h2><span className="sub">Latest 100 actions</span></div>
         <div className="card" style={{ overflowX: "auto" }}>

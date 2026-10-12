@@ -7,8 +7,9 @@ export const inputToMmdd = (v) => (v ? v.slice(5) : null);
 const BLOOD = ["", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 const TYPES = ["", "Full-time", "Part-time", "Contract", "Intern"];
 
-export default function StaffEditModal({ staff, shiftRoles, managers = [], onClose, onSave }) {
+export default function StaffEditModal({ staff, shiftRoles, managers = [], departments = [], onClose, onSave }) {
   const [f, setF] = useState({
+    name: staff.name || "", departmentName: staff.department || "", roleName: staff.role || "staff",
     designation: staff.designation || "", employeeCode: staff.employee_code || "", employmentType: staff.employment_type || "",
     reportingTo: staff.reporting_to || "", joinedAt: staff.joined_at || "", shiftRole: staff.shift_role || "",
     phone: staff.phone || "", email: staff.email || "", birthday: mmddToInput(staff.birthday), gender: staff.gender || "",
@@ -19,6 +20,7 @@ export default function StaffEditModal({ staff, shiftRoles, managers = [], onClo
 
   function save() {
     onSave({
+      name: f.name.trim() || undefined, departmentName: f.departmentName || undefined, roleName: f.roleName || undefined,
       designation: f.designation || null, employeeCode: f.employeeCode || null, employmentType: f.employmentType || null,
       reportingTo: f.reportingTo || null, joinedAt: f.joinedAt || null, shiftRole: f.shiftRole,
       phone: f.phone || null, email: f.email || null, birthday: inputToMmdd(f.birthday), gender: f.gender || null,
@@ -34,7 +36,18 @@ export default function StaffEditModal({ staff, shiftRoles, managers = [], onClo
         <h3>Edit {staff.name}</h3>
         <p className="lead">{staff.department} · {staff.role}</p>
 
-        <div className="step-label" style={{ marginTop: 14 }}>Employment</div>
+        <div className="step-label" style={{ marginTop: 14 }}>Basics</div>
+        <div className="form-grid">
+          <div><label className="field-label">Full name</label><input className="field" value={f.name} onChange={set("name")} /></div>
+          <div><label className="field-label">Department</label>
+            <select className="field" value={f.departmentName} onChange={set("departmentName")}>
+              {[...new Set([f.departmentName, ...departments].filter(Boolean))].map((d) => <option key={d}>{d}</option>)}</select></div>
+          <div><label className="field-label">Access level</label>
+            <select className="field" value={f.roleName} onChange={set("roleName")}>
+              <option value="staff">Staff</option><option value="manager">Manager (sees all, assigns tasks)</option><option value="admin">Admin (full control)</option></select></div>
+        </div>
+
+        <div className="step-label" style={{ marginTop: 20 }}>Employment</div>
         <div className="form-grid">
           <div><label className="field-label">Designation / job title</label><input className="field" value={f.designation} onChange={set("designation")} placeholder="e.g. Front Desk Executive" /></div>
           <div><label className="field-label">Employee code</label><input className="field" value={f.employeeCode} onChange={set("employeeCode")} /></div>

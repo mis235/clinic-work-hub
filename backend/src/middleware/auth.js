@@ -16,10 +16,13 @@ export function requireAuth(req, res, next) {
   if (!token) return res.status(401).json({ error: "Missing token" });
   try {
     req.user = jwt.verify(token, JWT_SECRET);
-    next();
   } catch {
     return res.status(401).json({ error: "Invalid or expired token" });
   }
+  // Removed / deactivated people lose access immediately, not when their token expires.
+  const row = db.prepare("SELECT active FROM users WHERE id = ?").get(req.user.userId);
+  if (!row || !row.active) return res.status(401).json({ error: "This account is no longer active" });
+  next();
 }
 
 const permCache = new Map(); // roleId -> Set(action)  (cleared automatically on server restart; fine for this scale)

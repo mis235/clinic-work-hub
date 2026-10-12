@@ -358,4 +358,51 @@ ensureColumn("users", "must_change_pin", "must_change_pin INTEGER NOT NULL DEFAU
 ensureColumn("shift_checklist_submissions", "status", "status TEXT NOT NULL DEFAULT 'submitted'");
 ensureColumn("shift_checklist_submissions", "updated_at", "updated_at TEXT");
 
+// --- Documents hub, document templates, generated documents, richer training ---
+db.exec(`
+CREATE TABLE IF NOT EXISTS documents (
+  id TEXT PRIMARY KEY,
+  department_id TEXT REFERENCES departments(id),
+  title TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'Document',   -- Sheet | Dashboard | Document | Report | Other
+  kind TEXT NOT NULL DEFAULT 'file',           -- 'file' | 'link'
+  url TEXT,                                    -- for links (Google Sheet, dashboard, ...)
+  file_path TEXT,                              -- for uploaded files (private folder, served only via authenticated route)
+  file_name TEXT,
+  mime TEXT,
+  size INTEGER,
+  note TEXT,
+  uploaded_by TEXT REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS doc_templates (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,                          -- 'offer_letter' | 'payslip'
+  name TEXT NOT NULL,
+  company_id TEXT REFERENCES companies(id),    -- null = any company
+  file_path TEXT NOT NULL,
+  file_name TEXT,
+  created_by TEXT REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS generated_docs (
+  id TEXT PRIMARY KEY,
+  template_id TEXT REFERENCES doc_templates(id),
+  kind TEXT NOT NULL,
+  user_id TEXT REFERENCES users(id),
+  company_id TEXT REFERENCES companies(id),
+  period TEXT,
+  file_path TEXT NOT NULL,
+  file_name TEXT,
+  created_by TEXT REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+`);
+ensureColumn("training_videos", "description", "description TEXT");
+ensureColumn("training_videos", "file_path", "file_path TEXT");            // uploaded video file (private, streamed via authenticated route)
+ensureColumn("training_videos", "mime", "mime TEXT");
+ensureColumn("training_videos", "sort_order", "sort_order INTEGER NOT NULL DEFAULT 0");
+ensureColumn("attendance", "note", "note TEXT");
+ensureColumn("attendance", "selfie_path", "selfie_path TEXT");
+
 export default db;

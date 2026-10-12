@@ -339,3 +339,12 @@ message (code is complete in `whatsapp.js`, just needs real `WHATSAPP_ACCESS_TOK
 of typing a task from scratch each time; recurring daily tasks (e.g. "open pharmacy
 register" every morning) via `node-cron`, already a dependency; a reports/export view
 for month-end review; SMS fallback for staff without WhatsApp.
+
+## What's inside (Oct 2026 remodel)
+- **Documents** – every department uploads files or pastes Google Sheet / dashboard links; admin sees all folders. Files are private (login required).
+- **Attendance** – one-tap check in / out on any phone (no fingerprint set-up). Admin gets a live day board + month summary.
+- **Staff Directory** – admin adds, edits (name, department, access level, details), removes and restores staff.
+- **Offer Letters & Payroll** – upload a Word (.docx) template with `{name}`-style placeholders, then generate for everyone in one click (ZIP download). Payslip templates can be set per company (3 companies).
+- **Training Library** – upload videos or paste YouTube/Drive links; edit, reorder, remove.
+- **Reports** – one completion % that combines shift-checklist items (incl. imported history) and admin-assigned tasks.
+- **System → Import checklist history** – bring in the CSV exported from the old Google Sheet.

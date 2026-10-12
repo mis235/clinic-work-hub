@@ -28,12 +28,12 @@ router.get("/full", requireAuth, requirePermission("task:view_all"), (req, res) 
   backfillEmployeeCodes();
   const rows = db
     .prepare(
-      `SELECT u.id, u.name, u.phone, u.email, u.birthday, u.joined_at, u.designation, u.shift_role, u.employee_code, u.employment_type, u.reporting_to, u.emergency_contact_name, u.emergency_contact_phone, u.address, u.blood_group, u.gender, d.name AS department, r.name AS role
+      `SELECT u.id, u.name, u.phone, u.email, u.birthday, u.joined_at, u.designation, u.shift_role, u.active, u.employee_code, u.employment_type, u.reporting_to, u.emergency_contact_name, u.emergency_contact_phone, u.address, u.blood_group, u.gender, d.name AS department, r.name AS role
        FROM users u
        JOIN roles r ON r.id = u.role_id
        LEFT JOIN departments d ON d.id = u.department_id
-       WHERE u.active = 1
-       ORDER BY d.name, u.name`
+       ${req.query.includeInactive ? "" : "WHERE u.active = 1"}
+       ORDER BY u.active DESC, d.name, u.name`
     )
     .all();
   res.json(rows);
@@ -169,9 +169,20 @@ router.post("/:id/reset-pin", requireAuth, requirePermission("staff:manage"), (r
   res.json({ ok: true });
 });
 
-// PATCH /api/users/:id/deactivate
+// PATCH /api/users/:id/deactivate -- "remove" a person: they can no longer sign in, but their history stays intact.
 router.patch("/:id/deactivate", requireAuth, requirePermission("staff:manage"), (req, res) => {
+  if (req.params.id === req.user.userId) return res.status(400).json({ error: "You cannot remove your own account." });
+  const target = db.prepare("SELECT u.id, r.name AS role FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ?").get(req.params.id);
+  if (!target) return res.status(404).json({ error: "User not found" });
+  if (target.role === "admin" && db.prepare("SELECT COUNT(*) AS n FROM users u JOIN roles r ON r.id = u.role_id WHERE r.name = 'admin' AND u.active = 1").get().n <= 1) {
+    return res.status(400).json({ error: "This is the only active admin and cannot be removed." });
+  }
   db.prepare("UPDATE users SET active = 0 WHERE id = ?").run(req.params.id);
+  res.json({ ok: true });
+});
+
+router.patch("/:id/reactivate", requireAuth, requirePermission("staff:manage"), (req, res) => {
+  db.prepare("UPDATE users SET active = 1 WHERE id = ?").run(req.params.id);
   res.json({ ok: true });
 });
 
@@ -189,7 +200,20 @@ router.patch("/:id/role", requireAuth, requirePermission("staff:manage"), (req, 
 router.patch("/:id", requireAuth, requirePermission("staff:manage"), (req, res) => {
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.params.id);
   if (!user) return res.status(404).json({ error: "User not found" });
-  const { birthday, joinedAt, phone, name, email, designation, shiftRole } = req.body || {};
+  const { birthday, joinedAt, phone, name, email, designation, shiftRole, departmentName, roleName } = req.body || {};
+  if (phone && db.prepare("SELECT 1 FROM users WHERE phone = ? AND id != ?").get(phone, req.params.id)) return res.status(409).json({ error: "Another staff member already uses this phone number" });
+  if (email && db.prepare("SELECT 1 FROM users WHERE email = ? AND id != ?").get(email, req.params.id)) return res.status(409).json({ error: "Another staff member already uses this email" });
+  if (departmentName) {
+    let dept = db.prepare("SELECT id FROM departments WHERE name = ?").get(departmentName);
+    if (!dept) { const id = randomUUID(); db.prepare("INSERT INTO departments (id, name) VALUES (?, ?)").run(id, departmentName); dept = { id }; }
+    db.prepare("UPDATE users SET department_id = ? WHERE id = ?").run(dept.id, req.params.id);
+  }
+  if (roleName) {
+    const role = db.prepare("SELECT id FROM roles WHERE name = ?").get(roleName);
+    if (!role) return res.status(400).json({ error: `Unknown role: ${roleName}` });
+    if (req.params.id === req.user.userId && roleName !== "admin") return res.status(400).json({ error: "You cannot lower your own access." });
+    db.prepare("UPDATE users SET role_id = ? WHERE id = ?").run(role.id, req.params.id);
+  }
   db.prepare(
     `UPDATE users SET
        birthday = COALESCE(?, birthday),

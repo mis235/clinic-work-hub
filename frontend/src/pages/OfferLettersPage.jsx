@@ -3,15 +3,20 @@ import { navItemsFor } from "../navItems.js";
 import { api } from "../api.js";
 import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
+import TemplateStudio from "../components/TemplateStudio.jsx";
 
 export default function OfferLettersPage({ user, onLogout, onBack }) {
   const [letters, setLetters] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [preview, setPreview] = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [companies, setCompanies] = useState([]);
+  const [roster, setRoster] = useState([]);
+  const [toast, setToast] = useState("");
+  const flash = (m) => { setToast(m); setTimeout(() => setToast(""), 4500); };
 
   const refresh = () => api.listOfferLetters().then(setLetters).catch(() => setLetters([]));
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => { refresh(); api.listCompanies().then(setCompanies).catch(() => {}); api.listRosterFull().then(setRoster).catch(() => {}); }, []);
 
   return (
     <div className="app-shell">
@@ -22,9 +27,12 @@ export default function OfferLettersPage({ user, onLogout, onBack }) {
       <div className="main">
         <MobileTopBar title="HR — Offer Letters" onOpenMenu={() => setMobileOpen(true)} />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div className="page-head"><h1>Offer Letters</h1><p>Generate and store offer letters for new hires.</p></div>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowForm(true)}>+ New offer letter</button>
+          <div className="page-head"><h1>Offer Letters</h1><p>Upload your own offer-letter template once, then generate every staff member's letter in one click. For a single new hire without a template, use the quick form.</p></div>
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowForm(true)}>Quick letter (no template)</button>
         </div>
+        <TemplateStudio kind="offer_letter" companies={companies} roster={roster} flash={flash} />
+        {toast && <div className="toast">{toast}</div>}
+        <div className="section-head" style={{ marginTop: 24 }}><h2 style={{ fontSize: 15 }}>Quick letters</h2></div>
 
         {letters === null && <div className="empty">Loading…</div>}
         {letters?.length === 0 && <div className="empty">No offer letters generated yet.</div>}

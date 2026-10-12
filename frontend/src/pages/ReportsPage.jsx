@@ -7,8 +7,10 @@ import MobileTopBar from "../components/MobileTopBar.jsx";
 export default function ReportsPage({ user, onLogout, onBack }) {
   const [report, setReport] = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [days, setDays] = useState(30);
 
-  useEffect(() => { api.getReports().then(setReport).catch(() => setReport({})); }, []);
+  useEffect(() => { api.getReports(days).then(setReport).catch(() => setReport({})); }, [days]);
+  const bar = (pct) => <div className="progress" style={{ width: 140 }}><span style={{ width: `${pct || 0}%` }} /></div>;
 
   return (
     <div className="app-shell">
@@ -25,7 +27,30 @@ export default function ReportsPage({ user, onLogout, onBack }) {
 
         {!report ? <div className="empty">Loading…</div> : (
           <>
-            <h2 style={{ fontSize: 16, margin: "20px 0 10px" }}>Task completion by department</h2>
+            <div className="pill-row" style={{ marginTop: 4 }}>
+              {[7, 30, 90].map((d) => <button key={d} className={`pill ${days === d ? "active" : ""}`} onClick={() => setDays(d)}>Last {d} days</button>)}
+            </div>
+            <h2 style={{ fontSize: 16, margin: "8px 0 10px" }}>Overall work completion — {report.completion?.overall_pct == null ? "no data yet" : `${report.completion.overall_pct}%`}</h2>
+            <div className="meta" style={{ marginBottom: 10 }}>Counts every shift-checklist item (including imported history) plus every task an admin assigned.</div>
+            <div className="card">
+              {(report.completionByDept || []).length === 0 && <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>Nothing recorded in this period.</div>}
+              {(report.completionByDept || []).map((d) => (
+                <div key={d.department} className="task-row">
+                  <div><div className="title">{d.department}</div><div className="meta">{d.combined_done}/{d.combined_total} items & tasks · {d.submissions} checklists · {d.tasks_total} tasks</div></div>
+                  <div className="right" style={{ gap: 10 }}>{bar(d.completion_pct)}<strong style={{ minWidth: 40, textAlign: "right" }}>{d.completion_pct ?? "—"}%</strong></div>
+                </div>
+              ))}
+            </div>
+            <h2 style={{ fontSize: 16, margin: "20px 0 10px" }}>By person</h2>
+            <div className="card">
+              {(report.completionByStaff || []).map((p) => (
+                <div key={p.user_id} className="task-row">
+                  <div><div className="title">{p.name}</div><div className="meta">{p.department || "—"} · {p.submissions} checklists · {p.tasks_done}/{p.tasks_total} tasks</div></div>
+                  <div className="right" style={{ gap: 10 }}>{bar(p.completion_pct)}<strong style={{ minWidth: 40, textAlign: "right" }}>{p.completion_pct ?? "—"}%</strong></div>
+                </div>
+              ))}
+            </div>
+            <h2 style={{ fontSize: 16, margin: "24px 0 10px" }}>Task completion by department</h2>
             <div className="card">
               {(report.taskByDept || []).length === 0 && <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>No tasks recorded yet.</div>}
               {(report.taskByDept || []).map((d, i) => (

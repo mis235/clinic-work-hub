@@ -23,7 +23,7 @@ const upload = multer({
 const router = Router();
 
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return new Date(Date.now() + 19800000).toISOString().slice(0, 10); // India date
 }
 
 function templateFor(roleName) {
@@ -224,6 +224,106 @@ router.get("/submissions", requireAuth, requirePermission("shiftchecklist:view_a
   const missing = expected.filter((u) => !startedUserIds.has(u.id)).map((u) => ({ userId: u.id, name: u.name, roleName: u.shift_role }));
 
   res.json({ date, submissions: rows.map(serializeSubmission), missing });
+});
+
+// ---------------------------------------------------------------------------
+// History import: bring in the CSV exported from the old Google Sheet / Apps
+// Script so past submissions show up in the app's dashboards.
+// POST /api/shift-checklist/import  (admin, multipart: file, mapping?, dryRun?)
+// mapping = JSON { "Name in sheet": "userId" }.  Existing app entries are never overwritten.
+// ---------------------------------------------------------------------------
+function parseCsv(text) {
+  const rows = []; let row = [], cur = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c;
+    } else if (c === '"') q = true;
+    else if (c === ",") { row.push(cur); cur = ""; }
+    else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; row.push(cur); cur = ""; if (row.some((x) => x !== "")) rows.push(row); row = []; }
+    else cur += c;
+  }
+  row.push(cur); if (row.some((x) => x !== "")) rows.push(row);
+  return rows;
+}
+const importUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+function editDistance(a, b) {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++)
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+const norm = (x) => String(x || "").toLowerCase().replace(/[^a-z]/g, "");
+
+router.post("/import", requireAuth, importUpload.single("file"), (req, res) => {
+  if (req.user.roleName !== "admin") return res.status(403).json({ error: "Admin only" });
+  if (!req.file) return res.status(400).json({ error: "Choose the CSV file exported from the Google Sheet" });
+  const table = parseCsv(req.file.buffer.toString("utf8").replace(/^\uFEFF/, ""));
+  const head = table.shift() || [];
+  const col = (n) => head.findIndex((h) => h.trim().toLowerCase() === n.toLowerCase());
+  const ix = { at: col("Submitted At"), name: col("Staff Name"), role: col("Role"), date: col("Date"), shift: col("Shift"), done: col("Completed"), total: col("Total"), detail: col("Checklist Detail"), metrics: col("Metrics") };
+  if (ix.name < 0 || ix.date < 0 || ix.detail < 0) return res.status(400).json({ error: "This does not look like the checklist log (needs Staff Name, Date and Checklist Detail columns)." });
+
+  const users = db.prepare("SELECT id, name FROM users WHERE active = 1").all();
+  let mapping = {};
+  try { mapping = JSON.parse(req.body?.mapping || "{}"); } catch {}
+  const resolve = (sheetName) => {
+    if (mapping[sheetName] === "skip") return null;
+    if (mapping[sheetName]) return users.find((u) => u.id === mapping[sheetName]) || null;
+    const n = norm(sheetName);
+    return users.find((u) => norm(u.name) === n) || users.find((u) => norm(u.name.split(" ")[0]) === n)
+      || users.find((u) => n.length > 4 && editDistance(norm(u.name.split(" ")[0]), n) <= 2) || null;  // tolerates spelling slips like Prathyusha / Pratyusha
+  };
+
+  // Keep only the LATEST submission for each person + date + shift.
+  const latest = new Map();
+  for (const r of table) {
+    const key = `${norm(r[ix.name])}|${r[ix.date]}|${r[ix.shift]}`;
+    const [d, m, rest] = (r[ix.at] || "").split(/[\/ ]/);
+    const stamp = r[ix.at] ? `${(rest || "")}-${m}-${d}` + (r[ix.at].split(" ")[1] || "") : "";
+    const prev = latest.get(key);
+    if (!prev || stamp >= prev.stamp) latest.set(key, { r, stamp });
+  }
+
+  const unmatched = new Map(); let imported = 0, existing = 0;
+  const insert = db.prepare(`INSERT INTO shift_checklist_submissions
+    (id, user_id, role_name, shift, work_date, items_json, metrics_json, completed, total, completion_pct, status, submitted_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', ?, ?) ON CONFLICT(user_id, work_date, shift) DO NOTHING`);
+  const run = db.transaction(() => {
+    for (const { r } of latest.values()) {
+      const sheetName = (r[ix.name] || "").trim();
+      const u = resolve(sheetName);
+      if (!u) { unmatched.set(sheetName, (unmatched.get(sheetName) || 0) + 1); continue; }
+      const items = []; let section = "";
+      for (const line of (r[ix.detail] || "").split("\n")) {
+        const m = line.match(/^\s*\[(DONE|PENDING)\]\s*(.*)$/i);
+        if (m) items.push({ section, text: m[2].trim(), done: m[1].toUpperCase() === "DONE" });
+        else if (line.trim().endsWith(":")) section = line.trim().slice(0, -1);
+      }
+      if (!items.length) continue;
+      const metrics = {};
+      for (const part of (ix.metrics >= 0 ? r[ix.metrics] || "" : "").split(";")) {
+        const k = part.slice(0, part.indexOf(":")).trim(), v = part.slice(part.indexOf(":") + 1).trim();
+        if (k && v && v !== "-") metrics[k] = v;
+      }
+      const completed = items.filter((i) => i.done).length;
+      const [dd, mm, rest] = (r[ix.at] || "").split(/[\/ ]/);
+      const when = r[ix.at] && rest ? `${rest}-${mm}-${dd} ${r[ix.at].split(" ")[1] || "00:00:00"}` : null;
+      if (!req.body?.dryRun || req.body.dryRun === "false") {
+        const info = insert.run(randomUUID(), u.id, (r[ix.role] || "").trim() || "Imported", r[ix.shift] || "Morning", r[ix.date],
+          JSON.stringify(items), Object.keys(metrics).length ? JSON.stringify(metrics) : null, completed, items.length,
+          Math.round((completed / items.length) * 100), when || new Date().toISOString().replace("T", " ").slice(0, 19), when);
+        if (info.changes) imported++; else existing++;
+      } else imported++;
+    }
+  });
+  run();
+  res.json({
+    dryRun: !!req.body?.dryRun && req.body.dryRun !== "false",
+    rowsInFile: table.length, uniqueEntries: latest.size, imported, alreadyInApp: existing,
+    unmatched: [...unmatched].map(([name, count]) => ({ name, count })), staff: users,
+  });
 });
 
 export default router;

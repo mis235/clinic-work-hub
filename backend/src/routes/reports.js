@@ -67,7 +67,52 @@ router.get("/summary", requireAuth, requirePermission("reports:view"), (req, res
     return { title: p.title, version: p.version, missingCount: missing.length, missing };
   });
 
-  res.json({ taskByDept, taskByStaff, attendanceSummary, policyGaps, generatedAt: new Date().toISOString() });
+  // Shift-checklist completion (the daily Opening / During-day / End-of-day lists, incl. imported history)
+  // combined with admin-assigned tasks => ONE completion picture. Counted per checklist ITEM and per task.
+  const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365);
+  const since = new Date(Date.now() + 19800000 - days * 86400000).toISOString().slice(0, 10);
+  const checklistByStaff = db
+    .prepare(
+      `SELECT u.id AS user_id, u.name, d.name AS department,
+              COUNT(*) AS submissions, SUM(s.completed) AS items_done, SUM(s.total) AS items_total
+       FROM shift_checklist_submissions s JOIN users u ON u.id = s.user_id
+       LEFT JOIN departments d ON d.id = u.department_id
+       WHERE s.work_date >= ? GROUP BY u.id ORDER BY d.name, u.name`
+    ).all(since);
+  const taskCountsByUser = new Map(
+    db.prepare(`SELECT user_id, COUNT(*) AS total, SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) AS done FROM tasks WHERE created_at >= ? GROUP BY user_id`)
+      .all(since).map((r) => [r.user_id, r])
+  );
+  const people = new Map();
+  for (const r of checklistByStaff) people.set(r.user_id, { ...r, tasks_done: 0, tasks_total: 0 });
+  for (const [uid, t] of taskCountsByUser) {
+    if (!people.has(uid)) {
+      const u = db.prepare("SELECT u.id AS user_id, u.name, d.name AS department FROM users u LEFT JOIN departments d ON d.id = u.department_id WHERE u.id = ?").get(uid);
+      if (u) people.set(uid, { ...u, submissions: 0, items_done: 0, items_total: 0, tasks_done: 0, tasks_total: 0 });
+    }
+    const p = people.get(uid); if (p) { p.tasks_done = t.done; p.tasks_total = t.total; }
+  }
+  const pct = (a, b) => (b ? Math.round((a / b) * 100) : null);
+  const completionByStaff = [...people.values()].map((p) => ({
+    ...p, combined_done: p.items_done + p.tasks_done, combined_total: p.items_total + p.tasks_total,
+    completion_pct: pct(p.items_done + p.tasks_done, p.items_total + p.tasks_total),
+  }));
+  const deptMap = new Map();
+  for (const p of completionByStaff) {
+    const k = p.department || "Unassigned";
+    const d = deptMap.get(k) || { department: k, combined_done: 0, combined_total: 0, submissions: 0, tasks_done: 0, tasks_total: 0 };
+    d.combined_done += p.combined_done; d.combined_total += p.combined_total; d.submissions += p.submissions; d.tasks_done += p.tasks_done; d.tasks_total += p.tasks_total;
+    deptMap.set(k, d);
+  }
+  const completionByDept = [...deptMap.values()].map((d) => ({ ...d, completion_pct: pct(d.combined_done, d.combined_total) }));
+  const trendRows = db.prepare(
+    `SELECT work_date AS date, SUM(completed) AS done, SUM(total) AS total, COUNT(*) AS submissions
+     FROM shift_checklist_submissions WHERE work_date >= ? GROUP BY work_date ORDER BY work_date`).all(since);
+  const completionTrend = trendRows.map((r) => ({ ...r, completion_pct: pct(r.done, r.total) }));
+  const totals = completionByStaff.reduce((a, p) => ({ done: a.done + p.combined_done, total: a.total + p.combined_total }), { done: 0, total: 0 });
+  const completion = { days, since, overall_pct: pct(totals.done, totals.total), done: totals.done, total: totals.total };
+
+  res.json({ taskByDept, taskByStaff, attendanceSummary, policyGaps, completion, completionByDept, completionByStaff, completionTrend, generatedAt: new Date().toISOString() });
 });
 
 // GET /api/reports/my-summary — the data behind the staff "Tracker" view.

@@ -13,7 +13,7 @@ const router = Router();
 
 const RP_ID = process.env.WEBAUTHN_RP_ID || "localhost";
 const RP_NAME = process.env.WEBAUTHN_RP_NAME || "Clinic Work Hub";
-const ORIGIN = process.env.WEBAUTHN_ORIGIN || "http://localhost:5173";
+const ORIGIN = process.env.WEBAUTHN_ORIGIN || "http://localhost:4000";
 
 function saveChallenge(userId, challenge, purpose) {
   db.prepare(
@@ -189,6 +189,85 @@ router.get("/", requireAuth, (req, res) => {
     return res.status(403).json({ error: "Missing permission" });
   }
   res.json(rows);
+});
+
+// ---------------------------------------------------------------------------
+// One-tap attendance. Works on every phone over plain http or https -- no
+// fingerprint hardware or special browser support needed. The server decides
+// whether the tap is a check-in or a check-out from what the person already
+// did today (India time), so staff can never get it "the wrong way round".
+// ---------------------------------------------------------------------------
+const IST = "'+5 hours', '+30 minutes'";
+const istDay = (col) => `date(${col}, ${IST})`;
+
+function todayRecords(userId) {
+  return db
+    .prepare(`SELECT * FROM attendance WHERE user_id = ? AND ${istDay("recorded_at")} = ${istDay("'now'")} ORDER BY recorded_at ASC`)
+    .all(userId);
+}
+
+router.get("/today", requireAuth, (req, res) => {
+  const recs = todayRecords(req.user.userId);
+  const last = recs[recs.length - 1];
+  res.json({ records: recs, next: !last || last.type === "check_out" ? "check_in" : "check_out" });
+});
+
+router.post("/punch", requireAuth, (req, res) => {
+  const { latitude, longitude, note } = req.body || {};
+  const user = db.prepare("SELECT active FROM users WHERE id = ?").get(req.user.userId);
+  if (!user?.active) return res.status(403).json({ error: "This account is not active" });
+  const recs = todayRecords(req.user.userId);
+  const last = recs[recs.length - 1];
+  // Ignore accidental double-taps within 20 seconds.
+  if (last && Date.now() - new Date(last.recorded_at.replace(" ", "T") + "Z").getTime() < 20000) {
+    return res.json({ ok: true, duplicate: true, type: last.type, recorded_at: last.recorded_at });
+  }
+  const type = !last || last.type === "check_out" ? "check_in" : "check_out";
+  const id = randomUUID();
+  db.prepare("INSERT INTO attendance (id, user_id, type, method, latitude, longitude, note) VALUES (?, ?, ?, 'tap', ?, ?, ?)")
+    .run(id, req.user.userId, type, Number.isFinite(latitude) ? latitude : null, Number.isFinite(longitude) ? longitude : null, note ? String(note).slice(0, 200) : null);
+  const row = db.prepare("SELECT * FROM attendance WHERE id = ?").get(id);
+  res.status(201).json({ ok: true, type, recorded_at: row.recorded_at });
+});
+
+// Admin / manager board: everyone's first check-in, last check-out and hours for one day (default today).
+router.get("/board", requireAuth, requirePermission("attendance:view_all"), (req, res) => {
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(req.query.date || "") ? req.query.date : new Date(Date.now() + 19800000).toISOString().slice(0, 10);
+  const staff = db.prepare(
+    `SELECT u.id, u.name, u.designation, d.name AS department FROM users u LEFT JOIN departments d ON d.id = u.department_id
+     WHERE u.active = 1 ORDER BY d.name, u.name`).all();
+  const recs = db.prepare(`SELECT * FROM attendance WHERE ${istDay("recorded_at")} = ? ORDER BY recorded_at ASC`).all(date);
+  const by = new Map();
+  for (const r of recs) { if (!by.has(r.user_id)) by.set(r.user_id, []); by.get(r.user_id).push(r); }
+  const toMs = (t) => new Date(t.replace(" ", "T") + "Z").getTime();
+  const rows = staff.map((u) => {
+    const list = by.get(u.id) || [];
+    let ms = 0, openAt = null;
+    for (const r of list) {
+      if (r.type === "check_in" && openAt === null) openAt = toMs(r.recorded_at);
+      else if (r.type === "check_out" && openAt !== null) { ms += toMs(r.recorded_at) - openAt; openAt = null; }
+    }
+    const first = list.find((r) => r.type === "check_in");
+    const lastOut = [...list].reverse().find((r) => r.type === "check_out");
+    return {
+      ...u, status: !list.length ? "absent" : openAt !== null ? "in" : "out",
+      first_in: first?.recorded_at || null, last_out: lastOut?.recorded_at || null,
+      hours: Math.round((ms / 3600000) * 10) / 10, methods: [...new Set(list.map((r) => r.method))],
+    };
+  });
+  res.json({ date, rows, present: rows.filter((r) => r.status !== "absent").length, total: rows.length });
+});
+
+// Monthly attendance for the whole team: days present per person.
+router.get("/month", requireAuth, requirePermission("attendance:view_all"), (req, res) => {
+  const month = /^\d{4}-\d{2}$/.test(req.query.month || "") ? req.query.month : new Date(Date.now() + 19800000).toISOString().slice(0, 7);
+  const rows = db.prepare(
+    `SELECT u.id, u.name, d.name AS department,
+       COUNT(DISTINCT ${istDay("a.recorded_at")}) AS days_present
+     FROM users u LEFT JOIN departments d ON d.id = u.department_id
+     LEFT JOIN attendance a ON a.user_id = u.id AND a.type = 'check_in' AND substr(${istDay("a.recorded_at")}, 1, 7) = ?
+     WHERE u.active = 1 GROUP BY u.id ORDER BY d.name, u.name`).all(month);
+  res.json({ month, rows });
 });
 
 // GET /api/attendance/registered — whether the current user has a registered device

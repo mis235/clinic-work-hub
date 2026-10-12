@@ -3,6 +3,7 @@ import { api } from "../api.js";
 import { navItemsFor } from "../navItems.js";
 import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
+import TemplateStudio from "../components/TemplateStudio.jsx";
 
 export default function PayrollPage({ user, onLogout, onBack }) {
   const [profiles, setProfiles] = useState(null);
@@ -10,6 +11,8 @@ export default function PayrollPage({ user, onLogout, onBack }) {
   const [roster, setRoster] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [toast, setToast] = useState(null);
+  const [company, setCompany] = useState("all");
+  const [editing, setEditing] = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const refresh = () => api.listPayProfiles().then(setProfiles).catch(() => setProfiles([]));
@@ -63,7 +66,14 @@ export default function PayrollPage({ user, onLogout, onBack }) {
           </div>
         )}
 
-        {profiles?.map((p) => (
+        <TemplateStudio kind="payslip" companies={companies} roster={roster} flash={flash} />
+
+        <div className="section-head" style={{ marginTop: 24 }}><h2 style={{ fontSize: 15 }}>Salary details by company</h2></div>
+        <div className="pill-row">
+          <button className={`pill ${company === "all" ? "active" : ""}`} onClick={() => setCompany("all")}>All <span className="n">{profiles?.length || 0}</span></button>
+          {companies.map((c) => <button key={c.id} className={`pill ${company === c.id ? "active" : ""}`} onClick={() => setCompany(c.id)}>{c.name} <span className="n">{(profiles || []).filter((p) => p.company_id === c.id).length}</span></button>)}
+        </div>
+        {profiles?.filter((p) => company === "all" || p.company_id === company).map((p) => (
           <div key={p.user_id} className="card">
             <div className="card-head">
               <div><span className="name">{p.name}</span><span className="dept">{p.employee_code || "no employee code"}</span></div>
@@ -71,17 +81,21 @@ export default function PayrollPage({ user, onLogout, onBack }) {
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginTop: 8 }}>
               <span>Basic: ₹{p.basic_salary.toLocaleString("en-IN")} · Retention: ₹{p.retention.toLocaleString("en-IN")}</span>
-              <button className="btn-wa btn-sm" onClick={() => generateFor(p.user_id)}>Generate this month's slip</button>
+              <span style={{ display: "flex", gap: 6 }}>
+                <button className="btn btn-ghost btn-sm" onClick={() => setEditing(p)}>Edit</button>
+                <button className="btn-wa btn-sm" onClick={() => generateFor(p.user_id)}>PDF slip (this month)</button></span>
             </div>
           </div>
         ))}
 
         {toast && <div className="toast">{toast}</div>}
-        {showForm && (
+        {(showForm || editing) && (
           <ProfileForm
+            initial={editing}
+            key={editing?.user_id || "new"}
             roster={roster.filter((r) => r.role !== "admin")}
             companies={companies}
-            onClose={() => setShowForm(false)}
+            onClose={() => { setShowForm(false); setEditing(null); }}
             onSave={async (p) => { await api.setPayProfile(p); refresh(); flash("Pay profile saved."); }}
           />
         )}
@@ -90,38 +104,42 @@ export default function PayrollPage({ user, onLogout, onBack }) {
   );
 }
 
-function ProfileForm({ roster, companies, onClose, onSave }) {
-  const [userId, setUserId] = useState(roster[0]?.id || "");
-  const [companyId, setCompanyId] = useState(companies[0]?.id || "");
-  const [employeeCode, setEmployeeCode] = useState("");
-  const [position, setPosition] = useState("");
-  const [basicSalary, setBasicSalary] = useState("");
-  const [retention, setRetention] = useState("0");
+function ProfileForm({ roster, companies, initial, onClose, onSave }) {
+  const i = initial || {};
+  const [userId, setUserId] = useState(i.user_id || roster[0]?.id || "");
+  const [companyId, setCompanyId] = useState(i.company_id || companies[0]?.id || "");
+  const [f, setF] = useState({
+    employeeCode: i.employee_code || "", position: i.position || "", pan: i.pan || "",
+    basicSalary: i.basic_salary ?? "", leaveBonus: i.leave_bonus ?? 0, overtime: i.overtime ?? 0, otherAllowances: i.other_allowances ?? 0,
+    pf: i.pf ?? 0, tds: i.tds ?? 0, otherDeductions: i.other_deductions ?? 0, retention: i.retention ?? 0,
+  });
+  const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
+  const num = (k, label) => (<div><label className="field-label">{label}</label><input className="field" type="number" value={f[k]} onChange={set(k)} /></div>);
+  const gross = ["basicSalary", "leaveBonus", "overtime", "otherAllowances"].reduce((a, k) => a + Number(f[k] || 0), 0);
+  const ded = ["pf", "tds", "otherDeductions", "retention"].reduce((a, k) => a + Number(f[k] || 0), 0);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Set up pay profile</h3>
-        <label className="field-label">Employee</label>
-        <select className="field" value={userId} onChange={(e) => setUserId(e.target.value)}>
-          {roster.map((r) => <option key={r.id} value={r.id}>{r.name} — {r.department}</option>)}
-        </select>
-        <label className="field-label">Company</label>
-        <select className="field" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
-          {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-        <label className="field-label">Employee code</label>
-        <input className="field" value={employeeCode} onChange={(e) => setEmployeeCode(e.target.value)} />
-        <label className="field-label">Position</label>
-        <input className="field" value={position} onChange={(e) => setPosition(e.target.value)} placeholder="e.g. MIS Executive" />
-        <label className="field-label">Basic salary (monthly)</label>
-        <input className="field" type="number" value={basicSalary} onChange={(e) => setBasicSalary(e.target.value)} />
-        <label className="field-label">Retention deduction (if any)</label>
-        <input className="field" type="number" value={retention} onChange={(e) => setRetention(e.target.value)} />
+      <div className="modal wide" onClick={(e) => e.stopPropagation()}>
+        <h3>{initial ? `Salary details — ${i.name}` : "Set up salary details"}</h3>
+        <div className="form-grid">
+          {!initial && <div><label className="field-label">Employee</label>
+            <select className="field" value={userId} onChange={(e) => setUserId(e.target.value)}>{roster.map((r) => <option key={r.id} value={r.id}>{r.name} — {r.department}</option>)}</select></div>}
+          <div><label className="field-label">Company (who pays this person)</label>
+            <select className="field" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>{companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+          <div><label className="field-label">Employee code</label><input className="field" value={f.employeeCode} onChange={set("employeeCode")} /></div>
+          <div><label className="field-label">Position on payslip</label><input className="field" value={f.position} onChange={set("position")} /></div>
+          <div><label className="field-label">PAN</label><input className="field" value={f.pan} onChange={set("pan")} /></div>
+        </div>
+        <div className="step-label" style={{ marginTop: 16 }}>Monthly earnings</div>
+        <div className="form-grid">{num("basicSalary", "Basic salary")}{num("leaveBonus", "Leave bonus")}{num("overtime", "Overtime")}{num("otherAllowances", "Other allowances")}</div>
+        <div className="step-label" style={{ marginTop: 16 }}>Monthly deductions</div>
+        <div className="form-grid">{num("pf", "PF")}{num("tds", "TDS")}{num("otherDeductions", "Other deductions")}{num("retention", "Retention")}</div>
+        <p className="lead" style={{ marginTop: 12 }}>Net payable: <strong>₹{(gross - ded).toLocaleString("en-IN")}</strong></p>
         <div className="actions">
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" disabled={!basicSalary} onClick={() => {
-            onSave({ userId, companyId, employeeCode, position, basicSalary: Number(basicSalary), retention: Number(retention) });
+          <button className="btn btn-primary" disabled={!f.basicSalary || !userId || !companyId} onClick={() => {
+            onSave({ userId, companyId, ...Object.fromEntries(Object.entries(f).map(([k, v]) => [k, ["employeeCode", "position", "pan"].includes(k) ? v : Number(v || 0)])) });
             onClose();
           }}>Save</button>
         </div>
