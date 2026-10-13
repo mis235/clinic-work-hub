@@ -411,6 +411,12 @@ CREATE TABLE IF NOT EXISTS generated_docs (
 );
 `);
 db.exec(`
+CREATE TABLE IF NOT EXISTS role_duties (   -- job responsibilities remembered per job title, reused in the next offer letter
+  designation TEXT PRIMARY KEY, duties TEXT NOT NULL
+);
+`);
+db.prepare("INSERT OR IGNORE INTO role_duties (designation, duties) VALUES (?, ?)").run("Therapist", JSON.stringify(["Perform skin, hair, and aesthetic treatments according to clinic protocols", "Assist with patient consultations and provide treatment recommendations", "Manage client appointments and maintain treatment schedules", "Ensure all equipment and tools are clean, sterilised, and well-maintained", "Keep accurate records of patient treatments and progress", "Provide excellent customer service and maintain a professional environment", "Any other duties as assigned by Dr. Nishita Ranka or authorised supervisors"]));
+db.exec(`
 CREATE TABLE IF NOT EXISTS app_links (
   key TEXT PRIMARY KEY,            -- 'assistant' | 'dashboard' | any future connected tool
   title TEXT NOT NULL,
@@ -421,6 +427,7 @@ CREATE TABLE IF NOT EXISTS app_links (
 `);
 db.prepare("INSERT OR IGNORE INTO app_links (key, title, url, audience) VALUES (?, ?, ?, ?)").run("assistant", "Clinic Assistant", "http://72.60.101.59:3005", "all");
 db.prepare("INSERT OR IGNORE INTO app_links (key, title, url, audience) VALUES (?, ?, ?, ?)").run("dashboard", "Clinic Dashboards", "https://claude.ai/code/artifact/c04a5c65-a3ee-4deb-be45-01658e364d8d", "lead");
+db.prepare("INSERT OR IGNORE INTO app_links (key, title, url, audience) VALUES (?, ?, ?, ?)").run("checklist_dashboard", "Checklist Dashboard", "https://script.google.com/a/macros/drnishitaranka.com/s/AKfycbykM1B3b4PZGN7wdWn4lxE6GjLnl-uwtrhgwtldX4m4HzVZd4XKoJW2L-CgOZqded8/exec?dashboard=1", "lead");
 ensureColumn("documents", "staff_user_id", "staff_user_id TEXT REFERENCES users(id)");  // set = a personal HR file (ID proof, certificates...) visible to admin + that person only
 ensureColumn("documents", "doc_type", "doc_type TEXT");                                   // key from the onboarding document checklist
 ensureColumn("training_videos", "description", "description TEXT");

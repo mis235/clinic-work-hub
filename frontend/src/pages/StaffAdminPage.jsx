@@ -49,7 +49,6 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <input className="field" style={{ width: 200 }} placeholder="Search by name…" value={q} onChange={(e) => setQ(e.target.value)} />
-            <button className="btn btn-outline" onClick={() => onBack("Onboarding")}>Onboarding progress</button>
             <button className="btn btn-primary" onClick={() => setAdding(true)}><Icon name="userplus" size={16} /> Add staff</button>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import PageShell from "../components/PageShell.jsx";
+import ConnectedToolPage from "./ConnectedToolPage.jsx";
 
 const rupee = (n) => "₹" + Number(n || 0).toLocaleString("en-IN");
 const pctText = (p) => (p == null ? "—" : p + "%");
@@ -9,11 +10,10 @@ const pctText = (p) => (p == null ? "—" : p + "%");
 export default function ClinicDashboardPage({ user, onLogout, onBack, onNavigate }) {
   const [depts, setDepts] = useState(null);
   const [rep, setRep] = useState(null);
-  const [link, setLink] = useState(null);
+  const [tab, setTab] = useState("live");
   useEffect(() => {
     api.portalDepartments().then((d) => setDepts(d.rows)).catch(() => setDepts([]));
     api.getReports(30).then(setRep).catch(() => setRep({}));
-    api.listLinks().then((l) => setLink(l.find((x) => x.key === "dashboard") || null)).catch(() => {});
   }, []);
   const sum = (k) => (depts || []).reduce((a, d) => a + (d[k] || 0), 0);
   const trend = rep?.completionTrend || [];
@@ -23,9 +23,15 @@ export default function ClinicDashboardPage({ user, onLogout, onBack, onNavigate
     <PageShell user={user} active="Dashboards" title="Clinic dashboards" onLogout={onLogout} onBack={onBack}>
       <div className="page-head row">
         <div><div className="eyebrow">Insights</div><h1>Clinic dashboard</h1><p>Live numbers from attendance, checklists, tasks, documents and fines. Last 30 days for work completion.</p></div>
-        {link && <a className="btn btn-outline" href={link.url} target="_blank" rel="noreferrer">Open the old dashboard ↗</a>}
       </div>
-      {!depts ? <div className="empty">Loading…</div> : (
+      <div className="pill-row">
+        <button className={`pill ${tab === "live" ? "active" : ""}`} onClick={() => setTab("live")}>Clinic overview</button>
+        <button className={`pill ${tab === "checklist" ? "active" : ""}`} onClick={() => setTab("checklist")}>Checklist dashboard</button>
+        <button className={`pill ${tab === "old" ? "active" : ""}`} onClick={() => setTab("old")}>Old dashboard</button>
+      </div>
+      {tab === "checklist" && <ConnectedToolPage toolKey="checklist_dashboard" active="Dashboards" user={user} isStaffLayout />}
+      {tab === "old" && <ConnectedToolPage toolKey="dashboard" active="Dashboards" user={user} isStaffLayout />}
+      {tab === "live" && (!depts ? <div className="empty">Loading…</div> : (
         <>
           <div className="dept-grid tile-grid">
             <div className="dept-card"><div className="meta">In clinic today</div><div className="title" style={{ fontSize: 24 }}>{sum("present_today")}/{sum("staff")}</div></div>
@@ -59,7 +65,7 @@ export default function ClinicDashboardPage({ user, onLogout, onBack, onNavigate
             <div style={{ marginTop: 10 }}><button className="btn btn-ghost btn-sm" onClick={() => onNavigate("Departments")}>Open department portal →</button></div>
           </div>
         </>
-      )}
+      ))}
     </PageShell>
   );
 }

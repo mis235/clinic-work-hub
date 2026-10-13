@@ -11,6 +11,7 @@ import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import db from "../db.js";
 import { withFines } from "./fines.js";
+import { inWords } from "../words.js";
 import { requireAuth } from "../middleware/auth.js";
 import { DOC_CHECKLIST } from "./users.js";
 
@@ -138,6 +139,8 @@ const tplUpload = multer({
 
 export const FIELDS = {
   offer_letter: [
+    ["letter_date", "Letter date"], ["address", "Candidate address"], ["gross_salary", "Gross salary per month"], ["net_salary", "Net monthly salary"],
+    ["retention_bonus", "Retention bonus per month"], ["payout_day", "Salary payout day"], ["probation", "Probation period"], ["duties", "Job responsibilities (use {#duties}{.}{/duties} on its own line)"],
     ["name", "Staff full name"], ["first_name", "First name"], ["role", "Designation / role"], ["department", "Department"],
     ["employee_code", "Employee code"], ["joining_date", "Joining date"], ["salary", "Monthly salary (basic)"],
     ["company", "Company name"], ["company_address", "Company address"], ["date", "Today's date"], ["phone", "Phone"], ["email", "Email"],
@@ -146,7 +149,7 @@ export const FIELDS = {
     ["name", "Staff full name"], ["employee_code", "Employee code"], ["role", "Position"], ["department", "Department"],
     ["company", "Company name"], ["company_address", "Company address"], ["period", "Pay period (e.g. October 2026)"], ["pay_date", "Pay date"],
     ["pan", "PAN"], ["basic", "Basic salary"], ["leave_bonus", "Leave bonus"], ["overtime", "Overtime"], ["other_allowances", "Other allowances"],
-    ["gross", "Total earnings"], ["pf", "PF"], ["tds", "TDS"], ["other_deductions", "Other deductions (includes fines)"], ["fines", "Fines this month"], ["retention", "Retention"],
+    ["gross", "Total earnings"], ["net_words", "Net amount in words"], ["contact_no", "Contact number"], ["employee_id", "Employee ID"], ["joining_short", "Joining date (22 Oct 2025)"], ["pay_date_dot", "Pay date (09.07.2026)"], ["period_short", "Pay period (Jun'26)"], ["pf", "PF"], ["tds", "TDS"], ["other_deductions", "Other deductions (includes fines)"], ["fines", "Fines this month"], ["retention", "Retention"],
     ["total_deductions", "Total deductions"], ["net", "Net payable"], ["joining_date", "Joining date"],
   ],
 };
@@ -167,6 +170,34 @@ export const EXIT_KINDS = ["relieving_letter", "experience_letter", "fnf_stateme
 const money = (n) => Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 });
 const longDate = (d) => (d ? new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "");
 
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const ordinal = (n) => `${String(n).padStart(2, "0")}${[11, 12, 13].includes(n % 100) ? "th" : ({ 1: "st", 2: "nd", 3: "rd" }[n % 10] || "th")}`;
+/** 2026-09-01 -> "01st September 2026" (the style used in the clinic's offer letters) */
+export const ordDate = (d) => { if (!d) return ""; const x = new Date(d); if (isNaN(x)) return ""; return `${ordinal(x.getDate())} ${MONTHS[x.getMonth()]} ${x.getFullYear()}`; };
+const shortDate = (d) => (d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "");
+
+// Everything an offer letter can change per person. "list" = one line per bullet.
+export const OFFER_META = {
+  letter_date: ["Letter date", "text"], name: ["Candidate name", "text"], address: ["Candidate address", "long"], role: ["Job title", "text"],
+  department: ["Department", "text"], joining_date: ["Joining date", "text"], gross_salary: ["Gross salary per month (Rs.)", "text"],
+  net_salary: ["Net monthly salary (Rs.)", "text"], retention_bonus: ["Retention bonus per month (Rs.)", "text"], payout_day: ["Salary payout day", "text"],
+  probation: ["Probation period", "text"], duties: ["Job responsibilities (one per line)", "list"],
+};
+function dutiesFor(role) {
+  const r = db.prepare("SELECT duties FROM role_duties WHERE lower(designation) = lower(?)").get(role || "");
+  return r ? JSON.parse(r.duties) : [];
+}
+function offerDefaults(user, profile) {
+  const net = (profile?.basic_salary || 0) + (profile?.other_allowances || 0);
+  const ret = profile?.retention || 0;
+  const role = profile?.position || user.designation || "";
+  return {
+    letter_date: ordDate(new Date()), address: (user.address || "").replace(/\r?\n/g, "\n"), joining_date: ordDate(user.joined_at),
+    gross_salary: net || ret ? money(net + ret) : "", net_salary: net ? money(net) : "", retention_bonus: ret ? money(ret) : "",
+    payout_day: "10th", probation: "3 months", duties: dutiesFor(role),
+  };
+}
+
 export function valuesFor(kind, user, profile0, company, period, extra = {}) {
   const profile = kind === "payslip" && profile0 ? withFines(profile0, period) : profile0;
   const base = {
@@ -176,6 +207,7 @@ export function valuesFor(kind, user, profile0, company, period, extra = {}) {
     date: longDate(new Date()), phone: user.phone || "", email: user.email || "",
     salary: money(profile?.basic_salary),
   };
+  if (kind === "offer_letter") Object.assign(base, offerDefaults(user, profile));
   if (kind === "payslip") {
     const gross = (profile?.basic_salary || 0) + (profile?.leave_bonus || 0) + (profile?.overtime || 0) + (profile?.other_allowances || 0);
     const ded = (profile?.pf || 0) + (profile?.tds || 0) + (profile?.other_deductions || 0) + (profile?.retention || 0);
@@ -187,6 +219,9 @@ export function valuesFor(kind, user, profile0, company, period, extra = {}) {
       other_allowances: money(profile?.other_allowances), gross: money(gross), pf: money(profile?.pf), tds: money(profile?.tds),
       other_deductions: money(profile?.other_deductions), retention: money(profile?.retention),
       total_deductions: money(ded), fines: money(profile?.fines), net: money(gross - ded),
+      net_words: `${inWords(Math.max(0, gross - ded))} Only`, contact_no: user.phone || "", employee_id: profile?.employee_code || "",
+      joining_short: shortDate(user.joined_at), pay_date_dot: new Date(extra.payDate || Date.now()).toLocaleDateString("en-GB").replace(/\//g, "."),
+      period_short: y && m ? `${MONTHS[Number(m) - 1].slice(0, 3)}'${y.slice(2)}` : "",
     });
   }
   return { ...base, ...extra.fields };
@@ -268,11 +303,24 @@ SAMPLES.fnf_statement = [
   { text: "Employee signature: ____________________        Authorised signatory: ____________________" },
 ];
 
+// First start: install the clinic's own offer letter (from the sample the clinic supplied) so it works with no set-up.
+export const OFFER_ASSET = path.join(__dirname, "..", "..", "assets", "offer-letter-template.docx");
+if (fs.existsSync(OFFER_ASSET) && !db.prepare("SELECT 1 FROM doc_templates WHERE kind = 'offer_letter'").get()) {
+  const id = randomUUID(), dest = path.join(TPL_DIR, `${id}.docx`);
+  fs.copyFileSync(OFFER_ASSET, dest);
+  db.prepare("INSERT INTO doc_templates (id, kind, name, file_path, file_name) VALUES (?, 'offer_letter', ?, ?, ?)").run(id, "Standard offer letter (Dr. Nishita's Clinic)", dest, "standard-offer-letter-template.docx");
+}
+
 templatesRouter.get("/fields", requireAuth, adminOnly, (req, res) => {
   res.json(Object.fromEntries(Object.entries(FIELDS).map(([k, v]) => [k, v.map(([key, label]) => ({ key, label }))])));
 });
 
 templatesRouter.get("/sample/:kind", requireAuth, adminOnly, (req, res) => {
+  if (req.params.kind === "offer_letter" && fs.existsSync(OFFER_ASSET)) {
+    res.setHeader("Content-Disposition", 'attachment; filename="standard-offer-letter-template.docx"');
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    return res.send(fs.readFileSync(OFFER_ASSET));
+  }
   const s = SAMPLES[req.params.kind];
   if (!s) return res.status(404).json({ error: "Unknown template type" });
   res.setHeader("Content-Disposition", `attachment; filename="sample-${req.params.kind}-template.docx"`);
@@ -322,11 +370,43 @@ templatesRouter.delete("/:id", requireAuth, adminOnly, (req, res) => {
   res.json({ ok: true });
 });
 
+// ---- Placeholders found inside an uploaded template, so the screen can show exactly the fields that letter needs ----
+function placeholdersIn(file) {
+  const zip = new PizZip(fs.readFileSync(file));
+  let text = "";
+  for (const name of Object.keys(zip.files)) if (/^word\/(document|header\d*|footer\d*)\.xml$/.test(name)) text += zip.file(name).asText().replace(/<[^>]+>/g, "");
+  const keys = [];
+  for (const m of text.matchAll(/\{([#^\/]?)([\w.]+)\}/g)) if (m[2] !== "." && !keys.includes(m[2])) keys.push(m[2]);
+  return keys;
+}
+const TAG_META = Object.fromEntries(Object.values(FIELDS).flat().map(([k, l]) => [k, l]));
+const toForm = (v) => (Array.isArray(v) ? v.join("\n") : v ?? "");
+
+// Which fields does this template use, and what would each person's letter say right now?
+templatesRouter.post("/prefill", requireAuth, adminOnly, (req, res) => {
+  const { templateId, userIds, period } = req.body || {};
+  const t = db.prepare("SELECT * FROM doc_templates WHERE id = ?").get(templateId);
+  if (!t) return res.status(404).json({ error: "Template not found" });
+  const keys = placeholdersIn(t.file_path);
+  const fields = keys.map((k) => ({ key: k, label: OFFER_META[k]?.[0] || TAG_META[k] || k.replace(/_/g, " "), type: OFFER_META[k]?.[1] || "text" }));
+  const base = `SELECT u.*, d.name AS department, r.name AS role_name FROM users u LEFT JOIN departments d ON d.id = u.department_id JOIN roles r ON r.id = u.role_id WHERE u.active = 1`;
+  let users = db.prepare(base).all();
+  if (Array.isArray(userIds) && userIds.length) users = users.filter((u) => userIds.includes(u.id));
+  const people = users.map((u) => {
+    const profile = db.prepare("SELECT * FROM pay_profiles WHERE user_id = ?").get(u.id);
+    const companyId = t.company_id || profile?.company_id || null;
+    const company = companyId ? db.prepare("SELECT * FROM companies WHERE id = ?").get(companyId) : null;
+    const v = valuesFor(t.kind, u, profile, company, period);
+    return { id: u.id, name: u.name, values: Object.fromEntries(keys.map((k) => [k, toForm(v[k])])) };
+  });
+  res.json({ fields, people });
+});
+
 const safe = (s) => String(s || "").replace(/[^\w.-]+/g, "_");
 
 // POST /api/doc-templates/generate  { templateId, userIds?: [] (omit = everyone who fits), period?: 'YYYY-MM' }
 templatesRouter.post("/generate", requireAuth, adminOnly, (req, res) => {
-  const { templateId, userIds, period } = req.body || {};
+  const { templateId, userIds, period, overrides } = req.body || {};
   const t = db.prepare("SELECT * FROM doc_templates WHERE id = ?").get(templateId);
   if (!t) return res.status(404).json({ error: "Template not found" });
   if (EXIT_KINDS.includes(t.kind)) return res.status(400).json({ error: "Relieving, experience and settlement letters are made from the Staff exits page, one person at a time." });
@@ -347,7 +427,15 @@ templatesRouter.post("/generate", requireAuth, adminOnly, (req, res) => {
       if (t.company_id && profile.company_id !== t.company_id) continue; // belongs to another company's template
     }
     try {
-      const buf = render(t.file_path, valuesFor(t.kind, u, profile, company, period));
+      // Anything the admin edited on screen wins over the automatic value. "list" fields become one bullet per line.
+      const ov = overrides?.[u.id] || {};
+      const fields = {};
+      for (const [k, v] of Object.entries(ov)) fields[k] = OFFER_META[k]?.[1] === "list" ? String(v).split(/\r?\n/).map((x) => x.trim()).filter(Boolean) : String(v);
+      if (t.kind === "offer_letter" && fields.duties?.length) {
+        const role = fields.role || profile?.position || u.designation || "";
+        if (role) db.prepare("INSERT INTO role_duties (designation, duties) VALUES (?, ?) ON CONFLICT(designation) DO UPDATE SET duties = excluded.duties").run(role, JSON.stringify(fields.duties));
+      }
+      const buf = render(t.file_path, valuesFor(t.kind, u, profile, company, period, { fields }));
       const id = randomUUID();
       const fname = t.kind === "payslip" ? `Payslip_${period}_${safe(u.name)}.docx` : `OfferLetter_${safe(u.name)}.docx`;
       const fpath = path.join(GEN_DIR, `${id}.docx`);

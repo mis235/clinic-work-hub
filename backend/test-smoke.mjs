@@ -83,15 +83,19 @@ try {
   };
   const raw = async (url, token, opts = {}) => fetch(base + url, { ...opts, headers: { Authorization: `Bearer ${token}`, ...(opts.body ? { "Content-Type": "application/json" } : {}) } });
 
-  // Attendance: one tap = check in; board shows it
-  const p1 = await call("POST", "/api/attendance/punch", {}, stoken2());
-  function stoken2() { return stoken; }
-  ok("one-tap attendance records a check-in", p1.status === 201 && p1.body?.type === "check_in", JSON.stringify(p1.body));
-  const p2 = await call("POST", "/api/attendance/punch", {}, stoken);
-  ok("accidental double tap is ignored", p2.body?.duplicate === true);
+  // Attendance: staff do not check in; admin marks the register
+  const today = new Date(Date.now() + 19800000).toISOString().slice(0, 10);
+  ok("staff cannot mark attendance", (await call("PUT", "/api/attendance/mark", { userId: staff.id, date: today, status: "P" }, stoken)).status === 403);
+  ok("admin can mark someone late", (await call("PUT", "/api/attendance/mark", { userId: staff.id, date: today, status: "L" }, admin)).status === 200);
+  ok("future days cannot be marked", (await call("PUT", "/api/attendance/mark", { userId: staff.id, date: "2999-01-01", status: "P" }, admin)).status === 400);
+  ok("unknown status is refused", (await call("PUT", "/api/attendance/mark", { userId: staff.id, date: today, status: "Z" }, admin)).status === 400);
+  const md = await call("POST", "/api/attendance/mark-day", { date: today, status: "P" }, admin);
+  ok("everyone still unmarked can be marked present in one click", md.status === 200 && md.body.marked >= 5);
   const bd = await call("GET", "/api/attendance/board", null, admin);
-  ok("admin attendance board shows who is in", bd.status === 200 && bd.body.rows.some((r) => r.id === staff.id && r.status === "in"));
+  ok("board keeps the person marked late (not overwritten)", bd.body.rows.find((r) => r.id === staff.id)?.mark === "L" && bd.body.counts.P >= 5);
   ok("staff cannot open the admin board", (await call("GET", "/api/attendance/board", null, stoken)).status === 403);
+  const myd = await call("GET", "/api/portal/me", null, stoken);
+  ok("staff sees their own mark for today", myd.body?.today_mark === "L" && myd.body.late_days === 1);
 
   // Documents hub: staff uploads, admin sees it
   let fd = new FormData(); fd.append("title", "MIS daily sheet"); fd.append("category", "Sheet"); fd.append("file", new Blob(["a,b\n1,2"], { type: "text/csv" }), "daily.csv");
@@ -119,6 +123,19 @@ try {
   const zip = await raw("/api/doc-templates/generated/zip", admin, { method: "POST", body: JSON.stringify({ ids: gen.body.generated.slice(0, 3).map((g) => g.id) }) });
   ok("generated letters download as one ZIP", zip.status === 200 && (await zip.arrayBuffer()).byteLength > 500);
 
+  // Clinic's own offer letter is built in, with editable fields
+  const stdT = (await call("GET", "/api/doc-templates?kind=offer_letter", null, admin)).body.find((t) => /Standard offer letter/.test(t.name));
+  ok("the clinic's standard offer letter is installed automatically", !!stdT);
+  const pf = await call("POST", "/api/doc-templates/prefill", { templateId: stdT.id, userIds: [staff.id] }, admin);
+  const fk = (pf.body?.fields || []).map((f) => f.key);
+  ok("template fields are detected from the Word file", ["name", "address", "role", "gross_salary", "net_salary", "retention_bonus", "probation", "duties", "joining_date"].every((k) => fk.includes(k)), JSON.stringify(fk));
+  ok("duties is a one-per-line list field", pf.body.fields.find((f) => f.key === "duties")?.type === "list");
+  const og = await call("POST", "/api/doc-templates/generate", { templateId: stdT.id, userIds: [staff.id], overrides: { [staff.id]: { address: "Flat 4, Road 7\nBanjara Hills", gross_salary: "22,000", duties: "Greet patients\nKeep records" } } }, admin);
+  ok("offer letter generates with edited values", og.status === 201 && og.body.generated.length === 1, JSON.stringify(og.body));
+  const ogf = Buffer.from(await (await raw(`/api/doc-templates/generated/${og.body.generated[0].id}/file`, admin)).arrayBuffer());
+  const ogx = new (await import("pizzip")).default(ogf).file("word/document.xml").asText().replace(/<[^>]+>/g, "");
+  ok("edited address, salary and bullet points appear in the letter", /Banjara Hills/.test(ogx) && /22,000/.test(ogx) && /Greet patients/.test(ogx) && /Keep records/.test(ogx) && !/\{/.test(ogx), ogx.slice(0, 300));
+
   // Payroll template per company
   const comps = (await call("GET", "/api/companies", null, admin)).body;
   await call("POST", "/api/payroll/profile", { userId: staff.id, companyId: comps[0].id, employeeCode: "T1", position: "Tester", basicSalary: 20000, pf: 1000 }, admin);
@@ -144,6 +161,8 @@ try {
   ok("fines flow into the payslip template", pg2.status === 201);
   const reg = await call("GET", "/api/attendance/register?month=2026-10", null, admin);
   ok("attendance register has a row per person and a column per day", reg.status === 200 && reg.body.daysInMonth === 31 && reg.body.rows[0].days.length === 31, JSON.stringify(reg.body).slice(0, 120));
+  const regNow = await call("GET", `/api/attendance/register?month=${today.slice(0, 7)}`, null, admin);
+  ok("register shows the day marks and totals", regNow.body.rows.find((r) => r.id === staff.id)?.late === 1);
   ok("register shows fines for the month", reg.body.rows.find((r) => r.id === staff.id)?.fine_total === 350);
   const dp = await call("GET", "/api/portal/departments", null, admin);
   ok("department portal lists departments with numbers", dp.status === 200 && dp.body.rows.length >= 3 && "present_today" in dp.body.rows[0]);
@@ -151,7 +170,7 @@ try {
   ok("one department shows its people and documents", dd.status === 200 && Array.isArray(dd.body.people) && Array.isArray(dd.body.documents));
   ok("staff cannot open the department portal", (await call("GET", "/api/portal/departments", null, stoken)).status === 403);
   const me = await call("GET", "/api/portal/me", null, stoken);
-  ok("staff 'my day' summary works", me.status === 200 && "checked_in" in me.body && "fines_month" in me.body);
+  ok("staff 'my day' summary works", me.status === 200 && "today_mark" in me.body && "fines_month" in me.body);
 
   // Shift roster + connection check
   const wk = await call("GET", "/api/roster/week?start=2026-10-05", null, admin);
@@ -226,7 +245,7 @@ try {
   ok("staff cannot import history", (await form("POST", "/api/shift-checklist/import", fd, stoken)).status === 403);
 
   const lk = await call("GET", "/api/links", null, admin), lks = await call("GET", "/api/links", null, stoken);
-  ok("connected tools: admin sees assistant + dashboard, staff only the assistant", lk.body?.length === 2 && lks.body?.length === 1 && lks.body[0].key === "assistant");
+  ok("connected tools: admin sees assistant + dashboards, staff only the assistant", lk.body?.length === 3 && lks.body?.length === 1 && lks.body[0].key === "assistant");
   ok("only admin can change a tool address", (await call("PUT", "/api/links/assistant", { url: "https://x.example" }, stoken)).status === 403 && (await call("PUT", "/api/links/assistant", { url: "http://72.60.101.59:3005" }, admin)).status === 200);
 
   // Staff exit workflow
@@ -277,6 +296,20 @@ try {
     ok("sign-in works when settings come only from backend/.env", lg?.status === 200, JSON.stringify(lg));
     s2.kill("SIGTERM"); await new Promise((r) => setTimeout(r, 400)); fs.rmSync(dir2, { recursive: true, force: true });
   }
+
+  // Department workspaces
+  const mw = (await call("GET", "/api/portal/departments", null, admin)).body.rows.find((r) => r.name === "Management");
+  const wsA = await call("GET", `/api/workspace/${mw.id}`, null, admin);
+  ok("Management workspace starts with the clinic's sheets and dashboard", wsA.status === 200 && wsA.body.items.length >= 4);
+  const myws = await call("GET", "/api/workspace/me", null, stoken);
+  ok("staff land in their own department's workspace", myws.status === 200 && myws.body.department?.name === staff.department);
+  ok("staff cannot open another department's workspace", (await call("GET", `/api/workspace/${mw.id}`, null, stoken)).status === 403);
+  const wadd = await call("POST", `/api/workspace/${myws.body.department.id}`, { title: "Daily MIS sheet", kind: "sheet", url: "https://docs.google.com/spreadsheets/d/abc/edit" }, stoken);
+  ok("staff can add a sheet to their own workspace", wadd.status === 201);
+  ok("a bad address is refused", (await call("POST", `/api/workspace/${myws.body.department.id}`, { title: "x", url: "javascript:alert(1)" }, stoken)).status === 400);
+  ok("staff cannot add to another department", (await call("POST", `/api/workspace/${mw.id}`, { title: "x", url: "https://a.b" }, stoken)).status === 403);
+  ok("admin sees what staff added", (await call("GET", `/api/workspace/${myws.body.department.id}`, null, admin)).body.items.some((i) => i.title === "Daily MIS sheet"));
+  ok("an item can be removed", (await call("DELETE", `/api/workspace/item/${wadd.body.id}`, null, stoken)).status === 200);
 
   // Lockout
   let last; for (let i = 0; i < 8; i++) last = await call("POST", "/api/auth/login", { email: "lock@test.local", password: "x" });

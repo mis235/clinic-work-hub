@@ -1,6 +1,7 @@
 import { Router } from "express";
 import db from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { monthCounts, markFor, MARKS } from "./attendance.js";
 
 const router = Router();
 const IST = "'+5 hours', '+30 minutes'";
@@ -15,7 +16,7 @@ function deptStats(deptId, month, since) {
   const ids = staff.map((s) => s.id);
   if (!ids.length) return { staff: 0, present_today: 0, completion_pct: null, tasks_open: 0, documents: 0, fines_month: 0 };
   const q = ids.map(() => "?").join(",");
-  const present = db.prepare(`SELECT COUNT(DISTINCT user_id) n FROM attendance WHERE type='check_in' AND ${istDay("recorded_at")} = ? AND user_id IN (${q})`).get(today(), ...ids).n;
+  const present = db.prepare(`SELECT COUNT(*) n FROM attendance_marks WHERE mark_date = ? AND status IN ('P','L','H') AND user_id IN (${q})`).get(today(), ...ids).n;
   const sc = db.prepare(`SELECT COALESCE(SUM(completed),0) d, COALESCE(SUM(total),0) t FROM shift_checklist_submissions WHERE work_date >= ? AND user_id IN (${q})`).get(since, ...ids);
   const tk = db.prepare(`SELECT COALESCE(SUM(status='done'),0) d, COUNT(*) t, COALESCE(SUM(status!='done'),0) o FROM tasks WHERE user_id IN (${q}) AND date(created_at) >= ?`).get(...ids, since);
   const docs = db.prepare("SELECT COUNT(*) n FROM documents WHERE department_id = ? AND staff_user_id IS NULL").get(deptId).n;
@@ -39,11 +40,11 @@ router.get("/departments/:id", requireAuth, (req, res) => {
   if (!dept) return res.status(404).json({ error: "Not found" });
   const month = today().slice(0, 7), since = sinceDate();
   const people = db.prepare("SELECT id, name, designation FROM users WHERE active = 1 AND department_id = ? ORDER BY name").all(dept.id).map((u) => {
-    const first = db.prepare(`SELECT MIN(recorded_at) t FROM attendance WHERE user_id = ? AND type='check_in' AND ${istDay("recorded_at")} = ?`).get(u.id, today()).t;
+    const mark = markFor(u.id, today());
     const sc = db.prepare("SELECT COALESCE(SUM(completed),0) d, COALESCE(SUM(total),0) t FROM shift_checklist_submissions WHERE user_id = ? AND work_date >= ?").get(u.id, since);
     const tk = db.prepare("SELECT COALESCE(SUM(status='done'),0) d, COUNT(*) t FROM tasks WHERE user_id = ? AND date(created_at) >= ?").get(u.id, since);
     const fines = db.prepare("SELECT COALESCE(SUM(amount),0) n FROM fines WHERE user_id = ? AND substr(fine_date,1,7) = ?").get(u.id, month).n;
-    return { ...u, first_in: first, completion_pct: pct(sc.d + tk.d, sc.t + tk.t), fines_month: fines };
+    return { ...u, mark, mark_label: mark ? MARKS[mark] : null, completion_pct: pct(sc.d + tk.d, sc.t + tk.t), fines_month: fines };
   });
   const documents = db.prepare(
     `SELECT dc.id, dc.title, dc.category, dc.kind, dc.url, dc.file_name, dc.created_at, u.name AS uploaded_by_name
@@ -54,16 +55,15 @@ router.get("/departments/:id", requireAuth, (req, res) => {
 // Staff: a one-screen summary of "my day".
 router.get("/me", requireAuth, (req, res) => {
   const id = req.user.userId, month = today().slice(0, 7), since = sinceDate();
-  const recs = db.prepare(`SELECT type, recorded_at FROM attendance WHERE user_id = ? AND ${istDay("recorded_at")} = ? ORDER BY recorded_at`).all(id, today());
   const tk = db.prepare("SELECT COALESCE(SUM(status='done'),0) d, COUNT(*) t, COALESCE(SUM(status!='done'),0) o FROM tasks WHERE user_id = ?").get(id);
   const sc = db.prepare("SELECT COALESCE(SUM(completed),0) d, COALESCE(SUM(total),0) t FROM shift_checklist_submissions WHERE user_id = ? AND work_date >= ?").get(id, since);
   const myDocs = db.prepare("SELECT COUNT(*) n FROM documents WHERE uploaded_by = ? AND staff_user_id IS NULL").get(id).n;
   const fines = db.prepare("SELECT COALESCE(SUM(amount),0) n, COUNT(*) c FROM fines WHERE user_id = ? AND substr(fine_date,1,7) = ?").get(id, month);
-  const days = db.prepare(`SELECT COUNT(DISTINCT ${istDay("recorded_at")}) n FROM attendance WHERE user_id = ? AND type='check_in' AND substr(${istDay("recorded_at")},1,7) = ?`).get(id, month).n;
+  const mc = monthCounts(id, month), mark = markFor(id, today());
   res.json({
-    checked_in: recs.some((r) => r.type === "check_in"), first_in: recs.find((r) => r.type === "check_in")?.recorded_at || null,
+    today_mark: mark, today_label: mark ? MARKS[mark] : null, late_days: mc.L, absent_days: mc.A, leave_days: mc.LV,
     tasks_open: tk.o, completion_pct: pct(sc.d + tk.d, sc.t + tk.t), my_documents: myDocs,
-    fines_month: fines.n, fines_count: fines.c, days_present: days, month,
+    fines_month: fines.n, fines_count: fines.c, days_present: mc.present, month,
   });
 });
 

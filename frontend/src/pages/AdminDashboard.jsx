@@ -5,7 +5,6 @@ import { STATUS, effectiveStatus } from "../constants.js";
 import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
 import Icon, { initials } from "../components/Icon.jsx";
-import PunchCard from "../components/PunchCard.jsx";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 function greeting() {
@@ -21,7 +20,6 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
   const [board, setBoard] = useState(null);
   const [summary, setSummary] = useState(null);
   const [shiftToday, setShiftToday] = useState({ submissions: [], missing: [] });
-  const [onboarding, setOnboarding] = useState(null);
   const [filter, setFilter] = useState("open");
   const [showForm, setShowForm] = useState(false);
   const [toast, setToast] = useState(null);
@@ -31,15 +29,14 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
   const canAssign = user.role === "admin" || user.role === "manager";
 
   const refresh = useCallback(async () => {
-    const [r, t, a, s, sh, ob] = await Promise.all([
+    const [r, t, a, s, sh] = await Promise.all([
       api.listRosterFull(),
       api.listTasks(),
       api.attendanceBoard().catch(() => null),
       api.getReports().catch(() => null),
       api.getShiftChecklistSubmissions({ date: todayISO() }).catch(() => ({ submissions: [], missing: [] })),
-      api.getOnboarding().catch(() => null),
     ]);
-    setRoster(r); setTasks(t); setBoard(a); setSummary(s); setShiftToday(sh); setOnboarding(ob);
+    setRoster(r); setTasks(t); setBoard(a); setSummary(s); setShiftToday(sh);
     setLoading(false);
   }, []);
 
@@ -73,11 +70,8 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
   const submitted = subs.filter((s) => s.status === "submitted");
   const inProgress = subs.filter((s) => s.status === "in_progress");
   const expected = subs.length + (shiftToday.missing || []).length;
-  const checkedIn = board?.present ?? 0;
+  const checkedIn = (board?.counts?.P || 0) + (board?.counts?.L || 0) + (board?.counts?.H || 0);
   const comp = summary?.completion;
-  const obPeople = onboarding?.people || [];
-  const obAvg = obPeople.length ? Math.round(obPeople.reduce((s, p) => s + p.pct, 0) / obPeople.length) : null;
-  const obIncomplete = obPeople.filter((p) => p.status !== "complete").sort((a, b) => a.pct - b.pct).slice(0, 4);
 
   const visibleTasks = tasks.filter((t) => {
     const st = effectiveStatus(t);
@@ -122,13 +116,11 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
           </div>
         </div>
 
-        <PunchCard />
-
         <div className="kpi-grid">
           <Kpi icon="tasks" tone="teal" value={comp?.overall_pct == null ? "—" : `${comp.overall_pct}%`} label="Work completion · 30 days" hint={comp ? `${comp.done} of ${comp.total} checklist items + tasks done` : `${doneTasks} of ${totalTasks} tasks done`} />
           <Kpi icon="alert" tone={overdueTasks ? "red" : "green"} value={overdueTasks} label="Overdue tasks" hint={overdueTasks ? "Follow up today" : "All on track"} />
           <Kpi icon="clipboard" tone="blue" value={`${submitted.length}/${expected || 0}`} label="Checklists submitted today" hint={inProgress.length ? `${inProgress.length} in progress now` : "Live from staff phones"} />
-          <Kpi icon="fingerprint" tone="violet" value={`${checkedIn}/${board?.total ?? assignable.length}`} label="Checked in today" hint="Open Attendance for details" />
+          <Kpi icon="fingerprint" tone="violet" value={`${checkedIn}/${board?.total ?? assignable.length}`} label="Present today" hint="Open Attendance to mark" />
         </div>
 
         <div className="grid-2">
@@ -160,32 +152,6 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
             )}
           </div>
 
-          <div className="card" style={{ marginBottom: 0 }}>
-            <div className="card-head">
-              <div className="name">Staff onboarding</div>
-              {user.role === "admin" && <button className="btn btn-ghost btn-sm" onClick={() => onNavigate("Onboarding")}>Manage</button>}
-            </div>
-            {onboarding === null ? <div className="meta" style={{ padding: "14px 0" }}>Loading…</div> : (
-              <>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
-                  <span style={{ fontSize: 30, fontWeight: 800, letterSpacing: "-0.02em" }}>{obAvg}%</span>
-                  <span className="meta">average record completeness · {obPeople.filter((p) => p.status === "complete").length} of {obPeople.length} fully onboarded</span>
-                </div>
-                <div className="progress lg"><span style={{ width: `${obAvg}%` }} /></div>
-                <div className="meta" style={{ margin: "16px 0 4px", fontWeight: 700 }}>Needs attention</div>
-                {obIncomplete.map((p) => (
-                  <div key={p.id} style={{ padding: "9px 0", borderTop: "1px solid var(--line)", display: "flex", alignItems: "center", gap: 10 }}>
-                    <div className="avatar sm">{initials(p.name)}</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className="nm link" style={{ fontSize: 13, fontWeight: 700 }} onClick={() => onOpenProfile?.(p.id)}>{p.name}</div>
-                      <div className="sub meta">{p.missing.slice(0, 2).join(", ")}{p.missing.length > 2 ? ` +${p.missing.length - 2}` : ""}</div>
-                    </div>
-                    <strong style={{ fontSize: 12.5 }}>{p.pct}%</strong>
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
         </div>
 
         <div className="section-head">
@@ -227,17 +193,14 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
         )}
 
         <div className="section-head"><h2>Today's attendance</h2><button className="btn btn-ghost btn-sm" onClick={() => onNavigate("Attendance")}>Full board</button></div>
-        {!board || board.present === 0 ? (
-          <div className="empty">No check-ins yet today.</div>
+        {!board || !board.rows || board.rows.every((r) => !r.mark) ? (
+          <div className="empty">Attendance is not marked for today yet. Open Attendance to mark it.</div>
         ) : (
           <div className="card">
-            {board.rows.filter((r) => r.status !== "absent").slice(0, 20).map((r) => (
+            {board.rows.filter((r) => r.mark).slice(0, 30).map((r) => (
               <div key={r.id} className="task-row">
-                <div>
-                  <div className="title">{r.name}</div>
-                  <div className="meta">{r.department} · in {r.first_in ? new Date(r.first_in.replace(" ", "T") + "Z").toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}</div>
-                </div>
-                <span className={`badge ${r.status === "in" ? "done" : "sent"}`}>{r.status === "in" ? "In clinic" : "Checked out"}</span>
+                <div><div className="title">{r.name}</div><div className="meta">{r.department}</div></div>
+                <span className={`badge ${r.mark === "P" ? "done" : r.mark === "A" || r.mark === "L" ? "overdue" : "accepted"}`}>{r.mark_label}</span>
               </div>
             ))}
           </div>

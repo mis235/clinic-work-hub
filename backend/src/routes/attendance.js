@@ -7,7 +7,6 @@ import {
   verifyAuthenticationResponse,
 } from "@simplewebauthn/server";
 import db from "../db.js";
-import { shiftFor, getTypes } from "./roster.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
 
 const router = Router();
@@ -231,83 +230,100 @@ router.post("/punch", requireAuth, (req, res) => {
   res.status(201).json({ ok: true, type, recorded_at: row.recorded_at });
 });
 
-// Anyone whose first check-in is after this India-time hour counts as "late" (set LATE_AFTER=HH:MM in .env to change).
-const LATE_AFTER = /^\d{2}:\d{2}$/.test(process.env.LATE_AFTER || "") ? process.env.LATE_AFTER : "10:00";
-export const isLateIn = (utc, start = LATE_AFTER) => !!utc && new Date(new Date(utc.replace(" ", "T") + "Z").getTime() + 19800000).toISOString().slice(11, 16) > start;
-const startFor = (userId, date) => getTypes()[shiftFor(userId, date)]?.start || LATE_AFTER; // the person's own shift start, else the clinic default
+// ---------------------------------------------------------------------------
+// Attendance register. Staff do NOT check in on the app: the admin / manager marks each day
+// (like the paper sheet), and everything else (dashboard, fines, payroll hints) reads from these marks.
+// ---------------------------------------------------------------------------
+db.exec(`CREATE TABLE IF NOT EXISTS attendance_marks (
+  user_id TEXT NOT NULL REFERENCES users(id),
+  mark_date TEXT NOT NULL,           -- YYYY-MM-DD (India date)
+  status TEXT NOT NULL,              -- P present | L late | H half day | LV leave | A absent | W week off / holiday
+  note TEXT,
+  marked_by TEXT REFERENCES users(id),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, mark_date)
+);`);
+export const MARKS = { P: "Present", L: "Late", H: "Half day", LV: "Leave", A: "Absent", W: "Week off / holiday" };
+const isLead = (u) => u?.roleName === "admin" || u?.roleName === "manager";
+const istToday = () => new Date(Date.now() + 19800000).toISOString().slice(0, 10);
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-// Admin / manager board: everyone's first check-in, last check-out and hours for one day (default today).
+/** { P: n, L: n, ... } plus present-day total for one person in one month (used by the staff home screen). */
+export function monthCounts(userId, month) {
+  const rows = db.prepare("SELECT status, COUNT(*) n FROM attendance_marks WHERE user_id = ? AND substr(mark_date,1,7) = ? GROUP BY status").all(userId, month);
+  const c = { P: 0, L: 0, H: 0, LV: 0, A: 0, W: 0 };
+  for (const r of rows) c[r.status] = r.n;
+  return { ...c, present: c.P + c.L + c.H * 0.5 };
+}
+export const markFor = (userId, date) => db.prepare("SELECT status FROM attendance_marks WHERE user_id = ? AND mark_date = ?").get(userId, date)?.status || null;
+
 router.get("/board", requireAuth, requirePermission("attendance:view_all"), (req, res) => {
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(req.query.date || "") ? req.query.date : new Date(Date.now() + 19800000).toISOString().slice(0, 10);
-  const staff = db.prepare(
-    `SELECT u.id, u.name, u.designation, d.name AS department FROM users u LEFT JOIN departments d ON d.id = u.department_id
-     WHERE u.active = 1 ORDER BY d.name, u.name`).all();
-  const recs = db.prepare(`SELECT * FROM attendance WHERE ${istDay("recorded_at")} = ? ORDER BY recorded_at ASC`).all(date);
-  const by = new Map();
-  for (const r of recs) { if (!by.has(r.user_id)) by.set(r.user_id, []); by.get(r.user_id).push(r); }
-  const toMs = (t) => new Date(t.replace(" ", "T") + "Z").getTime();
-  const rows = staff.map((u) => {
-    const list = by.get(u.id) || [];
-    let ms = 0, openAt = null;
-    for (const r of list) {
-      if (r.type === "check_in" && openAt === null) openAt = toMs(r.recorded_at);
-      else if (r.type === "check_out" && openAt !== null) { ms += toMs(r.recorded_at) - openAt; openAt = null; }
-    }
-    const first = list.find((r) => r.type === "check_in");
-    const lastOut = [...list].reverse().find((r) => r.type === "check_out");
-    return {
-      ...u, late: isLateIn(first?.recorded_at, startFor(u.id, date)), shift: shiftFor(u.id, date), status: !list.length ? "absent" : openAt !== null ? "in" : "out",
-      first_in: first?.recorded_at || null, last_out: lastOut?.recorded_at || null,
-      hours: Math.round((ms / 3600000) * 10) / 10, methods: [...new Set(list.map((r) => r.method))],
-    };
-  });
-  res.json({ date, late_after: LATE_AFTER, rows, present: rows.filter((r) => r.status !== "absent").length, total: rows.length });
-});
-
-// Monthly attendance for the whole team: days present per person.
-router.get("/month", requireAuth, requirePermission("attendance:view_all"), (req, res) => {
-  const month = /^\d{4}-\d{2}$/.test(req.query.month || "") ? req.query.month : new Date(Date.now() + 19800000).toISOString().slice(0, 7);
+  const date = DATE_RE.test(req.query.date || "") ? req.query.date : istToday();
   const rows = db.prepare(
-    `SELECT u.id, u.name, d.name AS department,
-       COUNT(DISTINCT ${istDay("a.recorded_at")}) AS days_present
+    `SELECT u.id, u.name, u.designation, d.name AS department, m.status AS mark, m.note
      FROM users u LEFT JOIN departments d ON d.id = u.department_id
-     LEFT JOIN attendance a ON a.user_id = u.id AND a.type = 'check_in' AND substr(${istDay("a.recorded_at")}, 1, 7) = ?
-     WHERE u.active = 1 GROUP BY u.id ORDER BY d.name, u.name`).all(month);
-  res.json({ month, rows });
+     LEFT JOIN attendance_marks m ON m.user_id = u.id AND m.mark_date = ?
+     WHERE u.active = 1 ORDER BY d.name, u.name`).all(date);
+  const counts = { P: 0, L: 0, H: 0, LV: 0, A: 0, W: 0, unmarked: 0 };
+  for (const r of rows) counts[r.mark || "unmarked"]++;
+  res.json({ date, rows, counts, total: rows.length, present: counts.P + counts.L + counts.H, labels: MARKS });
 });
 
-// The attendance register for a month, one row per person and one column per day:
-// P = present, L = present but late, A = absent, W = Sunday off, "" = future day. Also late count and fines, like the paper sheet.
+// Mark one person for one day. status "" clears the mark.
+router.put("/mark", requireAuth, (req, res) => {
+  if (!isLead(req.user)) return res.status(403).json({ error: "Only admin or a manager can mark attendance" });
+  const { userId, date, status, note } = req.body || {};
+  if (!DATE_RE.test(date || "") || date > istToday()) return res.status(400).json({ error: "Choose today or an earlier date" });
+  if (!db.prepare("SELECT 1 FROM users WHERE id = ? AND active = 1").get(userId)) return res.status(400).json({ error: "Choose a staff member" });
+  if (!status) db.prepare("DELETE FROM attendance_marks WHERE user_id = ? AND mark_date = ?").run(userId, date);
+  else if (!MARKS[status]) return res.status(400).json({ error: "Unknown status" });
+  else db.prepare(
+    `INSERT INTO attendance_marks (user_id, mark_date, status, note, marked_by) VALUES (?,?,?,?,?)
+     ON CONFLICT(user_id, mark_date) DO UPDATE SET status = excluded.status, note = excluded.note, marked_by = excluded.marked_by, updated_at = datetime('now')`
+  ).run(userId, date, status, note ? String(note).slice(0, 200) : null, req.user.userId);
+  res.json({ ok: true });
+});
+
+// Mark everyone who is still unmarked for a day in one go (e.g. all Present, then fix the exceptions).
+router.post("/mark-day", requireAuth, (req, res) => {
+  if (!isLead(req.user)) return res.status(403).json({ error: "Only admin or a manager can mark attendance" });
+  const { date, status, department } = req.body || {};
+  if (!DATE_RE.test(date || "") || date > istToday()) return res.status(400).json({ error: "Choose today or an earlier date" });
+  if (!MARKS[status]) return res.status(400).json({ error: "Unknown status" });
+  const users = db.prepare(
+    `SELECT u.id FROM users u LEFT JOIN departments d ON d.id = u.department_id WHERE u.active = 1 ${department ? "AND d.name = ?" : ""}
+     AND NOT EXISTS (SELECT 1 FROM attendance_marks m WHERE m.user_id = u.id AND m.mark_date = ?)`).all(...(department ? [department, date] : [date]));
+  const ins = db.prepare("INSERT INTO attendance_marks (user_id, mark_date, status, marked_by) VALUES (?,?,?,?)");
+  db.transaction(() => users.forEach((u) => ins.run(u.id, date, status, req.user.userId)))();
+  res.json({ ok: true, marked: users.length });
+});
+
+// The month register: one row per person, one column per day, with totals and fines.
 router.get("/register", requireAuth, requirePermission("attendance:view_all"), (req, res) => {
-  const nowIst = new Date(Date.now() + 19800000);
-  const month = /^\d{4}-\d{2}$/.test(req.query.month || "") ? req.query.month : nowIst.toISOString().slice(0, 7);
+  const now = istToday();
+  const month = /^\d{4}-\d{2}$/.test(req.query.month || "") ? req.query.month : now.slice(0, 7);
   const [y, m] = month.split("-").map(Number);
   const daysInMonth = new Date(y, m, 0).getDate();
-  const todayStr = nowIst.toISOString().slice(0, 10);
   const staff = db.prepare(
     `SELECT u.id, u.name, u.designation, d.name AS department FROM users u LEFT JOIN departments d ON d.id = u.department_id
      WHERE u.active = 1 ORDER BY d.name, u.name`).all();
-  const recs = db.prepare(`SELECT user_id, recorded_at, ${istDay("recorded_at")} AS day FROM attendance WHERE type = 'check_in' AND substr(${istDay("recorded_at")},1,7) = ? ORDER BY recorded_at`).all(month);
-  const firstIn = new Map();
-  for (const r of recs) { const k = r.user_id + "|" + r.day; if (!firstIn.has(k)) firstIn.set(k, r.recorded_at); }
+  const marks = db.prepare("SELECT user_id, mark_date, status FROM attendance_marks WHERE substr(mark_date,1,7) = ?").all(month);
+  const by = new Map(marks.map((r) => [r.user_id + "|" + r.mark_date, r.status]));
   const fines = db.prepare("SELECT user_id, COALESCE(SUM(amount),0) AS total, COUNT(*) AS n FROM fines WHERE substr(fine_date,1,7) = ? GROUP BY user_id").all(month);
   const fineBy = new Map(fines.map((f) => [f.user_id, f]));
   const rows = staff.map((u) => {
-    let present = 0, late = 0, absent = 0;
+    const c = { P: 0, L: 0, H: 0, LV: 0, A: 0, W: 0 };
     const days = [];
     for (let d = 1; d <= daysInMonth; d++) {
       const date = `${month}-${String(d).padStart(2, "0")}`;
-      if (date > todayStr) { days.push(""); continue; }
-      const t = firstIn.get(u.id + "|" + date);
-      const planned = shiftFor(u.id, date);
-      if (!t) { if (planned === "off" || (!planned && new Date(date + "T00:00:00Z").getUTCDay() === 0)) days.push("W"); else { days.push("A"); absent++; } }
-      else if (isLateIn(t, startFor(u.id, date))) { days.push("L"); late++; present++; }
-      else { days.push("P"); present++; }
+      const st = by.get(u.id + "|" + date) || "";
+      if (st) c[st]++;
+      days.push(st);
     }
     const f = fineBy.get(u.id);
-    return { ...u, days, present, late, absent, fine_count: f?.n || 0, fine_total: f?.total || 0 };
+    return { ...u, days, present: c.P + c.L + c.H * 0.5, late: c.L, absent: c.A, leave: c.LV, fine_count: f?.n || 0, fine_total: f?.total || 0 };
   });
-  res.json({ month, daysInMonth, late_after: LATE_AFTER, rows });
+  res.json({ month, daysInMonth, today: now, labels: MARKS, rows });
 });
 
 // GET /api/attendance/registered — whether the current user has a registered device

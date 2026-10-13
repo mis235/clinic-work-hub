@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import PageShell from "../components/PageShell.jsx";
+import WorkspacePanel from "../components/WorkspacePanel.jsx";
 
-const fmtTime = (t) => (t ? new Date(t.replace(" ", "T") + "Z").toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true }) : "—");
 const pctText = (p) => (p == null ? "—" : p + "%");
 const rupee = (n) => "₹" + Number(n || 0).toLocaleString("en-IN");
 
@@ -11,8 +11,9 @@ export default function DepartmentsPage({ user, onLogout, onBack, onOpenProfile 
   const [rows, setRows] = useState(null);
   const [open, setOpen] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [tab, setTab] = useState("workspace");
   useEffect(() => { api.portalDepartments().then((d) => setRows(d.rows)).catch(() => setRows([])); }, []);
-  useEffect(() => { if (open) { setDetail(null); api.portalDepartment(open).then(setDetail).catch(() => setDetail({ people: [], documents: [], stats: {}, department: { name: "" } })); } }, [open]);
+  useEffect(() => { if (open) { setDetail(null); setTab("workspace"); api.portalDepartment(open).then(setDetail).catch(() => setDetail({ people: [], documents: [], stats: {}, department: { name: "" } })); } }, [open]);
 
   return (
     <PageShell user={user} active="Departments" title="Departments" onLogout={onLogout} onBack={onBack}>
@@ -37,22 +38,31 @@ export default function DepartmentsPage({ user, onLogout, onBack, onOpenProfile 
         </div>
       ))}
 
-      {open && (!detail ? <div className="empty">Loading…</div> : (
+      {open && (
+        <div className="pill-row">
+          <button className={`pill ${tab === "workspace" ? "active" : ""}`} onClick={() => setTab("workspace")}>Workspace</button>
+          <button className={`pill ${tab === "people" ? "active" : ""}`} onClick={() => setTab("people")}>People & work</button>
+          <button className={`pill ${tab === "docs" ? "active" : ""}`} onClick={() => setTab("docs")}>Documents</button>
+        </div>
+      )}
+      {open && tab === "workspace" && <WorkspacePanel deptId={open} />}
+
+      {open && tab !== "workspace" && (!detail ? <div className="empty">Loading…</div> : (
         <>
-          <div className="card" style={{ marginBottom: 16 }}>
+          {tab === "people" && <div className="card" style={{ marginBottom: 16 }}>
             <div className="title" style={{ marginBottom: 6 }}>People (work done = last 30 days)</div>
             {detail.people.map((p) => (
               <div key={p.id} className="task-row" style={{ cursor: "pointer" }} onClick={() => onOpenProfile?.(p.id)}>
-                <div><div className="title">{p.name}</div><div className="meta">{p.designation || "—"} · In today: {fmtTime(p.first_in)}</div></div>
+                <div><div className="title">{p.name}</div><div className="meta">{p.designation || "—"}</div></div>
                 <div className="right" style={{ gap: 8 }}>
-                  <span className={`badge ${p.first_in ? "done" : "overdue"}`}>{p.first_in ? "In" : "Not in"}</span>
+                  <span className={`badge ${p.today_mark === "P" ? "done" : p.today_mark ? "accepted" : "sent"}`}>{p.today_label || "Not marked"}</span>
                   <span className="badge accepted">Work {pctText(p.completion_pct)}</span>
                   {p.fines_month > 0 && <span className="badge overdue">Fine {rupee(p.fines_month)}</span>}
                 </div>
               </div>
             ))}
-          </div>
-          <div className="card">
+          </div>}
+          {tab === "docs" && <div className="card">
             <div className="title" style={{ marginBottom: 6 }}>Documents uploaded by this department</div>
             {detail.documents.length === 0 && <div className="empty">Nothing uploaded yet. Staff can add their work documents from the Documents page.</div>}
             {detail.documents.map((d) => (
@@ -63,7 +73,7 @@ export default function DepartmentsPage({ user, onLogout, onBack, onOpenProfile 
                   : <button className="btn btn-ghost btn-sm" onClick={() => api.downloadDocument(d.id, d.file_name)}>Download</button>}
               </div>
             ))}
-          </div>
+          </div>}
         </>
       ))}
     </PageShell>

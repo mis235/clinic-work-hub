@@ -4,6 +4,28 @@ import { api } from "../api.js";
 import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
 
+export function AdvisorsBody({ intro = true }) {
+  const [advisors, setAdvisors] = useState(null);
+  const [active, setActive] = useState(null);
+  useEffect(() => { api.listAdvisors().then(setAdvisors).catch(() => setAdvisors([])); }, []);
+  return active ? (
+    <AdvisorChat advisor={active} onBack={() => setActive(null)} />
+  ) : (
+    <>
+      {intro && <p className="meta">Specialist advisers for staffing and workforce questions. Advice only, nothing changes automatically.</p>}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12, marginTop: 12 }}>
+        {advisors === null && <div className="empty">Loading…</div>}
+        {advisors?.map((a) => (
+          <button key={a.id} onClick={() => setActive(a)} style={{ textAlign: "left", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 14, padding: 18, cursor: "pointer" }}>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>{a.name}</div>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 6, lineHeight: 1.5 }}>{a.mission}</div>
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
 export default function AdvisorsPage({ user, onLogout, onBack }) {
   const [advisors, setAdvisors] = useState(null);
   const [active, setActive] = useState(null);

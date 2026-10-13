@@ -3,7 +3,6 @@ import { api } from "./api.js";
 import Login from "./pages/Login.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import StaffDashboard from "./pages/StaffDashboard.jsx";
-import AdvisorsPage from "./pages/AdvisorsPage.jsx";
 import PoliciesPage from "./pages/PoliciesPage.jsx";
 import ReportsPage from "./pages/ReportsPage.jsx";
 import AboutPage from "./pages/AboutPage.jsx";
@@ -17,19 +16,17 @@ import TrackerPage from "./pages/TrackerPage.jsx";
 import ShiftChecklistPage from "./pages/ShiftChecklistPage.jsx";
 import ShiftLogsPage from "./pages/ShiftLogsPage.jsx";
 import StaffProfilePage from "./pages/StaffProfilePage.jsx";
-import OnboardingPage from "./pages/OnboardingPage.jsx";
 import SystemPage from "./pages/SystemPage.jsx";
 import ConnectedToolPage from "./pages/ConnectedToolPage.jsx";
 import AttendancePage from "./pages/AttendancePage.jsx";
 import ExitsPage from "./pages/ExitsPage.jsx";
-import RosterPage from "./pages/RosterPage.jsx";
 import ClinicDashboardPage from "./pages/ClinicDashboardPage.jsx";
 import DepartmentsPage from "./pages/DepartmentsPage.jsx";
 import DocumentsPage from "./pages/DocumentsPage.jsx";
 import ChangePinModal from "./components/ChangePinModal.jsx";
 
 const VIEW_KEY = {
-  "Dashboard": "dashboard", "AI Advisors": "advisors", "Policies": "policies", "Reports": "reports",
+  "Dashboard": "dashboard", "AI Advisors": "assistant", "Policies": "policies", "Reports": "reports",
   "About": "about", "Learning": "learning", "Events": "events", "HR": "hr", "Payroll": "payroll", "Staff": "staff",
   "Assistant": "assistant", "Tracker": "tracker", "Shift Checklist": "shiftchecklist", "Shift Logs": "shiftlogs", "Onboarding": "onboarding", "System": "system", "Attendance": "attendance", "Clinic Assistant": "clinicassistant", "Dashboards": "dashboards", "Documents": "documents", "Departments": "departments", "Roster": "roster", "Exits": "exits",
 };
@@ -70,16 +67,13 @@ export default function App() {
 
   function renderApp() {
   if (user.role === "admin" || user.role === "manager") {
-    if (view === "onboarding" && user.role === "admin") return <OnboardingPage user={user} onLogout={logout} onBack={navigate} onOpenProfile={(id) => openProfile(id, "Onboarding")} />;
     if (view === "system" && user.role === "admin") return <SystemPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "clinicassistant") return <ConnectedToolPage toolKey="assistant" active="Clinic Assistant" user={user} onLogout={logout} onBack={navigate} />;
     if (view === "dashboards") return <ClinicDashboardPage user={user} onLogout={logout} onBack={navigate} onNavigate={navigate} />;
     if (view === "exits" && user.role === "admin") return <ExitsPage user={user} onLogout={logout} onBack={navigate} />;
-    if (view === "roster") return <RosterPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "attendance") return <AttendancePage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "departments") return <DepartmentsPage user={user} onLogout={logout} onBack={navigate} onOpenProfile={(id) => openProfile(id, "Departments")} />;
     if (view === "documents") return <DocumentsPage user={user} onLogout={logout} onBack={navigate} />;
-    if (view === "advisors") return <AdvisorsPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "assistant") return <AssistantPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "tracker") return <TrackerPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "shiftchecklist") return <ShiftChecklistPage user={user} onLogout={logout} onBack={navigate} />;

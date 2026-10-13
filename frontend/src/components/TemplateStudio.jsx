@@ -121,38 +121,79 @@ function UploadModal({ kind, companies, onClose, onDone }) {
   );
 }
 
+// Pick people, optionally review and edit every field of each person's document, then generate.
 function GenerateModal({ kind, template, roster, onClose, onDone }) {
   const isPay = kind === "payslip";
   const [period, setPeriod] = useState(new Date(Date.now() + 19800000).toISOString().slice(0, 7));
-  const [pick, setPick] = useState(null); // null = everyone
+  const [pick, setPick] = useState(kind === "offer_letter" ? "some" : null); // null = everyone
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
-  const people = useMemo(() => roster.filter((r) => r.role !== "admin" || true), [roster]);
+  const people = useMemo(() => roster, [roster]);
   const [chosen, setChosen] = useState(new Set());
+  const [review, setReview] = useState(null);   // { fields, people } once "Review & edit" is pressed
+  const [edits, setEdits] = useState({});       // { userId: { key: value } } only what the admin changed
+  const [open, setOpen] = useState(null);
+
+  const ids = () => (pick === "some" ? [...chosen] : undefined);
+  async function loadReview() {
+    setBusy(true); setErr("");
+    try { const r = await api.prefillDocs({ templateId: template.id, period: isPay ? period : undefined, userIds: ids() }); setReview(r); setEdits({}); setOpen(r.people[0]?.id || null); }
+    catch (e) { setErr(e.message); }
+    setBusy(false);
+  }
+  const setField = (uid, k, v) => setEdits((e) => ({ ...e, [uid]: { ...(e[uid] || {}), [k]: v } }));
   async function go() {
     setBusy(true); setErr("");
-    try { onDone(await api.generateDocs({ templateId: template.id, period: isPay ? period : undefined, userIds: pick === "some" ? [...chosen] : undefined })); }
+    try { onDone(await api.generateDocs({ templateId: template.id, period: isPay ? period : undefined, userIds: ids(), overrides: edits })); }
     catch (e) { setErr(e.message); setBusy(false); }
   }
+  const toggle = (id) => setChosen((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const changed = (uid) => Object.keys(edits[uid] || {}).length;
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div className="modal wide" onClick={(e) => e.stopPropagation()}>
         <h3>Generate from “{template.name}”</h3>
-        {isPay && (<><label className="field-label">Pay month</label><input className="field" type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
-          <p className="lead" style={{ marginTop: 8 }}>{template.company ? `Only staff whose salary is set under ${template.company}.` : "Every staff member who has salary details."}</p></>)}
-        <div className="tab-switch" style={{ margin: "14px 0" }}>
-          <button className={pick === null ? "active" : ""} onClick={() => setPick(null)}>Everyone</button>
-          <button className={pick === "some" ? "active" : ""} onClick={() => setPick("some")}>Choose people</button>
-        </div>
-        {pick === "some" && (
-          <div style={{ maxHeight: 220, overflowY: "auto", border: "1px solid var(--line)", borderRadius: 12, padding: 8 }}>
-            {people.map((p) => (
-              <label key={p.id} style={{ display: "flex", gap: 8, padding: "4px 6px", fontSize: 13, cursor: "pointer" }}>
-                <input type="checkbox" checked={chosen.has(p.id)} onChange={() => setChosen((s) => { const n = new Set(s); n.has(p.id) ? n.delete(p.id) : n.add(p.id); return n; })} />{p.name} <span className="meta">· {p.department}</span>
-              </label>))}
+        {!review ? (<>
+          {isPay && (<><label className="field-label">Pay month</label><input className="field" type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
+            <p className="lead" style={{ marginTop: 8 }}>{template.company ? `Only staff whose salary is set under ${template.company}.` : "Every staff member who has salary details."}</p></>)}
+          <div className="tab-switch" style={{ margin: "14px 0" }}>
+            <button className={pick === null ? "active" : ""} onClick={() => setPick(null)}>Everyone</button>
+            <button className={pick === "some" ? "active" : ""} onClick={() => setPick("some")}>Choose people</button>
+          </div>
+          {pick === "some" && (
+            <div style={{ maxHeight: 240, overflowY: "auto", border: "1px solid var(--line)", borderRadius: 12, padding: 8 }}>
+              {people.map((p) => (
+                <label key={p.id} style={{ display: "flex", gap: 8, padding: "4px 6px", fontSize: 13, cursor: "pointer" }}>
+                  <input type="checkbox" checked={chosen.has(p.id)} onChange={() => toggle(p.id)} />{p.name} <span className="meta">· {p.department}</span>
+                </label>))}
+            </div>)}
+          <p className="lead" style={{ marginTop: 10 }}>You can generate straight away, or press <b>Review & edit</b> to change any detail (address, salary, joining date, job duties…) for each person first.</p>
+        </>) : (
+          <div style={{ maxHeight: "58vh", overflowY: "auto" }}>
+            <p className="lead">Everything below fills the document. Change anything that needs to be different for that person — blue ones are changed.</p>
+            {review.people.map((p) => (
+              <div key={p.id} className="card" style={{ marginBottom: 8, padding: 12 }}>
+                <div className="row" style={{ justifyContent: "space-between", cursor: "pointer" }} onClick={() => setOpen(open === p.id ? null : p.id)}>
+                  <b>{p.name}</b><span className="meta">{changed(p.id) ? `${changed(p.id)} edited · ` : ""}{open === p.id ? "Hide" : "Edit"}</span>
+                </div>
+                {open === p.id && review.fields.map((f) => {
+                  const val = edits[p.id]?.[f.key] ?? p.values[f.key] ?? "";
+                  const dirty = edits[p.id] && f.key in edits[p.id];
+                  return (
+                    <label key={f.key} style={{ display: "grid", gap: 3, marginTop: 8, fontSize: 12.5 }}>{f.label}
+                      {f.type === "text"
+                        ? <input className="field" style={dirty ? { borderColor: "var(--primary)" } : null} value={val} onChange={(e) => setField(p.id, f.key, e.target.value)} />
+                        : <textarea className="field" rows={f.type === "list" ? 6 : 3} style={dirty ? { borderColor: "var(--primary)" } : null} value={val} onChange={(e) => setField(p.id, f.key, e.target.value)} />}
+                    </label>);
+                })}
+              </div>))}
           </div>)}
         {err && <div className="login-error" style={{ marginTop: 12 }}>{err}</div>}
-        <div className="actions"><button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" disabled={busy || (pick === "some" && !chosen.size)} onClick={go}>{busy ? "Generating…" : "Generate"}</button></div>
+        <div className="actions">
+          <button className="btn btn-ghost" onClick={review ? () => setReview(null) : onClose}>{review ? "← Back" : "Cancel"}</button>
+          {!review && <button className="btn btn-outline" disabled={busy || (pick === "some" && !chosen.size)} onClick={loadReview}>{busy ? "Loading…" : "Review & edit"}</button>}
+          <button className="btn btn-primary" disabled={busy || (pick === "some" && !chosen.size)} onClick={go}>{busy ? "Generating…" : "Generate"}</button>
+        </div>
       </div>
     </div>
   );

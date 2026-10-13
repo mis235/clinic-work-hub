@@ -3,6 +3,7 @@ import { navItemsFor } from "../navItems.js";
 import { api } from "../api.js";
 import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
+import { AdvisorsBody } from "./AdvisorsPage.jsx";
 
 const SOURCE_LABEL = { data: "Live data", policy: "Policy", ai: "AI", fallback: "", error: "" };
 
@@ -14,6 +15,8 @@ export default function AssistantPage({ user, isStaffLayout, onLogout, onBack })
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [tab, setTab] = useState("help");
+  const isLead = user.role === "admin" || user.role === "manager";
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -44,8 +47,15 @@ export default function AssistantPage({ user, isStaffLayout, onLogout, onBack })
     <>
       <div className="page-head">
         <h1>AI Assistant</h1>
-        <p>Instant answers on tasks, attendance, and policies — available to everyone, no setup required.</p>
+        <p>{tab === "help" ? "Instant answers on tasks, attendance and policies." : "Specialist advisers for managers."}</p>
       </div>
+      {isLead && (
+        <div className="pill-row">
+          <button className={`pill ${tab === "help" ? "active" : ""}`} onClick={() => setTab("help")}>Help assistant</button>
+          <button className={`pill ${tab === "advisors" ? "active" : ""}`} onClick={() => setTab("advisors")}>Advisers</button>
+        </div>
+      )}
+      {tab === "advisors" && isLead ? <AdvisorsBody intro={false} /> : <>
 
       <div className="chat-window">
         {messages.map((m, i) => (
@@ -81,6 +91,7 @@ export default function AssistantPage({ user, isStaffLayout, onLogout, onBack })
         />
         <button className="btn btn-primary btn-brass" disabled={busy || !input.trim()} onClick={() => send()}>Send</button>
       </div>
+      </>}
     </>
   );
 

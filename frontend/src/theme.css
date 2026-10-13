@@ -452,3 +452,5 @@ input.field:focus, select.field:focus, textarea.field:focus { border-color: var(
 .step span { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: #e8edf0; font-size: 11px; flex: none; }
 .step.done { color: var(--green); border-color: var(--green); } .step.done span { background: var(--green); color: #fff; }
 .step.now { color: var(--primary-dark); border-color: var(--primary); background: var(--primary-soft); } .step.now span { background: var(--primary); color: #fff; }
+.reg-table .c-H, .reg-table .c-LV { background: var(--blue-soft); color: var(--blue); font-weight: 700; }
+.reg-table td.clk { cursor: pointer; user-select: none; } .reg-table td.clk:hover { outline: 2px solid var(--primary); outline-offset: -2px; }
