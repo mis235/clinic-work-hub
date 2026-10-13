@@ -434,6 +434,35 @@ ensureColumn("training_videos", "description", "description TEXT");
 ensureColumn("training_videos", "file_path", "file_path TEXT");            // uploaded video file (private, streamed via authenticated route)
 ensureColumn("training_videos", "mime", "mime TEXT");
 ensureColumn("training_videos", "sort_order", "sort_order INTEGER NOT NULL DEFAULT 0");
+ensureColumn("users", "photo_path", "photo_path TEXT");                    // profile picture (private file, served through an authenticated route)
+ensureColumn("users", "alt_phone", "alt_phone TEXT");                      // alternate phone number
+ensureColumn("training_videos", "folder", "folder TEXT");                  // optional folder inside a department's library
+ensureColumn("training_videos", "kind", "kind TEXT NOT NULL DEFAULT 'video'"); // video | file (PDF, slides, sheets...)
+ensureColumn("training_videos", "file_name", "file_name TEXT");
+db.exec(`
+CREATE TABLE IF NOT EXISTS face_templates (
+  user_id TEXT PRIMARY KEY REFERENCES users(id),
+  descriptors TEXT NOT NULL,           -- JSON array of 128-number face descriptors (no photo is stored for matching)
+  enrolled_by TEXT REFERENCES users(id),
+  enrolled_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS kiosk_devices (
+  id TEXT PRIMARY KEY,
+  label TEXT NOT NULL,
+  created_by TEXT REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  revoked_at TEXT,
+  last_seen TEXT
+);
+CREATE TABLE IF NOT EXISTS face_checkins (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  device_id TEXT,
+  distance REAL,
+  mark TEXT,
+  snapshot_path TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);`);
 ensureColumn("attendance", "note", "note TEXT");
 ensureColumn("attendance", "selfie_path", "selfie_path TEXT");
 

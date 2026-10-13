@@ -49,9 +49,9 @@ export default function Login({ onLoggedIn }) {
   return (
     <div className="login-wrap">
       <div className="login-hero">
-        <div className="login-building">
-          <img src="/clinic/building.jpg" alt="Dr. Nishita's Clinic building" />
-          <div>Dr. Nishita's Clinic</div>
+        <div className="login-portrait">
+          <img src="/clinic/dr-nishita.png" alt="Dr. Nishita Ranka" />
+          <div>Dr. Nishita Ranka<small>Founder & Medical Director</small></div>
         </div>
         <div className="login-hero-top">
           <img src="/logo.png" alt="Dr. Nishita's Clinic" className="login-hero-logo" />
@@ -80,10 +80,6 @@ export default function Login({ onLoggedIn }) {
             <div className="n">{deptCount || "—"}</div>
             <div className="l">Departments</div>
           </div>
-          <div className="login-hero-stat">
-            <div className="n">3</div>
-            <div className="l">Clinic entities</div>
-          </div>
         </div>
       </div>
 
@@ -91,11 +87,11 @@ export default function Login({ onLoggedIn }) {
         <div className="login-card">
           <div className="login-eyebrow">Staff sign-in</div>
           <h1>Welcome back</h1>
-          <p className="sub">Sign in to assign tasks, track checklists, and see what's happening across the clinic today.</p>
+          <p className="sub">Sign in to see your tasks, checklists and what's happening at the clinic today.</p>
 
           <div className="tab-switch">
-            <button className={tab === "password" ? "active" : ""} onClick={() => setTab("password")}>Admin / Manager</button>
-            <button className={tab === "pin" ? "active" : ""} onClick={() => setTab("pin")}>Staff (PIN)</button>
+            <button className={tab === "password" ? "active" : ""} onClick={() => setTab("password")}>Email & password</button>
+            <button className={tab === "pin" ? "active" : ""} onClick={() => setTab("pin")}>Name & PIN</button>
           </div>
 
           {error && <div className="login-error">{error}</div>}

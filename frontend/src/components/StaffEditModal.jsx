@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { api } from "../api.js";
+import Avatar from "./Avatar.jsx";
 
 // MM-DD (as stored) <-> a date-input value. Year is irrelevant for birthdays.
 export const mmddToInput = (v) => (v && /^\d{2}-\d{2}$/.test(v) ? `2000-${v}` : "");
@@ -7,12 +9,21 @@ export const inputToMmdd = (v) => (v ? v.slice(5) : null);
 const BLOOD = ["", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 const TYPES = ["", "Full-time", "Part-time", "Contract", "Intern"];
 
-export default function StaffEditModal({ staff, shiftRoles, managers = [], departments = [], onClose, onSave }) {
+export default function StaffEditModal({ staff, shiftRoles, managers = [], departments = [], onClose, onSave, onPhoto }) {
+  const [pv, setPv] = useState(0);
+  const [hasPhoto, setHasPhoto] = useState(!!staff.has_photo);
+  const [pErr, setPErr] = useState("");
+  const canAdmin = /^(dr\.? ?nishita|shreyas|naga|neelima)\b/i.test(staff.name || "");
+  async function pickPhoto(file) {
+    if (!file) return;
+    try { await api.uploadPhoto(staff.id, file); setHasPhoto(true); setPv(Date.now()); setPErr(""); onPhoto?.(); } catch (e) { setPErr(e.message); }
+  }
+  async function dropPhoto() { try { await api.removePhoto(staff.id); setHasPhoto(false); onPhoto?.(); } catch (e) { setPErr(e.message); } }
   const [f, setF] = useState({
     name: staff.name || "", departmentName: staff.department || "", roleName: staff.role || "staff",
     designation: staff.designation || "", employeeCode: staff.employee_code || "", employmentType: staff.employment_type || "",
     reportingTo: staff.reporting_to || "", joinedAt: staff.joined_at || "", shiftRole: staff.shift_role || "",
-    phone: staff.phone || "", email: staff.email || "", birthday: mmddToInput(staff.birthday), gender: staff.gender || "",
+    phone: staff.phone || "", altPhone: staff.alt_phone || "", email: staff.email || "", birthday: mmddToInput(staff.birthday), gender: staff.gender || "",
     bloodGroup: staff.blood_group || "", address: staff.address || "",
     emergencyContactName: staff.emergency_contact_name || "", emergencyContactPhone: staff.emergency_contact_phone || "",
   });
@@ -23,7 +34,7 @@ export default function StaffEditModal({ staff, shiftRoles, managers = [], depar
       name: f.name.trim() || undefined, departmentName: f.departmentName || undefined, roleName: f.roleName || undefined,
       designation: f.designation || null, employeeCode: f.employeeCode || null, employmentType: f.employmentType || null,
       reportingTo: f.reportingTo || null, joinedAt: f.joinedAt || null, shiftRole: f.shiftRole,
-      phone: f.phone || null, email: f.email || null, birthday: inputToMmdd(f.birthday), gender: f.gender || null,
+      phone: f.phone || null, altPhone: f.altPhone || null, email: f.email || null, birthday: inputToMmdd(f.birthday), gender: f.gender || null,
       bloodGroup: f.bloodGroup || null, address: f.address || null,
       emergencyContactName: f.emergencyContactName || null, emergencyContactPhone: f.emergencyContactPhone || null,
     });
@@ -36,6 +47,15 @@ export default function StaffEditModal({ staff, shiftRoles, managers = [], depar
         <h3>Edit {staff.name}</h3>
         <p className="lead">{staff.department} · {staff.role}</p>
 
+        <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 14 }}>
+          <Avatar id={staff.id} name={staff.name} hasPhoto={hasPhoto} size={64} v={pv} />
+          <div>
+            <label className="btn btn-outline btn-sm" style={{ cursor: "pointer" }}>{hasPhoto ? "Change picture" : "Add picture"}
+              <input type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(e) => pickPhoto(e.target.files[0])} /></label>
+            {hasPhoto && <button className="btn btn-ghost btn-sm" onClick={dropPhoto}>Remove</button>}
+            {pErr && <div className="login-error" style={{ marginTop: 6 }}>{pErr}</div>}
+          </div>
+        </div>
         <div className="step-label" style={{ marginTop: 14 }}>Basics</div>
         <div className="form-grid">
           <div><label className="field-label">Full name</label><input className="field" value={f.name} onChange={set("name")} /></div>
@@ -44,7 +64,7 @@ export default function StaffEditModal({ staff, shiftRoles, managers = [], depar
               {[...new Set([f.departmentName, ...departments].filter(Boolean))].map((d) => <option key={d}>{d}</option>)}</select></div>
           <div><label className="field-label">Access level</label>
             <select className="field" value={f.roleName} onChange={set("roleName")}>
-              <option value="staff">Staff</option><option value="manager">Manager (sees all, assigns tasks)</option><option value="admin">Admin (full control)</option></select></div>
+              <option value="staff">Staff</option><option value="manager">Manager (sees all, assigns tasks)</option>{(canAdmin || staff.role === "admin") && <option value="admin">Admin (full control)</option>}</select></div>
         </div>
 
         <div className="step-label" style={{ marginTop: 20 }}>Employment</div>
@@ -65,6 +85,7 @@ export default function StaffEditModal({ staff, shiftRoles, managers = [], depar
         <div className="step-label" style={{ marginTop: 20 }}>Personal & contact</div>
         <div className="form-grid">
           <div><label className="field-label">WhatsApp / mobile</label><input className="field" value={f.phone} onChange={set("phone")} placeholder="+91XXXXXXXXXX" /></div>
+          <div><label className="field-label">Alternate number</label><input className="field" value={f.altPhone} onChange={set("altPhone")} /></div>
           <div><label className="field-label">Email</label><input className="field" type="email" value={f.email} onChange={set("email")} /></div>
           <div><label className="field-label">Date of birth (day & month used)</label><input className="field" type="date" value={f.birthday} onChange={set("birthday")} /></div>
           <div><label className="field-label">Gender</label>

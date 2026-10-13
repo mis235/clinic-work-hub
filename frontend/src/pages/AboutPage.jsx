@@ -45,7 +45,7 @@ export default function AboutPage({ user, onLogout, onBack }) {
         {c && (
           <div className="clinic-hero">
             <div className="clinic-photo">
-              <img src={c.photo} alt="Dr. Nishita's Clinic building" />
+              <img src={c.photo} alt="Dr. Nishita Ranka" />
               {/* outline + label over the clinic's signboard in the photo */}
               <div className="board-mark" aria-hidden="true"><span>Dr. Nishita's Clinic</span></div>
             </div>

@@ -1,3 +1,4 @@
+import Avatar from "../components/Avatar.jsx";
 import { useEffect, useState } from "react";
 import { navItemsFor } from "../navItems.js";
 import { api } from "../api.js";
@@ -69,7 +70,7 @@ export default function StaffProfilePage({ user, staffId, isStaffLayout, onLogou
           <div className="profile-hero">
             <div className="banner" />
             <div className="body">
-              <div className="avatar xl">{initials(d.name)}</div>
+              <Avatar id={d.id} name={d.name} hasPhoto={!!d.has_photo} size={104} className="xl-photo" />
               <div className="who">
                 <h1>{d.name}</h1>
                 <div className="sub">{d.designation || "No designation set"} · {d.department}</div>
@@ -142,6 +143,7 @@ export default function StaffProfilePage({ user, staffId, isStaffLayout, onLogou
             <div className="card" style={{ marginBottom: 0 }}>
               <div className="card-head"><div className="name">Personal & emergency</div></div>
               <Row k="Mobile / WhatsApp" v={d.phone} />
+              <Row k="Alternate number" v={d.alt_phone} />
               <Row k="Email" v={d.email} />
               <Row k="Birthday" v={d.birthday} />
               <Row k="Gender" v={d.gender} />

@@ -4,7 +4,9 @@ import { navItemsFor } from "../navItems.js";
 import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
 import StaffEditModal from "../components/StaffEditModal.jsx";
-import Icon, { initials } from "../components/Icon.jsx";
+import Icon from "../components/Icon.jsx";
+import Avatar from "../components/Avatar.jsx";
+import FaceEnrollModal from "../components/FaceEnrollModal.jsx";
 
 const DEPTS = ["Management", "Front Desk", "Therapist", "MDO", "Doctors", "Pharmacy", "Floor Coordinator", "Finance", "Supporting Staff"];
 
@@ -17,10 +19,14 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
   const [dept, setDept] = useState("All");
   const [q, setQ] = useState("");
   const [toast, setToast] = useState(null);
+  const [photoVer, setPhotoVer] = useState(0);
+  const [faceFor, setFaceFor] = useState(null);
+  const [faces, setFaces] = useState({});
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const refresh = () => api.listRosterAll().then(setRoster).catch(() => setRoster([]));
-  useEffect(() => { refresh(); api.listShiftRoles().then(setShiftRoles).catch(() => setShiftRoles([])); }, []);
+  const loadFaces = () => api.enrolledFaces().then((r) => setFaces(Object.fromEntries(r.map((x) => [x.user_id, true])))).catch(() => {});
+  useEffect(() => { refresh(); loadFaces(); api.listShiftRoles().then(setShiftRoles).catch(() => setShiftRoles([])); }, []);
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
   async function remove(s) {
@@ -66,7 +72,7 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
             return (
               <div key={s.id} className="card" style={{ marginBottom: 0 }}>
                 <div className="person-row">
-                  <div className="avatar" style={{ width: 46, height: 46 }}>{initials(s.name)}</div>
+                  <Avatar id={s.id} name={s.name} hasPhoto={!!s.has_photo} size={46} v={photoVer} />
                   <div className="info">
                     <div className="nm"><span className="link" onClick={() => onOpenProfile(s.id)}>{s.name}</span></div>
                     <div className="sub">
@@ -81,6 +87,8 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
                   {s.employee_code && <span className="chip">{s.employee_code}</span>}
                   {s.employment_type && <span className="chip">{s.employment_type}</span>}
                   <span className={`chip ${realPhone ? "" : "warn"}`}>{realPhone ? s.phone : "placeholder phone"}</span>
+                  {s.alt_phone && <span className="chip">Alt: {s.alt_phone}</span>}
+                  {s.active && <span className={`chip ${faces[s.id] ? "" : "warn"}`}>{faces[s.id] ? "Face registered" : "Face not registered"}</span>}
                   {!s.email && <span className="chip warn">no email</span>}
                 </div>
                 <div className="meta" style={{ marginTop: 6 }}>
@@ -92,6 +100,7 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
                   {s.active
                     ? <>
                         <button className="btn btn-ghost btn-sm" onClick={() => setEditing(s)}>Edit details</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setFaceFor(s)}>{faces[s.id] ? "Re-do face" : "Register face"}</button>
                         {s.id !== user.id && <button className="btn btn-ghost btn-sm" onClick={() => remove(s)}>Remove</button>}
                       </>
                     : <button className="btn btn-outline btn-sm" onClick={async () => { await api.restoreStaff(s.id); flash(`${s.name} restored.`); refresh(); }}>Restore</button>}
@@ -102,10 +111,11 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
         </div>
 
         {toast && <div className="toast">{toast}</div>}
+        {faceFor && <FaceEnrollModal person={faceFor} onClose={() => setFaceFor(null)} onDone={(m) => { setFaceFor(null); flash(m); loadFaces(); }} />}
         {adding && <AddStaffModal departments={allDepts} shiftRoles={shiftRoles} onClose={() => setAdding(false)}
           onDone={(m) => { setAdding(false); flash(m); refresh(); }} />}
         {editing && (
-          <StaffEditModal staff={editing} shiftRoles={shiftRoles} managers={managers} departments={allDepts} onClose={() => setEditing(null)}
+          <StaffEditModal staff={editing} shiftRoles={shiftRoles} managers={managers} departments={allDepts} onClose={() => setEditing(null)} onPhoto={() => { setPhotoVer(Date.now()); refresh(); }}
             onSave={async (payload) => {
               try { await api.updateUser(editing.id, payload); flash(`Updated ${editing.name}.`); setEditing(null); } catch (e) { flash(e.message); }
               refresh();
@@ -117,10 +127,11 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
 }
 
 function AddStaffModal({ departments, shiftRoles, onClose, onDone }) {
-  const [f, setF] = useState({ name: "", departmentName: departments[0] || "Front Desk", roleName: "staff", phone: "", email: "", designation: "", shiftRole: "", joinedAt: "", pin: "1234" });
+  const [f, setF] = useState({ name: "", departmentName: departments[0] || "Front Desk", roleName: "staff", phone: "", altPhone: "", email: "", designation: "", shiftRole: "", joinedAt: "", pin: "1234" });
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   const [types, setTypes] = useState([]);
   const [files, setFiles] = useState({}); // docType -> File
+  const [photo, setPhoto] = useState(null);
   useEffect(() => { api.getOnboarding().then((o) => setTypes(o.docChecklist || [])).catch(() => {}); }, []);
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
   async function save() {
@@ -131,6 +142,7 @@ function AddStaffModal({ departments, shiftRoles, onClose, onDone }) {
     } catch (e) { setErr(e.message); setBusy(false); return; }
     // The person now exists, so a failed upload must not look like a failed "add" -- report it and carry on.
     const failed = [];
+    if (photo) { try { await api.uploadPhoto(created.id, photo); } catch { failed.push("profile picture"); } }
     for (const [type, file] of Object.entries(files)) {
       try { const fd = new FormData(); fd.append("docType", type); fd.append("file", file); await api.addStaffFile(created.id, fd); }
       catch { failed.push(file.name); }
@@ -144,8 +156,11 @@ function AddStaffModal({ departments, shiftRoles, onClose, onDone }) {
         <div className="form-grid">
           <div><label className="field-label">Full name *</label><input className="field" value={f.name} onChange={set("name")} /></div>
           <div><label className="field-label">Mobile number *</label><input className="field" value={f.phone} onChange={set("phone")} placeholder="+91XXXXXXXXXX" /></div>
+          <div><label className="field-label">Alternate number</label><input className="field" value={f.altPhone} onChange={set("altPhone")} placeholder="Another number to reach them" /></div>
+          <div><label className="field-label">Profile picture</label><input className="field" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setPhoto(e.target.files[0] || null)} />
+            {photo && <img alt="" src={URL.createObjectURL(photo)} style={{ width: 64, height: 64, borderRadius: "50%", objectFit: "cover", marginTop: 8 }} />}</div>
           <div><label className="field-label">Department *</label><select className="field" value={f.departmentName} onChange={set("departmentName")}>{departments.map((d) => <option key={d}>{d}</option>)}</select></div>
-          <div><label className="field-label">Access level</label><select className="field" value={f.roleName} onChange={set("roleName")}><option value="staff">Staff</option><option value="manager">Manager</option><option value="admin">Admin</option></select></div>
+          <div><label className="field-label">Access level</label><select className="field" value={f.roleName} onChange={set("roleName")}><option value="staff">Staff</option><option value="manager">Manager</option></select></div>
           <div><label className="field-label">Designation</label><input className="field" value={f.designation} onChange={set("designation")} /></div>
           <div><label className="field-label">Email</label><input className="field" type="email" value={f.email} onChange={set("email")} /></div>
           <div><label className="field-label">Date of joining</label><input className="field" type="date" value={f.joinedAt} onChange={set("joinedAt")} /></div>

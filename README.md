@@ -368,3 +368,9 @@ Admin > **Staff Exits**. Steps: Resignation received -> Serving notice -> Handov
 - **Departments & Workspaces**: each department has a workspace of sheets, dashboards and tools. Staff see their own ("My Workspace"); admin sees all.
 - **Dashboards** has tabs: Clinic overview, Checklist dashboard and Old dashboard, with an "Open in new tab" fallback for Google pages that refuse embedding.
 - **AI Assistant** combines the Help assistant and Advisers. Shift Roster and the Onboarding screen are gone from the menus (use Staff → Add staff).
+
+## Admin access, photos, face check-in, training folders
+- **Admin** is limited to Dr. Nishita, Shreyas, Naga and Neelima (enforced by the server; nobody else can be made admin). They are promoted automatically on start-up and must sign in again once.
+- **Staff photo and alternate number** are on Add staff / Edit details. Pictures are private (signed-in people only).
+- **Face check-in:** Attendance → Face check-in. Register each person's face once (needs a camera), create a *phone link* and open it once on the clinic phone. Staff look at the camera and are marked Present, or Late after 10:30 AM (`LATE_AFTER` in `backend/.env`). A snapshot of each check-in is kept for review. Phone cameras need an https address (or Chrome's "Insecure origins treated as secure" flag on that one phone).
+- **Training Library** has folders per department and accepts PDFs, slides and sheets as well as videos.

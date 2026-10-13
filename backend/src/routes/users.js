@@ -2,7 +2,12 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 import db from "../db.js";
+import multer from "multer";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { requireAuth, requirePermission, clearPermissionCache } from "../middleware/auth.js";
+import { adminGrantError, isOwnerName } from "../access.js";
 
 const router = Router();
 
@@ -16,7 +21,7 @@ router.get("/", (req, res) => {
        FROM users u
        JOIN roles r ON r.id = u.role_id
        LEFT JOIN departments d ON d.id = u.department_id
-       WHERE u.active = 1 AND r.name != 'admin'
+       WHERE u.active = 1 AND (r.name != 'admin' OR u.password_hash IS NULL)
        ORDER BY d.name, u.name`
     )
     .all();
@@ -28,7 +33,7 @@ router.get("/full", requireAuth, requirePermission("task:view_all"), (req, res) 
   backfillEmployeeCodes();
   const rows = db
     .prepare(
-      `SELECT u.id, u.name, u.phone, u.email, u.birthday, u.joined_at, u.designation, u.shift_role, u.active, u.employee_code, u.employment_type, u.reporting_to, u.emergency_contact_name, u.emergency_contact_phone, u.address, u.blood_group, u.gender, d.name AS department, r.name AS role
+      `SELECT u.id, u.name, u.phone, u.email, u.birthday, u.joined_at, u.designation, u.shift_role, u.active, u.employee_code, u.employment_type, u.reporting_to, u.emergency_contact_name, u.emergency_contact_phone, u.alt_phone, (u.photo_path IS NOT NULL) AS has_photo, u.address, u.blood_group, u.gender, d.name AS department, r.name AS role
        FROM users u
        JOIN roles r ON r.id = u.role_id
        LEFT JOIN departments d ON d.id = u.department_id
@@ -50,7 +55,7 @@ router.get("/shift-roles", requireAuth, requirePermission("task:view_all"), (req
 const EXTRA_FIELDS = {
   employeeCode: "employee_code", employmentType: "employment_type", reportingTo: "reporting_to",
   gender: "gender", bloodGroup: "blood_group", address: "address",
-  emergencyContactName: "emergency_contact_name", emergencyContactPhone: "emergency_contact_phone",
+  emergencyContactName: "emergency_contact_name", emergencyContactPhone: "emergency_contact_phone", altPhone: "alt_phone",
 };
 export const DOC_CHECKLIST = [
   { key: "id_proof", label: "Government ID (Aadhaar / PAN)" },
@@ -93,6 +98,7 @@ router.post("/", requireAuth, requirePermission("staff:manage"), (req, res) => {
   if (email && db.prepare("SELECT 1 FROM users WHERE email = ?").get(email)) return res.status(409).json({ error: "A staff member with this email already exists" });
   const role = db.prepare("SELECT id FROM roles WHERE name = ?").get(roleName);
   if (!role) return res.status(400).json({ error: `Unknown role: ${roleName}` });
+  if (roleName === "admin" && !isOwnerName(name)) return res.status(403).json({ error: "Admin access is only for Dr. Nishita, Shreyas, Naga and Neelima." });
   let dept = db.prepare("SELECT id FROM departments WHERE name = ?").get(departmentName);
   if (!dept) {
     const id = randomUUID();
@@ -191,6 +197,7 @@ router.patch("/:id/role", requireAuth, requirePermission("staff:manage"), (req, 
   const { roleName } = req.body || {};
   const role = db.prepare("SELECT id FROM roles WHERE name = ?").get(roleName);
   if (!role) return res.status(400).json({ error: `Unknown role: ${roleName}` });
+  { const g = adminGrantError(roleName, req.params.id); if (g) return res.status(403).json({ error: g }); }
   db.prepare("UPDATE users SET role_id = ? WHERE id = ?").run(role.id, req.params.id);
   clearPermissionCache(); // no-op today since cache is per-role not per-user, kept for future per-user overrides
   res.json({ ok: true });
@@ -212,6 +219,7 @@ router.patch("/:id", requireAuth, requirePermission("staff:manage"), (req, res) 
     const role = db.prepare("SELECT id FROM roles WHERE name = ?").get(roleName);
     if (!role) return res.status(400).json({ error: `Unknown role: ${roleName}` });
     if (req.params.id === req.user.userId && roleName !== "admin") return res.status(400).json({ error: "You cannot lower your own access." });
+    { const g = adminGrantError(roleName, req.params.id); if (g) return res.status(403).json({ error: g }); }
     db.prepare("UPDATE users SET role_id = ? WHERE id = ?").run(role.id, req.params.id);
   }
   db.prepare(
@@ -254,7 +262,7 @@ router.get("/:id/profile", requireAuth, (req, res) => {
 
   const u = db.prepare(
     `SELECT u.id, u.name, u.phone, u.email, u.birthday, u.joined_at, u.designation, u.shift_role, u.active,
-            u.employee_code, u.employment_type, u.reporting_to, u.gender, u.blood_group, u.address, u.emergency_contact_name, u.emergency_contact_phone,
+            u.employee_code, u.employment_type, u.reporting_to, u.gender, u.blood_group, u.address, u.emergency_contact_name, u.emergency_contact_phone, u.alt_phone, (u.photo_path IS NOT NULL) AS has_photo,
             d.name AS department, r.name AS role
      FROM users u JOIN roles r ON r.id = u.role_id LEFT JOIN departments d ON d.id = u.department_id
      WHERE u.id = ?`
@@ -359,6 +367,36 @@ router.get("/:id/profile", requireAuth, (req, res) => {
     details: { ...u, tenureYears },
     bio, missing, shiftChecklist, tasks, attendance, policies, training, payroll,
   });
+});
+
+
+// ---- profile pictures ---------------------------------------------------------
+const PHOTO_DIR = path.join(process.env.DATA_DIR || path.join(path.dirname(fileURLToPath(import.meta.url)), "..", ".."), "private", "photos");
+fs.mkdirSync(PHOTO_DIR, { recursive: true });
+const photoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024 }, fileFilter: (req, f, cb) => cb(null, /^image\/(jpeg|png|webp)$/.test(f.mimetype)) });
+const EXT = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp" };
+
+router.post("/:id/photo", requireAuth, requirePermission("staff:manage"), photoUpload.single("photo"), (req, res) => {
+  const u = db.prepare("SELECT id, photo_path FROM users WHERE id = ?").get(req.params.id);
+  if (!u) return res.status(404).json({ error: "User not found" });
+  if (!req.file) return res.status(400).json({ error: "Choose a JPG, PNG or WebP picture (up to 4 MB)" });
+  const file = path.join(PHOTO_DIR, `${u.id}-${Date.now()}${EXT[req.file.mimetype]}`);
+  fs.writeFileSync(file, req.file.buffer);
+  if (u.photo_path) fs.rm(u.photo_path, { force: true }, () => {});
+  db.prepare("UPDATE users SET photo_path = ? WHERE id = ?").run(file, u.id);
+  res.json({ ok: true });
+});
+router.delete("/:id/photo", requireAuth, requirePermission("staff:manage"), (req, res) => {
+  const u = db.prepare("SELECT photo_path FROM users WHERE id = ?").get(req.params.id);
+  if (u?.photo_path) fs.rm(u.photo_path, { force: true }, () => {});
+  db.prepare("UPDATE users SET photo_path = NULL WHERE id = ?").run(req.params.id);
+  res.json({ ok: true });
+});
+// <img> tags cannot send headers, so the sign-in token may come as ?token=
+router.get("/:id/photo", (req, res, next) => { if (!req.headers.authorization && req.query.token) req.headers.authorization = `Bearer ${req.query.token}`; next(); }, requireAuth, (req, res) => {
+  const u = db.prepare("SELECT photo_path FROM users WHERE id = ?").get(req.params.id === "me" ? req.user.userId : req.params.id);
+  if (!u?.photo_path || !fs.existsSync(u.photo_path)) return res.status(404).json({ error: "No photo" });
+  res.set("Cache-Control", "private, max-age=300"); res.sendFile(u.photo_path);
 });
 
 export default router;

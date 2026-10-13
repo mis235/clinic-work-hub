@@ -26,7 +26,7 @@ router.get("/about", requireAuth, (req, res) => {
       phone: "+91 93812 19187",
       email: "support@drnishitaranka.com",
       website: "https://drnishitaranka.com",
-      photo: "/clinic/building.jpg",
+      photo: "/clinic/dr-nishita.png",
     },
     services: [
       { name: "Skin", items: ["Acne & scars", "Pigmentation", "Rosacea & eczema", "CO2 laser resurfacing", "Microneedling (Dermapen4, MNRF)", "HIFU, chemical peels, HydraFacial MD"] },
@@ -36,7 +36,7 @@ router.get("/about", requireAuth, (req, res) => {
     founder: {
       name: "Dr. Nishita Ranka Bagmar",
       title: "Founder & Medical Director",
-      photoUrl: "https://drnishitaranka.com/wp-content/uploads/2025/07/Dr-Nishita-ranka-1.jpg",
+      photoUrl: "/clinic/dr-nishita.png",
       experience: "10+ years",
       qualifications: [
         "MBBS — DY Patil University (2014)",
@@ -124,7 +124,7 @@ router.post("/offer-letters", requireAuth, requirePermission("staff:manage"), (r
 // Program Manager agent needs. Starts empty; admin adds real video links.
 // ---------------------------------------------------------------------------
 router.get("/training-videos", requireAuth, (req, res) => {
-  const videos = db.prepare("SELECT id, department, title, url, description, mime, sort_order, created_at, (file_path IS NOT NULL) AS is_upload FROM training_videos ORDER BY department, sort_order, created_at").all();
+  const videos = db.prepare("SELECT id, department, folder, kind, file_name, title, url, description, mime, sort_order, created_at, (file_path IS NOT NULL) AS is_upload FROM training_videos ORDER BY department, folder, sort_order, created_at").all();
   const myViews = new Set(
     db.prepare("SELECT video_id FROM training_video_views WHERE user_id = ?").all(req.user.userId).map((r) => r.video_id)
   );
@@ -139,27 +139,29 @@ const videoUpload = multer({
     filename: (req, file, cb) => cb(null, `${randomUUID()}${path.extname(file.originalname || "").toLowerCase() || ".mp4"}`),
   }),
   limits: { fileSize: 500 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => cb(null, /^video\//.test(file.mimetype || "")),
+  fileFilter: (req, file, cb) => cb(null, /^(video\/|image\/(png|jpeg|webp)|text\/(plain|csv)|application\/(pdf|msword|vnd\.ms-excel|vnd\.ms-powerpoint|vnd\.openxmlformats-officedocument\.(wordprocessingml\.document|spreadsheetml\.sheet|presentationml\.presentation)))/.test(file.mimetype || "")),
 });
 
 // Add a training video: either upload a video file or paste a link (YouTube / Drive / any https link).
 router.post("/training-videos", requireAuth, requirePermission("staff:manage"), videoUpload.single("file"), (req, res) => {
   const { department, title, url, description } = req.body || {};
-  if (!department || !title) return res.status(400).json({ error: "Choose a department and give the video a title" });
-  if (!req.file && !/^https?:\/\//i.test(url || "")) return res.status(400).json({ error: "Upload a video file, or paste a link starting with https://" });
+  const folder = String(req.body?.folder || "").trim().slice(0, 60) || null;
+  if (!department || !title) return res.status(400).json({ error: "Choose a department and give it a title" });
+  if (!req.file && !/^https?:\/\//i.test(url || "")) return res.status(400).json({ error: "Upload a file (video, PDF, slides, sheet…), or paste a link starting with https://" });
   const id = randomUUID();
   const next = db.prepare("SELECT COALESCE(MAX(sort_order),0)+1 AS n FROM training_videos WHERE department = ?").get(department).n;
-  db.prepare("INSERT INTO training_videos (id, department, title, url, description, file_path, mime, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-    .run(id, department, title, req.file ? "" : url, description || null, req.file?.path || null, req.file?.mimetype || null, next);
+  const kind = req.file && !/^video\//.test(req.file.mimetype) ? "file" : "video";
+  db.prepare("INSERT INTO training_videos (id, department, folder, kind, file_name, title, url, description, file_path, mime, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    .run(id, department, folder, kind, req.file?.originalname || null, title, req.file ? "" : url, description || null, req.file?.path || null, req.file?.mimetype || null, next);
   res.status(201).json({ id });
 });
 
 router.patch("/training-videos/:id", requireAuth, requirePermission("staff:manage"), (req, res) => {
   const v = db.prepare("SELECT * FROM training_videos WHERE id = ?").get(req.params.id);
   if (!v) return res.status(404).json({ error: "Not found" });
-  const { title, department, description, url, sortOrder } = req.body || {};
-  db.prepare("UPDATE training_videos SET title = ?, department = ?, description = ?, url = ?, sort_order = ? WHERE id = ?")
-    .run(title?.trim() || v.title, department || v.department, description ?? v.description,
+  const { title, department, description, url, sortOrder, folder } = req.body || {};
+  db.prepare("UPDATE training_videos SET title = ?, department = ?, folder = ?, description = ?, url = ?, sort_order = ? WHERE id = ?")
+    .run(title?.trim() || v.title, department || v.department, folder === undefined ? v.folder : (String(folder).trim().slice(0, 60) || null), description ?? v.description,
       v.file_path ? v.url : (url && /^https?:\/\//i.test(url) ? url : v.url), Number.isFinite(sortOrder) ? sortOrder : v.sort_order, v.id);
   res.json({ ok: true });
 });
@@ -181,7 +183,18 @@ router.get("/training-videos/:id/stream", (req, res, next) => {
   const v = db.prepare("SELECT * FROM training_videos WHERE id = ?").get(req.params.id);
   if (!v?.file_path || !fs.existsSync(v.file_path)) return res.status(404).json({ error: "Not found" });
   res.type(v.mime || "video/mp4");
+  const inline = /^(video\/|image\/|application\/pdf)/.test(v.mime || "");
+  res.set("Content-Disposition", `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(v.file_name || v.title)}`);
   res.sendFile(v.file_path);
+});
+
+// Rename a folder (or move it to another department's library) in one go.
+router.post("/training-folders/rename", requireAuth, requirePermission("staff:manage"), (req, res) => {
+  const { department, from, to } = req.body || {};
+  const n = String(to || "").trim().slice(0, 60);
+  if (!department || !from || !n) return res.status(400).json({ error: "Give the folder a name" });
+  const r2 = db.prepare("UPDATE training_videos SET folder = ? WHERE department = ? AND folder = ?").run(n, department, from);
+  res.json({ ok: true, moved: r2.changes });
 });
 
 router.post("/training-videos/:id/watched", requireAuth, (req, res) => {

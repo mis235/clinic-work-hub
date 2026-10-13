@@ -196,7 +196,7 @@ try {
   ok("connection check answers (reachable or not, never an error)", ck.status === 200 && "reachable" in ck.body);
 
   // Staff add / edit / remove
-  const added = await call("POST", "/api/users", { name: "Test Person", departmentName: "Front Desk", roleName: "staff", phone: "+919111111111", pin: "4321" }, admin);
+  const added = await call("POST", "/api/users", { name: "Test Person", departmentName: "Front Desk", roleName: "staff", phone: "+917700000001", pin: "4321" }, admin);
   ok("admin can add a staff member", added.status === 201, JSON.stringify(added.body));
   const nt = (await call("POST", "/api/auth/login", { userId: added.body.id, pin: "4321" })).body?.token;
   ok("new staff member can sign in", !!nt);
@@ -249,7 +249,7 @@ try {
   ok("only admin can change a tool address", (await call("PUT", "/api/links/assistant", { url: "https://x.example" }, stoken)).status === 403 && (await call("PUT", "/api/links/assistant", { url: "http://72.60.101.59:3005" }, admin)).status === 200);
 
   // Staff exit workflow
-  const lv = await call("POST", "/api/users", { name: "Leaver One", departmentName: "Front Desk", roleName: "staff", phone: "+919222222222", pin: "5555" }, admin);
+  const lv = await call("POST", "/api/users", { name: "Leaver One", departmentName: "Front Desk", roleName: "staff", phone: "+917700000002", pin: "5555" }, admin);
   await call("POST", "/api/payroll/profile", { userId: lv.body.id, companyId: comps[0].id, employeeCode: "L1", position: "Executive", basicSalary: 30000 }, admin);
   const lvTok = (await call("POST", "/api/auth/login", { userId: lv.body.id, pin: "5555" })).body?.token;
   ok("staff cannot open exits", (await call("GET", "/api/exits", null, lvTok)).status === 403);
@@ -311,12 +311,55 @@ try {
   ok("admin sees what staff added", (await call("GET", `/api/workspace/${myws.body.department.id}`, null, admin)).body.items.some((i) => i.title === "Daily MIS sheet"));
   ok("an item can be removed", (await call("DELETE", `/api/workspace/item/${wadd.body.id}`, null, stoken)).status === 200);
 
+  // ---- admin limited to four owners; photo; alt phone; face kiosk; training folders
+  const allU = (await call("GET", "/api/users/full", null, admin)).body;
+  const admins = allU.filter((u) => u.role === "admin").map((u) => u.name.toLowerCase());
+  ok("admin role is held by Dr. Nishita, Shreyas, Naga and Neelima only", admins.length === 4 && ["nishita", "shreyas", "naga", "neelima"].every((n) => admins.some((a) => a.includes(n))), admins.join(","));
+  const plain = allU.find((u) => u.role === "staff");
+  ok("admin cannot be given to anyone else", (await call("PATCH", `/api/users/${plain.id}/role`, { roleName: "admin" }, admin)).status === 403);
+  ok("admin cannot be given when editing a person either", (await call("PATCH", `/api/users/${plain.id}`, { roleName: "admin" }, admin)).status === 403);
+  ok("a new person cannot be created as admin", (await call("POST", "/api/users", { name: "Test Person", departmentName: "Front Desk", roleName: "admin", phone: "+917700000091", pin: "4321" }, admin)).status === 403);
+  const mkd = await call("POST", "/api/users", { name: "Photo Person", departmentName: "Front Desk", roleName: "staff", phone: "+917700000092", pin: "4321", altPhone: "+919333333333" }, admin);
+  ok("staff can be added with an alternate number", mkd.status === 201, JSON.stringify(mkd.body));
+  const fullU = (await call("GET", "/api/users/full", null, admin)).body.find((u) => u.id === mkd.body.id);
+  ok("alternate number is saved", fullU?.alt_phone === "+919333333333" && !fullU.has_photo);
+  const tinyPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+  const pfd = new FormData(); pfd.append("photo", new Blob([tinyPng], { type: "image/png" }), "p.png");
+  const pup = await fetch(base + `/api/users/${mkd.body.id}/photo`, { method: "POST", headers: { Authorization: `Bearer ${admin}` }, body: pfd });
+  ok("profile picture can be uploaded", pup.status === 200);
+  const pgr = await fetch(base + `/api/users/${mkd.body.id}/photo?token=${admin}`);
+  ok("picture is served to signed-in people only", pgr.status === 200 && (await fetch(base + `/api/users/${mkd.body.id}/photo`)).status === 401);
+
+  const fdesc = (seed) => Array.from({ length: 128 }, (_, i) => Math.sin(seed * 7 + i) * 0.2);
+  ok("face needs enough samples", (await call("POST", `/api/kiosk/enroll/${mkd.body.id}`, { descriptors: [fdesc(1)] }, admin)).status === 400);
+  ok("face can be registered", (await call("POST", `/api/kiosk/enroll/${mkd.body.id}`, { descriptors: [fdesc(1), fdesc(1), fdesc(1)] }, admin)).status === 200);
+  ok("staff cannot register faces", (await call("POST", `/api/kiosk/enroll/${mkd.body.id}`, { descriptors: [fdesc(1), fdesc(1), fdesc(1)] }, stoken)).status === 403);
+  const kdev = await call("POST", "/api/kiosk/devices", { label: "Clinic phone" }, admin);
+  ok("a clinic phone key can be created", kdev.status === 201 && !!kdev.body.key);
+  ok("a person's login cannot be used as a clinic phone", (await call("POST", "/api/kiosk/checkin", { descriptor: fdesc(1) }, admin)).status === 401);
+  ok("the clinic phone key cannot open the rest of the app", (await call("GET", "/api/users/full", null, kdev.body.key)).status === 401);
+  const cki = await call("POST", "/api/kiosk/checkin", { descriptor: fdesc(1) }, kdev.body.key);
+  ok("the right face is recognised and marked", cki.body?.matched === true && cki.body.name === "Photo Person" && ["P", "L"].includes(cki.body.mark), JSON.stringify(cki.body));
+  ok("checking in twice does not duplicate", (await call("POST", "/api/kiosk/checkin", { descriptor: fdesc(1) }, kdev.body.key)).body?.already === true);
+  ok("a stranger is not recognised", (await call("POST", "/api/kiosk/checkin", { descriptor: fdesc(50) }, kdev.body.key)).body?.matched === false);
+  const brd2 = (await call("GET", "/api/attendance/board", null, admin)).body;
+  ok("the face check-in shows on the attendance board", ["P", "L"].includes(brd2.rows.find((r) => r.id === mkd.body.id)?.mark));
+  await call("DELETE", `/api/kiosk/devices/${kdev.body.id}`, null, admin);
+  ok("a switched-off clinic phone stops working", (await call("POST", "/api/kiosk/checkin", { descriptor: fdesc(1) }, kdev.body.key)).status === 401);
+
+  const tfd2 = new FormData(); tfd2.append("department", "Front Desk"); tfd2.append("folder", "Onboarding"); tfd2.append("title", "Welcome guide"); tfd2.append("file", new Blob(["%PDF-1.4 test"], { type: "application/pdf" }), "guide.pdf");
+  const trainAdd = await fetch(base + "/api/hr/training-videos", { method: "POST", headers: { Authorization: `Bearer ${admin}` }, body: tfd2 });
+  ok("a PDF can be added to a training folder", trainAdd.status === 201);
+  const trainItem = (await call("GET", "/api/hr/training-videos", null, admin)).body.find((v) => v.title === "Welcome guide");
+  ok("training item remembers its folder and type", trainItem?.folder === "Onboarding" && trainItem.kind === "file");
+  ok("a folder can be renamed", (await call("POST", "/api/hr/training-folders/rename", { department: "Front Desk", from: "Onboarding", to: "Joining" }, admin)).body?.moved === 1);
+
   // Lockout
   let last; for (let i = 0; i < 8; i++) last = await call("POST", "/api/auth/login", { email: "lock@test.local", password: "x" });
   ok("repeated wrong logins are locked out (429)", last.status === 429);
 
   // Audit + backup
-  const au = await call("GET", "/api/admin/audit", null, admin);
+  const au = await call("GET", "/api/admin/audit?limit=1000", null, admin);
   ok("activity log records sign-ins and changes", au.status === 200 && au.body.some((r) => r.action === "LOGIN") && au.body.some((r) => r.action.startsWith("POST /api/users/me/pin")));
   const bk = await call("POST", "/api/admin/backups", null, admin); ok("backup can be created", bk.status === 201);
   const bl = await call("GET", "/api/admin/backups", null, admin); ok("backup is listed and not empty", bl.body?.[0]?.bytes > 10000);

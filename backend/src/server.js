@@ -5,6 +5,8 @@ import portalRoutes from "./routes/portal.js";
 import rosterRoutes from "./routes/roster.js";
 import exitRoutes from "./routes/exits.js";
 import workspaceRoutes from "./routes/workspace.js";
+import kioskRoutes from "./routes/kiosk.js";
+import { ensureOwnerAdmins } from "./access.js";
 import express from "express";
 import cors from "cors";
 import path from "node:path";
@@ -102,6 +104,7 @@ app.use("/api/portal", portalRoutes);
 app.use("/api/roster", rosterRoutes);
 app.use("/api/exits", exitRoutes);
 app.use("/api/workspace", workspaceRoutes);
+app.use("/api/kiosk", kioskRoutes);
 app.use("/api/payroll", payrollRoutes);
 app.use("/api/assistant", assistantRoutes);
 app.use("/api/shift-checklist", shiftChecklistRoutes);
@@ -161,6 +164,9 @@ if (db.prepare("SELECT COUNT(*) AS c FROM users").get().c === 0) {
     if (bcrypt.compareSync("1234", r.pin_hash)) db.prepare("UPDATE users SET must_change_pin = 1 WHERE id = ?").run(r.id);
   }
 }
+
+// Only Dr. Nishita, Shreyas, Naga and Neelima hold admin access (done after the PIN check above so a starter PIN is still forced to change).
+ensureOwnerAdmins();
 
 const port = process.env.PORT || 4000;
 const server = app.listen(port, () => {

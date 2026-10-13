@@ -23,6 +23,7 @@ import ExitsPage from "./pages/ExitsPage.jsx";
 import ClinicDashboardPage from "./pages/ClinicDashboardPage.jsx";
 import DepartmentsPage from "./pages/DepartmentsPage.jsx";
 import DocumentsPage from "./pages/DocumentsPage.jsx";
+import KioskPage from "./pages/KioskPage.jsx";
 import ChangePinModal from "./components/ChangePinModal.jsx";
 
 const VIEW_KEY = {
@@ -32,6 +33,10 @@ const VIEW_KEY = {
 };
 
 export default function App() {
+  return window.location.pathname === "/kiosk" ? <KioskPage /> : <MainApp />;
+}
+
+function MainApp() {
   const [user, setUser] = useState(() => {
     const raw = localStorage.getItem("user");
     return raw ? JSON.parse(raw) : null;

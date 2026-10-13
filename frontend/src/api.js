@@ -129,6 +129,16 @@ export const api = {
   manualAttendance: (userId, type) => req("/api/attendance/manual", { method: "POST", body: { userId, type } }),
 
   // Staff management
+  uploadPhoto: (id, file) => { const fd = new FormData(); fd.append("photo", file); return reqForm(`/api/users/${id}/photo`, fd); },
+  removePhoto: (id) => req(`/api/users/${id}/photo`, { method: "DELETE" }),
+  enrolledFaces: () => req("/api/kiosk/enrolled"),
+  enrollFace: (id, descriptors) => req(`/api/kiosk/enroll/${id}`, { method: "POST", body: { descriptors } }),
+  removeFace: (id) => req(`/api/kiosk/enroll/${id}`, { method: "DELETE" }),
+  kioskDevices: () => req("/api/kiosk/devices"),
+  createKioskDevice: (label) => req("/api/kiosk/devices", { method: "POST", body: { label } }),
+  revokeKioskDevice: (id) => req(`/api/kiosk/devices/${id}`, { method: "DELETE" }),
+  kioskLog: (date) => req(`/api/kiosk/log?date=${date}`),
+  renameFolder: (body) => req("/api/hr/training-folders/rename", { method: "POST", body }),
   listRosterAll: () => req("/api/users/full?includeInactive=1"),
   removeStaff: (id) => req(`/api/users/${id}/deactivate`, { method: "PATCH" }),
   restoreStaff: (id) => req(`/api/users/${id}/reactivate`, { method: "PATCH" }),
@@ -209,5 +219,20 @@ export const api = {
   getShiftChecklistSubmissions: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
     return req(`/api/shift-checklist/submissions${qs ? `?${qs}` : ""}`);
+  },
+};
+
+// Pictures are private: <img> tags cannot send headers, so the sign-in token goes in the address.
+export const photoUrl = (id, v = "") => `${BASE}/api/users/${id}/photo?token=${encodeURIComponent(localStorage.getItem("token") || "")}&v=${v}`;
+export const snapUrl = (id) => `${BASE}/api/kiosk/snap/${id}?token=${encodeURIComponent(localStorage.getItem("token") || "")}`;
+
+// The clinic phone talks to the server with its own limited key (it never signs in as a person).
+export const kioskApi = {
+  key: () => { try { return localStorage.getItem("kioskKey") || ""; } catch { return ""; } },
+  async call(path, body) {
+    const res = await fetch(`${BASE}/api/kiosk/${path}`, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json", Authorization: `Bearer ${kioskApi.key()}` }, body: body ? JSON.stringify(body) : undefined });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw Object.assign(new Error(data.error || `Request failed (${res.status})`), { status: res.status });
+    return data;
   },
 };

@@ -6,7 +6,7 @@ import "./theme.css";
 // After an app update, drop any old sign-in so nobody is stuck on a stale login ("Invalid or expired token").
 try {
   if (localStorage.getItem("buildId") !== __BUILD_ID__) {
-    localStorage.removeItem("token"); localStorage.removeItem("user");
+    localStorage.removeItem("token"); localStorage.removeItem("user"); // the clinic phone key (kioskKey) is deliberately kept
     localStorage.setItem("buildId", __BUILD_ID__);
   }
 } catch {}
