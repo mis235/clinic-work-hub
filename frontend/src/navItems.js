@@ -9,6 +9,7 @@ export const NAV = {
   "Shift Logs":       { label: "Checklist Monitor",   icon: "calendarCheck" },
   "Roster":           { label: "Shift Roster",        icon: "calendarCheck" },
   "Departments":      { label: "Departments",         icon: "users" },
+  "Exits":            { label: "Staff Exits",         icon: "userplus" },
   "Staff":            { label: "Staff",               icon: "users" },
   "My Profile":       { label: "My Profile",          icon: "user" },
   "Payroll":          { label: "Payroll",             icon: "wallet" },
@@ -30,7 +31,7 @@ export const NAV = {
 export const NAV_GROUPS = [
   { title: "Home",         keys: ["Dashboard", "My checklist"] },
   { title: "Daily work",   keys: ["Shift Checklist", "Tracker", "Attendance", "Roster", "Shift Logs"] },
-  { title: "People & pay", keys: ["Departments", "Staff", "My Profile", "Payroll", "HR"] },
+  { title: "People & pay", keys: ["Departments", "Staff", "Exits", "My Profile", "Payroll", "HR"] },
   { title: "Insights",     keys: ["Reports", "Dashboards"] },
   { title: "Knowledge",    keys: ["Documents", "Policies", "Learning", "Events"] },
   { title: "Assistants",   keys: ["Clinic Assistant", "Assistant", "AI Advisors"] },
@@ -39,7 +40,7 @@ export const NAV_GROUPS = [
 
 export function navItemsFor(user) {
   const common = ["Documents", "Policies", "Learning", "Events", "Clinic Assistant", "Assistant"];
-  if (user.role === "admin") return ["Dashboard", "Attendance", "Roster", "Shift Logs", "Departments", "Staff", "Payroll", "HR", "Reports", "Dashboards", ...common, "AI Advisors", "System"];
+  if (user.role === "admin") return ["Dashboard", "Attendance", "Roster", "Shift Logs", "Departments", "Staff", "Exits", "Payroll", "HR", "Reports", "Dashboards", ...common, "AI Advisors", "System"];
   if (user.role === "manager") return ["Dashboard", "Shift Checklist", "Attendance", "Roster", "Shift Logs", "Departments", "Reports", "Dashboards", ...common, "AI Advisors"];
   return ["My checklist", "Shift Checklist", "Tracker", "My Profile", ...common.filter((k) => k !== "Events")];
 }

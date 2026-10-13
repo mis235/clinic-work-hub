@@ -86,6 +86,17 @@ export const api = {
   downloadGeneratedZip: (ids) => downloadFile("/api/doc-templates/generated/zip", "documents.zip", { method: "POST", body: { ids } }),
   deleteGenerated: (id) => req(`/api/doc-templates/generated/${id}`, { method: "DELETE" }),
 
+  // Staff exits
+  exitsMeta: () => req("/api/exits/meta"),
+  exitsList: () => req("/api/exits"),
+  exitGet: (id) => req(`/api/exits/${id}`),
+  exitStart: (b) => req("/api/exits", { method: "POST", body: b }),
+  exitUpdate: (id, b) => req(`/api/exits/${id}`, { method: "PATCH", body: b }),
+  exitAdvance: (id) => req(`/api/exits/${id}/advance`, { method: "POST" }),
+  exitBack: (id) => req(`/api/exits/${id}/back`, { method: "POST" }),
+  exitWithdraw: (id) => req(`/api/exits/${id}/withdraw`, { method: "POST" }),
+  exitLetter: (id, kind) => req(`/api/exits/${id}/letters`, { method: "POST", body: { kind } }),
+
   // One-tap attendance
   attendanceToday: () => req("/api/attendance/today"),
   attendancePunch: (payload) => req("/api/attendance/punch", { method: "POST", body: payload }),

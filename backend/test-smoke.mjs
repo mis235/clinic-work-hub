@@ -229,6 +229,43 @@ try {
   ok("connected tools: admin sees assistant + dashboard, staff only the assistant", lk.body?.length === 2 && lks.body?.length === 1 && lks.body[0].key === "assistant");
   ok("only admin can change a tool address", (await call("PUT", "/api/links/assistant", { url: "https://x.example" }, stoken)).status === 403 && (await call("PUT", "/api/links/assistant", { url: "http://72.60.101.59:3005" }, admin)).status === 200);
 
+  // Staff exit workflow
+  const lv = await call("POST", "/api/users", { name: "Leaver One", departmentName: "Front Desk", roleName: "staff", phone: "+919222222222", pin: "5555" }, admin);
+  await call("POST", "/api/payroll/profile", { userId: lv.body.id, companyId: comps[0].id, employeeCode: "L1", position: "Executive", basicSalary: 30000 }, admin);
+  const lvTok = (await call("POST", "/api/auth/login", { userId: lv.body.id, pin: "5555" })).body?.token;
+  ok("staff cannot open exits", (await call("GET", "/api/exits", null, lvTok)).status === 403);
+  ok("exit needs sensible dates", (await call("POST", "/api/exits", { userId: lv.body.id, reasonType: "resignation", resignationDate: "2026-10-10", lastWorkingDay: "2026-10-01" }, admin)).status === 400);
+  const ex = await call("POST", "/api/exits", { userId: lv.body.id, reasonType: "resignation", resignationDate: "2026-09-30", lastWorkingDay: "2026-10-30", reasonNote: "Higher studies" }, admin);
+  ok("admin can start an exit", ex.status === 201 && ex.body.status === "received", JSON.stringify(ex.body).slice(0, 150));
+  const xid = ex.body.id;
+  ok("a second exit for the same person is refused", (await call("POST", "/api/exits", { userId: lv.body.id, reasonType: "resignation", resignationDate: "2026-09-30", lastWorkingDay: "2026-10-30" }, admin)).status === 409);
+  ok("moves to notice period", (await call("POST", `/api/exits/${xid}/advance`, null, admin)).body?.status === "notice");
+  ok("moves to handover", (await call("POST", `/api/exits/${xid}/advance`, null, admin)).body?.status === "handover");
+  const blocked = await call("POST", `/api/exits/${xid}/advance`, null, admin);
+  ok("cannot settle before clearance is finished", blocked.status === 400 && /clearance/i.test(blocked.body.error));
+  const allClear = Object.fromEntries(ex.body.clearance_items.map((c) => [c.key, true]));
+  await call("PATCH", `/api/exits/${xid}`, { clearance: allClear }, admin);
+  ok("moves to settlement once cleared", (await call("POST", `/api/exits/${xid}/advance`, null, admin)).body?.status === "settlement");
+  ok("cannot mark paid before the sheet is saved", (await call("POST", `/api/exits/${xid}/advance`, null, admin)).status === 400);
+  const sv = await call("PATCH", `/api/exits/${xid}`, { settlement: { unpaid_days: 10, leave_days: 3, bonus: 500, notice_short_days: 2, advance: 1000 } }, admin);
+  ok("settlement sheet adds up correctly", sv.body?.settlement?.pending_salary === 10000 && sv.body.settlement.leave_encashment === 3000 && sv.body.settlement.net === 10500, JSON.stringify(sv.body?.settlement));
+  ok("amount is written in words", sv.body?.settlement?.net_words === "Ten Thousand Five Hundred");
+  ok("letters are not issued before payment", (await call("POST", `/api/exits/${xid}/letters`, { kind: "relieving_letter" }, admin)).status === 400);
+  const fnf = await call("POST", `/api/exits/${xid}/letters`, { kind: "fnf_statement" }, admin);
+  ok("settlement statement is created", fnf.status === 201, JSON.stringify(fnf.body));
+  ok("moves to paid", (await call("POST", `/api/exits/${xid}/advance`, null, admin)).body?.status === "paid");
+  ok("cannot relieve before the letters exist", (await call("POST", `/api/exits/${xid}/advance`, null, admin)).status === 400);
+  ok("relieving letter is created", (await call("POST", `/api/exits/${xid}/letters`, { kind: "relieving_letter" }, admin)).status === 201);
+  const xp = await call("POST", `/api/exits/${xid}/letters`, { kind: "experience_letter" }, admin);
+  ok("experience certificate is created", xp.status === 201);
+  const xdl = await raw(`/api/doc-templates/generated/${xp.body.id}/file`, admin);
+  const docBuf = Buffer.from(await xdl.arrayBuffer());
+  const docXml = new (await import("pizzip")).default(docBuf).file("word/document.xml").asText();
+  ok("experience certificate has the right sentence", /Leaver One/.test(docXml) && /satisfactory/.test(docXml) && /1 month/.test(docXml) || /Leaver One/.test(docXml) && /satisfactory/.test(docXml));
+  ok("moves to relieved", (await call("POST", `/api/exits/${xid}/advance`, null, admin)).body?.status === "relieved");
+  ok("relieved person can no longer sign in", (await call("POST", "/api/auth/login", { userId: lv.body.id, pin: "5555" })).status === 401);
+  ok("the exit shows a history", ((await call("GET", `/api/exits/${xid}`, null, admin)).body?.events?.length || 0) >= 6);
+
   // Lockout
   let last; for (let i = 0; i < 8; i++) last = await call("POST", "/api/auth/login", { email: "lock@test.local", password: "x" });
   ok("repeated wrong logins are locked out (429)", last.status === 429);

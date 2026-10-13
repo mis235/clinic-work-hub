@@ -19,7 +19,7 @@ const DATA = process.env.DATA_DIR || path.join(__dirname, "..", "..");
 const PRIVATE = path.join(DATA, "private");
 const DOC_DIR = path.join(PRIVATE, "documents");
 const TPL_DIR = path.join(PRIVATE, "templates");
-const GEN_DIR = path.join(PRIVATE, "generated");
+export const GEN_DIR = path.join(PRIVATE, "generated");
 for (const d of [DOC_DIR, TPL_DIR, GEN_DIR]) fs.mkdirSync(d, { recursive: true });
 
 const isAdmin = (req) => req.user?.roleName === "admin";
@@ -151,10 +151,23 @@ export const FIELDS = {
   ],
 };
 
+const EXIT_COMMON = [
+  ["name", "Staff full name"], ["first_name", "First name"], ["role", "Designation / role"], ["department", "Department"], ["employee_code", "Employee code"],
+  ["joining_date", "Joining date"], ["resignation_date", "Resignation / notice date"], ["last_working_day", "Last working day"], ["tenure", "Length of service (e.g. 2 years 3 months)"],
+  ["opening_line", "Opening sentence (changes with resignation / termination / contract end)"], ["company", "Company name"], ["company_address", "Company address"], ["date", "Today's date"],
+];
+FIELDS.relieving_letter = EXIT_COMMON;
+FIELDS.experience_letter = EXIT_COMMON;
+FIELDS.fnf_statement = [...EXIT_COMMON,
+  ["pending_salary", "Pending salary"], ["leave_encashment", "Leave encashment"], ["bonus", "Bonus / incentive"], ["other_earnings", "Other payments"], ["total_earnings", "Total payable"],
+  ["notice_recovery", "Notice shortfall recovery"], ["fines", "Fines pending"], ["advance", "Advance / loan recovery"], ["other_deductions", "Other deductions"], ["total_deductions", "Total deductions"],
+  ["net", "Net settlement amount"], ["net_words", "Net amount in words"]];
+export const EXIT_KINDS = ["relieving_letter", "experience_letter", "fnf_statement"];
+
 const money = (n) => Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 });
 const longDate = (d) => (d ? new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "");
 
-function valuesFor(kind, user, profile0, company, period, extra = {}) {
+export function valuesFor(kind, user, profile0, company, period, extra = {}) {
   const profile = kind === "payslip" && profile0 ? withFines(profile0, period) : profile0;
   const base = {
     name: user.name, first_name: (user.name || "").split(" ")[0], role: profile?.position || user.designation || user.role_name || "",
@@ -179,7 +192,7 @@ function valuesFor(kind, user, profile0, company, period, extra = {}) {
   return { ...base, ...extra.fields };
 }
 
-function render(templatePath, values) {
+export function render(templatePath, values) {
   const zip = new PizZip(fs.readFileSync(templatePath));
   const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true, nullGetter: () => "" });
   doc.render(values);
@@ -187,7 +200,7 @@ function render(templatePath, values) {
 }
 
 // Builds a tiny valid .docx from plain paragraphs (used for the downloadable sample templates).
-function buildDocx(paragraphs) {
+export function buildDocx(paragraphs) {
   const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const body = paragraphs
     .map((p) => `<w:p><w:r>${p.bold ? "<w:rPr><w:b/></w:rPr>" : ""}<w:t xml:space="preserve">${esc(p.text)}</w:t></w:r></w:p>`)
@@ -199,7 +212,7 @@ function buildDocx(paragraphs) {
   return zip.generate({ type: "nodebuffer", compression: "DEFLATE" });
 }
 
-const SAMPLES = {
+export const SAMPLES = {
   offer_letter: [
     { text: "{company}", bold: true }, { text: "{company_address}" }, { text: "" }, { text: "Date: {date}" }, { text: "" },
     { text: "Dear {name}," }, { text: "" },
@@ -218,6 +231,42 @@ const SAMPLES = {
     { text: "NET PAYABLE: Rs. {net}", bold: true }, { text: "Paid on {pay_date}" },
   ],
 };
+
+SAMPLES.relieving_letter = [
+  { text: "{company}", bold: true }, { text: "{company_address}" }, { text: "" }, { text: "Date: {date}" }, { text: "" },
+  { text: "RELIEVING LETTER", bold: true }, { text: "" },
+  { text: "Dear {name}," }, { text: "" },
+  { text: "{opening_line}" },
+  { text: "We confirm that you stand relieved from your duties as {role} in the {department} department with effect from the close of working hours on {last_working_day}. Your employee code was {employee_code}." },
+  { text: "You have completed the handover of your work and returned all clinic property, and your full and final settlement has been processed as per the attached statement." },
+  { text: "You are reminded that the confidentiality of patient information and clinic records continues to bind you after your employment ends." },
+  { text: "We thank you for your service during your time with us and wish you every success in the future." }, { text: "" },
+  { text: "Yours sincerely," }, { text: "Dr. Nishita Ranka", bold: true }, { text: "Founder & Medical Director" },
+];
+SAMPLES.experience_letter = [
+  { text: "{company}", bold: true }, { text: "{company_address}" }, { text: "" }, { text: "Date: {date}" }, { text: "" },
+  { text: "EXPERIENCE CERTIFICATE", bold: true }, { text: "" },
+  { text: "TO WHOMSOEVER IT MAY CONCERN", bold: true }, { text: "" },
+  { text: "This is to certify that {name} (Employee Code: {employee_code}) worked with {company} as {role} in the {department} department from {joining_date} to {last_working_day}, a period of {tenure}." },
+  { text: "During this period, {first_name} carried out the assigned responsibilities sincerely, and their conduct was found to be satisfactory." },
+  { text: "We wish {first_name} all the very best in future endeavours." }, { text: "" },
+  { text: "Yours sincerely," }, { text: "Dr. Nishita Ranka", bold: true }, { text: "Founder & Medical Director" },
+];
+SAMPLES.fnf_statement = [
+  { text: "{company}", bold: true }, { text: "{company_address}" }, { text: "" }, { text: "Date: {date}" }, { text: "" },
+  { text: "FULL AND FINAL SETTLEMENT STATEMENT", bold: true }, { text: "" },
+  { text: "Employee: {name}  ({employee_code})" }, { text: "Designation: {role}    Department: {department}" },
+  { text: "Date of joining: {joining_date}    Last working day: {last_working_day}" }, { text: "" },
+  { text: "PAYABLE TO EMPLOYEE", bold: true },
+  { text: "Pending salary: Rs. {pending_salary}" }, { text: "Leave encashment: Rs. {leave_encashment}" }, { text: "Bonus / incentive: Rs. {bonus}" }, { text: "Other payments: Rs. {other_earnings}" },
+  { text: "Total payable: Rs. {total_earnings}", bold: true }, { text: "" },
+  { text: "RECOVERIES", bold: true },
+  { text: "Notice shortfall: Rs. {notice_recovery}" }, { text: "Fines: Rs. {fines}" }, { text: "Advance / loan: Rs. {advance}" }, { text: "Other deductions: Rs. {other_deductions}" },
+  { text: "Total deductions: Rs. {total_deductions}", bold: true }, { text: "" },
+  { text: "NET SETTLEMENT: Rs. {net} (Rupees {net_words} only)", bold: true }, { text: "" },
+  { text: "I acknowledge receipt of the above amount in full and final settlement of all my dues. I have no further claim against {company}." }, { text: "" },
+  { text: "Employee signature: ____________________        Authorised signatory: ____________________" },
+];
 
 templatesRouter.get("/fields", requireAuth, adminOnly, (req, res) => {
   res.json(Object.fromEntries(Object.entries(FIELDS).map(([k, v]) => [k, v.map(([key, label]) => ({ key, label }))])));
@@ -243,7 +292,7 @@ templatesRouter.get("/", requireAuth, adminOnly, (req, res) => {
 
 templatesRouter.post("/", requireAuth, adminOnly, tplUpload.single("file"), (req, res) => {
   const { kind, name, companyId } = req.body || {};
-  if (!FIELDS[kind]) return res.status(400).json({ error: "Choose offer letter or payslip" });
+  if (!FIELDS[kind]) return res.status(400).json({ error: "Choose the type of template" });
   if (!req.file) return res.status(400).json({ error: "Please upload a Word (.docx) file" });
   // Make sure it opens as a Word document and the {placeholders} are well-formed before we save it.
   try { render(req.file.path, valuesFor(kind, { name: "Test" }, null, null, "2026-01")); }
@@ -280,6 +329,7 @@ templatesRouter.post("/generate", requireAuth, adminOnly, (req, res) => {
   const { templateId, userIds, period } = req.body || {};
   const t = db.prepare("SELECT * FROM doc_templates WHERE id = ?").get(templateId);
   if (!t) return res.status(404).json({ error: "Template not found" });
+  if (EXIT_KINDS.includes(t.kind)) return res.status(400).json({ error: "Relieving, experience and settlement letters are made from the Staff exits page, one person at a time." });
   if (t.kind === "payslip" && !/^\d{4}-\d{2}$/.test(period || "")) return res.status(400).json({ error: "Choose the pay month" });
 
   const base = `SELECT u.*, d.name AS department, r.name AS role_name FROM users u

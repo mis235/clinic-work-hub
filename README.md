@@ -354,3 +354,10 @@ for month-end review; SMS fallback for staff without WhatsApp.
 - **Attendance > Fines:** admin or a manager adds a fine (late, dress code, misbehaviour, absent, other). Fines are added to "Other deductions" on that month's payslip, and the template placeholder `{fines}` shows the amount.
 - **Departments:** per-department attendance today, work completion, fines and uploaded documents.
 - **Staff home:** "my day" tiles (attendance, work completed, my documents, my fines).
+
+## Staff exits (relieving letter, experience certificate, settlement)
+Admin > **Staff Exits**. Steps: Resignation received -> Serving notice -> Handover & clearance -> Settlement in progress -> Settlement paid -> Relieved.
+- Clearance (work handed over, ID card, keys/uniform, system access, dues checked, exit talk) must all be ticked before settlement.
+- Settlement sheet works out pending salary, leave pay-out, notice recovery and the month's fines, and writes the net amount in words.
+- Letters (full & final statement, relieving letter, experience certificate) use standard wording, or your own Word file uploaded under "Letter wording".
+- Marking **Relieved** switches the person's login off. Their history stays.

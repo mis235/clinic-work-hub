@@ -447,3 +447,8 @@ input.field:focus, select.field:focus, textarea.field:focus { border-color: var(
 .shift-sel.s-general { background: var(--green-soft); } .shift-sel.s-off { background: #eee; color: var(--ink-soft); }
 .shift-sel.s-set { background: var(--green-soft); }
 .shift-sel { max-width: 130px; }
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-top: 14px; }
+.step { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--ink-soft); padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.step span { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: #e8edf0; font-size: 11px; flex: none; }
+.step.done { color: var(--green); border-color: var(--green); } .step.done span { background: var(--green); color: #fff; }
+.step.now { color: var(--primary-dark); border-color: var(--primary); background: var(--primary-soft); } .step.now span { background: var(--primary); color: #fff; }
