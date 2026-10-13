@@ -14,6 +14,7 @@ import ShiftChecklistPage from "./ShiftChecklistPage.jsx";
 import StaffProfilePage from "./StaffProfilePage.jsx";
 import ChangePinModal from "../components/ChangePinModal.jsx";
 import Icon from "../components/Icon.jsx";
+import { navItemsFor } from "../navItems.js";
 
 const firstName = (n = "") => n.split(/\s+/).find((w) => !/^dr\.?$/i.test(w)) || n;
 
@@ -46,7 +47,7 @@ export default function StaffDashboard({ user, onLogout }) {
   const done = tasks.filter((t) => t.status === "done");
 
   const shiftSummary = [...shiftToday].sort((x, y) => (y.status === "in_progress") - (x.status === "in_progress"))[0] || null;
-  const NAV_ITEMS = ["My checklist", "Shift Checklist", "Tracker", "My Profile", "Documents", "Learning", "Clinic Assistant", "Assistant", "Policies"];
+  const NAV_ITEMS = navItemsFor(user);
   const ACTIVE_LABEL = { checklist: "My checklist", shiftchecklist: "Shift Checklist", tracker: "Tracker", profile: "My Profile", assistant: "Assistant", policies: "Policies", documents: "Documents", learning: "Learning", clinicassistant: "Clinic Assistant" };
   const VIEW_FOR_LABEL = { "My checklist": "checklist", "Shift Checklist": "shiftchecklist", "Tracker": "tracker", "My Profile": "profile", "Assistant": "assistant", "Policies": "policies", "Documents": "documents", "Learning": "learning", "Clinic Assistant": "clinicassistant" };
 

@@ -143,6 +143,21 @@ try {
   ok("removed staff are hidden from the active list", !(await call("GET", "/api/users/full", null, admin)).body.some((u) => u.id === added.body.id));
   ok("removed staff can be restored", (await call("PATCH", `/api/users/${added.body.id}/reactivate`, null, admin)).status === 200);
 
+  // Personal staff files
+  fd = new FormData(); fd.append("docType", "id_proof"); fd.append("file", new Blob(["aadhaar"], { type: "text/plain" }), "id.txt");
+  const sf = await form("POST", `/api/documents/staff/${staff.id}`, fd, admin);
+  ok("admin can attach a personal file to a staff member", sf.status === 201, JSON.stringify(sf.body));
+  const sl = await call("GET", `/api/documents/staff/${staff.id}`, null, admin);
+  ok("personal file is listed for admin", sl.body?.files?.length === 1 && sl.body.canManage);
+  ok("attaching the file ticks the onboarding checklist", (await call("GET", "/api/users/onboarding", null, admin)).body.people.find((x) => x.id === staff.id)?.docs?.id_proof === true);
+  ok("the person can see their own file", (await call("GET", "/api/documents/staff/me", null, stoken)).body?.files?.length === 1);
+  const other = users.find((u) => u.id !== staff.id && u.role !== "admin");
+  const otok = (await call("POST", "/api/auth/login", { userId: other.id, pin: "1234" })).body?.token;
+  ok("other staff cannot see someone else's personal files", (await call("GET", `/api/documents/staff/${staff.id}`, null, otok)).status === 403);
+  ok("personal files are not in the department hub", !(await call("GET", "/api/documents", null, admin)).body.documents.some((d) => d.id === sf.body.id));
+  ok("other staff cannot download it", (await raw(`/api/documents/${sf.body.id}/file`, otok)).status === 403);
+  ok("admin can remove a personal file (and the tick clears)", (await call("DELETE", `/api/documents/${sf.body.id}`, null, admin)).status === 200 && (await call("GET", "/api/users/onboarding", null, admin)).body.people.find((x) => x.id === staff.id)?.docs?.id_proof === false);
+
   // Training videos: link + upload + edit + delete
   const tv = await call("POST", "/api/hr/training-videos", { department: "Front Desk", title: "Welcome", url: "https://youtu.be/dQw4w9WgXcQ" }, admin);
   ok("admin can add a training link", tv.status === 201, JSON.stringify(tv.body));

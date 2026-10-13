@@ -59,6 +59,8 @@ export function assetUrl(path) {
 }
 
 export const api = {
+  listStaffFiles: (userId) => req(`/api/documents/staff/${userId}`),
+  addStaffFile: (userId, formData) => reqForm(`/api/documents/staff/${userId}`, formData),
   listLinks: () => req("/api/links"),
   setLink: (key, payload) => req(`/api/links/${key}`, { method: "PUT", body: payload }),
   // Documents hub

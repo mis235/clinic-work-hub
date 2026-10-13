@@ -4,6 +4,8 @@ import { api } from "../api.js";
 import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
 import Icon, { initials } from "../components/Icon.jsx";
+import StaffDocuments from "../components/StaffDocuments.jsx";
+import StaffEditModal from "../components/StaffEditModal.jsx";
 
 function pctClass(p) {
   if (p === null || p === undefined) return "pending";
@@ -35,11 +37,19 @@ export default function StaffProfilePage({ user, staffId, isStaffLayout, onLogou
   const [p, setP] = useState(null);
   const [error, setError] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [tab, setTab] = useState("overview");
+  const [editing, setEditing] = useState(false);
+  const [shiftRoles, setShiftRoles] = useState([]);
+  const [roster, setRoster] = useState([]);
+  const isAdmin = user.role === "admin";
 
+  const load = () => api.getStaffProfile(staffId).then(setP).catch((e) => setError(e.message));
+  useEffect(() => { setP(null); setTab("overview"); load(); }, [staffId]);
   useEffect(() => {
-    setP(null);
-    api.getStaffProfile(staffId).then(setP).catch((e) => setError(e.message));
-  }, [staffId]);
+    if (!isAdmin) return;
+    api.listShiftRoles().then(setShiftRoles).catch(() => {});
+    api.listRosterFull().then(setRoster).catch(() => {});
+  }, [isAdmin]);
 
   const d = p?.details;
   const body = (
@@ -48,38 +58,68 @@ export default function StaffProfilePage({ user, staffId, isStaffLayout, onLogou
         <button className="btn btn-ghost btn-sm" style={{ marginBottom: 16 }} onClick={() => onBack(backLabel)}><Icon name="back" size={15} /> Back</button>
       )}
       {error && <div className="empty">{error}</div>}
+      {editing && p && (
+        <StaffEditModal staff={p.details} shiftRoles={shiftRoles} managers={roster.filter((r) => r.role === "admin" || r.role === "manager").map((r) => r.name)}
+          departments={[...new Set(roster.map((r) => r.department).filter(Boolean))]} onClose={() => setEditing(false)}
+          onSave={async (payload) => { try { await api.updateUser(staffId, payload); await load(); } catch (e) { setError(e.message); } }} />
+      )}
       {!p && !error && <div className="empty">Loading…</div>}
       {p && (
         <>
-          <div className="card" style={{ padding: 24 }}>
-            <div className="person-row" style={{ gap: 18, flexWrap: "wrap" }}>
-              <div className="avatar lg">{initials(d.name)}</div>
-              <div className="info" style={{ minWidth: 220 }}>
-                <h1 style={{ fontSize: 24 }}>{d.name}</h1>
-                <div className="sub" style={{ fontSize: 13.5, marginTop: 4 }}>{d.designation || "No designation set"} · {d.department}</div>
+          <div className="profile-hero">
+            <div className="banner" />
+            <div className="body">
+              <div className="avatar xl">{initials(d.name)}</div>
+              <div className="who">
+                <h1>{d.name}</h1>
+                <div className="sub">{d.designation || "No designation set"} · {d.department}</div>
                 <div style={{ marginTop: 10 }}>
                   <span className="badge teal" style={{ marginRight: 6, textTransform: "capitalize" }}>{d.role}</span>
                   {d.employee_code && <span className="chip">{d.employee_code}</span>}
                   {d.employment_type && <span className="chip">{d.employment_type}</span>}
-                  {!d.active && <span className="badge issue">Inactive</span>}
+                  {d.active ? <span className="badge done">Active</span> : <span className="badge issue">Removed</span>}
                 </div>
               </div>
-              {!isStaffLayout && (
-                <div style={{ minWidth: 190 }}>
-                  <div className="meta" style={{ marginBottom: 6, fontWeight: 700 }}>Record completeness</div>
-                  <div className={`progress lg ${p.missing.length === 0 ? "green" : ""}`}><span style={{ width: `${Math.max(8, 100 - p.missing.length * 9)}%` }} /></div>
-                  <div className="meta" style={{ marginTop: 6 }}>{p.missing.length === 0 ? "Everything on file" : `${p.missing.length} item${p.missing.length > 1 ? "s" : ""} still needed`}</div>
-                </div>
-              )}
+              <div className="actions">
+                {d.phone && <a className="btn btn-outline btn-sm" href={`tel:${d.phone}`}>Call</a>}
+                {d.phone && <a className="btn btn-outline btn-sm" href={`https://wa.me/${d.phone.replace(/\D/g, "")}`} target="_blank" rel="noreferrer">WhatsApp</a>}
+                {d.email && <a className="btn btn-outline btn-sm" href={`mailto:${d.email}`}>Email</a>}
+                {isAdmin && !isStaffLayout && <button className="btn btn-primary btn-sm" onClick={() => setEditing(true)}>Edit details</button>}
+              </div>
             </div>
-            {!isStaffLayout && p.missing.length > 0 && (
-              <div style={{ marginTop: 16 }}>
-                {p.missing.map((m) => <span key={m} className="chip warn">{m}</span>)}
-                <div className="meta" style={{ marginTop: 4 }}>Complete these from Staff Onboarding → Edit details.</div>
-              </div>
-            )}
           </div>
 
+          <div className="tabs">
+            {[["overview", "Overview"], ["documents", "Documents"], ["activity", "Work & activity"], ...(p.payroll ? [["pay", "Pay"]] : [])].map(([k, label]) => (
+              <button key={k} className={tab === k ? "active" : ""} onClick={() => setTab(k)}>{label}</button>
+            ))}
+          </div>
+
+          {tab === "documents" && <StaffDocuments staffId={isStaffLayout ? "me" : staffId} onChanged={load} />}
+
+          {tab === "pay" && p.payroll && (
+            <div className="card">
+              <div className="card-head"><div className="name">Payroll</div></div>
+              {p.payroll.hasPayProfile ? (
+                <>
+                  <Row k="Company" v={p.payroll.profile.company} />
+                  <Row k="Employee code" v={p.payroll.profile.employee_code} />
+                  <Row k="Position on payslip" v={p.payroll.profile.position} />
+                  <Row k="Basic salary (monthly)" v={`₹${Math.round(p.payroll.profile.basic_salary).toLocaleString("en-IN")}`} />
+                  <div className="meta" style={{ margin: "14px 0 6px", fontWeight: 700 }}>Recent payslips</div>
+                  {p.payroll.recentPayslips.length === 0 && <div className="meta">None generated yet.</div>}
+                  {p.payroll.recentPayslips.map((s) => (
+                    <div key={s.pay_period} className="kv"><span className="k">{s.pay_period}</span><span className="v">₹{Math.round(s.net_payable).toLocaleString("en-IN")}{s.emailed_at ? " · emailed" : ""}</span></div>
+                  ))}
+                </>
+              ) : <div className="meta">No salary details yet. Add them from the Payroll page.</div>}
+            </div>
+          )}
+
+          <div style={{ display: tab === "overview" || tab === "activity" ? "block" : "none" }}>
+          {tab === "overview" && !isStaffLayout && p.missing.length > 0 && (
+            <div className="note warn">Still needed for this record: {p.missing.join(", ")}. {isAdmin ? "Use “Edit details” or the Documents tab." : ""}</div>
+          )}
           <div className="kpi-grid">
             <Stat icon="clipboard" tone="green" num={p.shiftChecklist.avgCompletionPct === null ? "—" : `${p.shiftChecklist.avgCompletionPct}%`} label="Shift checklist average (30 days)" />
             <Stat icon="tasks" tone="blue" num={p.tasks.completionRate === null ? "—" : `${p.tasks.completionRate}%`} label="Task completion" />
@@ -87,6 +127,7 @@ export default function StaffProfilePage({ user, staffId, isStaffLayout, onLogou
             <Stat icon="calendarCheck" tone="violet" num={p.attendance.daysPresentLast30} label="Days present (30 days)" />
           </div>
 
+          {tab === "overview" && <>
           <div className="grid-2">
             <div className="card" style={{ marginBottom: 0 }}>
               <div className="card-head"><div className="name">Employment</div></div>
@@ -96,7 +137,6 @@ export default function StaffProfilePage({ user, staffId, isStaffLayout, onLogou
               <Row k="Reports to" v={d.reporting_to} />
               <Row k="Date of joining" v={d.joined_at ? `${d.joined_at}${d.tenureYears !== null ? ` (${d.tenureYears} yrs)` : ""}` : null} />
               <Row k="Shift checklist role" v={d.shift_role || "None assigned"} />
-              <Row k="Biometric device" v={p.attendance.deviceRegistered ? "Registered" : "Not registered"} />
               <Row k="Last check-in" v={p.attendance.lastCheckIn ? new Date(p.attendance.lastCheckIn + "Z").toLocaleString() : "None yet"} />
             </div>
             <div className="card" style={{ marginBottom: 0 }}>
@@ -111,7 +151,9 @@ export default function StaffProfilePage({ user, staffId, isStaffLayout, onLogou
             </div>
           </div>
           {p.bio && <div className="card" style={{ marginTop: 16 }}><p style={{ fontSize: 13.5, margin: 0, lineHeight: 1.65 }}><strong>{p.bio.title}.</strong> {p.bio.bio}</p></div>}
+          </>}
 
+          {tab === "activity" && <>
           <div className="section-head"><h2>Shift checklist — last 30 days</h2><span className="sub">{p.shiftChecklist.submissionsLast30} submitted · {p.shiftChecklist.daysSubmittedLast30} days · {p.shiftChecklist.withPhoto} with photo</span></div>
           <div className="card">
             {p.shiftChecklist.recent.length === 0 && <div className="meta">No shift checklists submitted yet.</div>}
@@ -151,19 +193,8 @@ export default function StaffProfilePage({ user, staffId, isStaffLayout, onLogou
               <div className="meta">{p.training.watched} of {p.training.total} videos watched</div>
               <div className="progress" style={{ marginTop: 10 }}><span style={{ width: `${p.training.total ? (p.training.watched / p.training.total) * 100 : 0}%` }} /></div>
             </div>
-            {p.payroll && (
-              <div className="card" style={{ marginBottom: 0 }}>
-                <div className="card-head"><div className="name">Payroll</div></div>
-                {p.payroll.hasPayProfile ? (
-                  <>
-                    <div className="meta">{p.payroll.profile.company} · {p.payroll.profile.employee_code || "no code"}</div>
-                    {p.payroll.recentPayslips.map((s) => (
-                      <div key={s.pay_period} className="meta">{s.pay_period}: ₹{Math.round(s.net_payable).toLocaleString("en-IN")}{s.emailed_at ? " · emailed" : ""}</div>
-                    ))}
-                  </>
-                ) : <div className="meta">No pay profile yet.</div>}
-              </div>
-            )}
+          </div>
+          </>}
           </div>
         </>
       )}

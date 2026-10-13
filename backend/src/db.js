@@ -409,6 +409,8 @@ CREATE TABLE IF NOT EXISTS app_links (
 `);
 db.prepare("INSERT OR IGNORE INTO app_links (key, title, url, audience) VALUES (?, ?, ?, ?)").run("assistant", "Clinic Assistant", "http://72.60.101.59:3005", "all");
 db.prepare("INSERT OR IGNORE INTO app_links (key, title, url, audience) VALUES (?, ?, ?, ?)").run("dashboard", "Clinic Dashboards", "https://claude.ai/code/artifact/c04a5c65-a3ee-4deb-be45-01658e364d8d", "lead");
+ensureColumn("documents", "staff_user_id", "staff_user_id TEXT REFERENCES users(id)");  // set = a personal HR file (ID proof, certificates...) visible to admin + that person only
+ensureColumn("documents", "doc_type", "doc_type TEXT");                                   // key from the onboarding document checklist
 ensureColumn("training_videos", "description", "description TEXT");
 ensureColumn("training_videos", "file_path", "file_path TEXT");            // uploaded video file (private, streamed via authenticated route)
 ensureColumn("training_videos", "mime", "mime TEXT");

@@ -49,6 +49,7 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <input className="field" style={{ width: 200 }} placeholder="Search by name…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <button className="btn btn-outline" onClick={() => onBack("Onboarding")}>Onboarding progress</button>
             <button className="btn btn-primary" onClick={() => setAdding(true)}><Icon name="userplus" size={16} /> Add staff</button>
           </div>
         </div>
@@ -119,13 +120,23 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
 function AddStaffModal({ departments, shiftRoles, onClose, onDone }) {
   const [f, setF] = useState({ name: "", departmentName: departments[0] || "Front Desk", roleName: "staff", phone: "", email: "", designation: "", shiftRole: "", joinedAt: "", pin: "1234" });
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  const [types, setTypes] = useState([]);
+  const [files, setFiles] = useState({}); // docType -> File
+  useEffect(() => { api.getOnboarding().then((o) => setTypes(o.docChecklist || [])).catch(() => {}); }, []);
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
   async function save() {
     setBusy(true); setErr("");
+    let created;
     try {
-      await api.createStaff({ ...f, name: f.name.trim(), shiftRole: f.shiftRole || undefined, email: f.email || undefined, joinedAt: f.joinedAt || undefined, designation: f.designation || undefined });
-      onDone(`${f.name} added. They sign in with their name and PIN ${f.pin}, then choose their own PIN.`);
-    } catch (e) { setErr(e.message); setBusy(false); }
+      created = await api.createStaff({ ...f, name: f.name.trim(), shiftRole: f.shiftRole || undefined, email: f.email || undefined, joinedAt: f.joinedAt || undefined, designation: f.designation || undefined });
+    } catch (e) { setErr(e.message); setBusy(false); return; }
+    // The person now exists, so a failed upload must not look like a failed "add" -- report it and carry on.
+    const failed = [];
+    for (const [type, file] of Object.entries(files)) {
+      try { const fd = new FormData(); fd.append("docType", type); fd.append("file", file); await api.addStaffFile(created.id, fd); }
+      catch { failed.push(file.name); }
+    }
+    onDone(`${f.name} added${Object.keys(files).length - failed.length ? ` with ${Object.keys(files).length - failed.length} document(s)` : ""}. They sign in with their name and PIN ${f.pin}, then choose their own PIN.${failed.length ? ` Could not upload: ${failed.join(", ")} — add from their profile.` : ""}`);
   }
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -141,6 +152,13 @@ function AddStaffModal({ departments, shiftRoles, onClose, onDone }) {
           <div><label className="field-label">Date of joining</label><input className="field" type="date" value={f.joinedAt} onChange={set("joinedAt")} /></div>
           <div><label className="field-label">Shift checklist role</label><select className="field" value={f.shiftRole} onChange={set("shiftRole")}><option value="">— None —</option>{shiftRoles.map((r) => <option key={r}>{r}</option>)}</select></div>
           <div><label className="field-label">Starting PIN (4 digits)</label><input className="field" maxLength={4} value={f.pin} onChange={set("pin")} /></div>
+        </div>
+        <div className="step-label" style={{ marginTop: 20 }}>Documents (optional — you can also add these later from their profile)</div>
+        <div className="form-grid">
+          {types.map((t) => (
+            <div key={t.key}><label className="field-label">{t.label}</label>
+              <input className="field" type="file" onChange={(e) => setFiles((x) => { const n = { ...x }; if (e.target.files[0]) n[t.key] = e.target.files[0]; else delete n[t.key]; return n; })} /></div>
+          ))}
         </div>
         {err && <div className="login-error" style={{ marginTop: 12 }}>{err}</div>}
         <div className="actions"><button className="btn btn-ghost" onClick={onClose}>Cancel</button>

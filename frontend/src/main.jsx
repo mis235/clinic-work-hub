@@ -3,6 +3,14 @@ import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import "./theme.css";
 
+// After an app update, drop any old sign-in so nobody is stuck on a stale login ("Invalid or expired token").
+try {
+  if (localStorage.getItem("buildId") !== __BUILD_ID__) {
+    localStorage.removeItem("token"); localStorage.removeItem("user");
+    localStorage.setItem("buildId", __BUILD_ID__);
+  }
+} catch {}
+
 class ErrorBoundary extends React.Component {
   state = { error: null };
   static getDerivedStateFromError(error) { return { error }; }

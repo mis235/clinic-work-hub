@@ -11,6 +11,7 @@ import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import db from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { DOC_CHECKLIST } from "./users.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA = process.env.DATA_DIR || path.join(__dirname, "..", "..");
@@ -47,8 +48,8 @@ const DOC_SELECT = `SELECT d.id, d.title, d.category, d.kind, d.url, d.file_name
 
 documentsRouter.get("/", requireAuth, (req, res) => {
   let rows;
-  if (isLead(req)) rows = db.prepare(`${DOC_SELECT} ORDER BY d.created_at DESC`).all();
-  else rows = db.prepare(`${DOC_SELECT} WHERE d.department_id IS ? OR d.uploaded_by = ? ORDER BY d.created_at DESC`).all(myDeptId(req), req.user.userId);
+  if (isLead(req)) rows = db.prepare(`${DOC_SELECT} WHERE d.staff_user_id IS NULL ORDER BY d.created_at DESC`).all();
+  else rows = db.prepare(`${DOC_SELECT} WHERE d.staff_user_id IS NULL AND (d.department_id IS ? OR d.uploaded_by = ?) ORDER BY d.created_at DESC`).all(myDeptId(req), req.user.userId);
   const departments = db.prepare("SELECT id, name FROM departments ORDER BY name").all();
   res.json({ documents: rows, departments, myDepartmentId: myDeptId(req), canSeeAll: isLead(req) });
 });
@@ -72,8 +73,36 @@ documentsRouter.post("/", requireAuth, docUpload.single("file"), (req, res) => {
 });
 
 function canAccessDoc(req, d) {
+  if (d.staff_user_id) return isAdmin(req) || d.staff_user_id === req.user.userId; // personal HR files: admin + the person only
   return isLead(req) || d.uploaded_by === req.user.userId || (d.department_id && d.department_id === myDeptId(req));
 }
+
+// ---- Personal staff files (ID proof, certificates, bank details ...) ----
+documentsRouter.get("/staff/:userId", requireAuth, (req, res) => {
+  const uid = req.params.userId === "me" ? req.user.userId : req.params.userId;
+  if (!isAdmin(req) && uid !== req.user.userId) return res.status(403).json({ error: "Not allowed" });
+  const files = db.prepare(
+    `SELECT d.id, d.doc_type, d.title, d.file_name, d.size, d.created_at, u.name AS uploaded_by_name
+     FROM documents d LEFT JOIN users u ON u.id = d.uploaded_by WHERE d.staff_user_id = ? ORDER BY d.created_at DESC`).all(uid);
+  res.json({ types: DOC_CHECKLIST, files, canManage: isAdmin(req) });
+});
+
+documentsRouter.post("/staff/:userId", requireAuth, adminOnly, docUpload.single("file"), (req, res) => {
+  const user = db.prepare("SELECT id, department_id, onboarding_docs FROM users WHERE id = ?").get(req.params.userId);
+  if (!user) return res.status(404).json({ error: "Staff member not found" });
+  if (!req.file) return res.status(400).json({ error: "Choose a file" });
+  const type = DOC_CHECKLIST.find((t) => t.key === req.body?.docType);
+  const id = randomUUID();
+  db.prepare(
+    `INSERT INTO documents (id, department_id, title, category, kind, file_path, file_name, mime, size, uploaded_by, staff_user_id, doc_type)
+     VALUES (?, ?, ?, 'Staff file', 'file', ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, user.department_id, type?.label || fixName(req.file.originalname), req.file.path, fixName(req.file.originalname), req.file.mimetype, req.file.size, req.user.userId, user.id, type?.key || null);
+  if (type) { // uploading the paper marks it as collected in the onboarding checklist
+    const merged = { ...(user.onboarding_docs ? JSON.parse(user.onboarding_docs) : {}), [type.key]: true };
+    db.prepare("UPDATE users SET onboarding_docs = ? WHERE id = ?").run(JSON.stringify(merged), user.id);
+  }
+  res.status(201).json({ id });
+});
 
 documentsRouter.get("/:id/file", requireAuth, (req, res) => {
   const d = db.prepare("SELECT * FROM documents WHERE id = ?").get(req.params.id);
@@ -88,6 +117,11 @@ documentsRouter.delete("/:id", requireAuth, (req, res) => {
   if (!isAdmin(req) && d.uploaded_by !== req.user.userId) return res.status(403).json({ error: "Only the uploader or admin can delete this" });
   if (d.file_path) fs.rm(d.file_path, { force: true }, () => {});
   db.prepare("DELETE FROM documents WHERE id = ?").run(d.id);
+  if (d.staff_user_id && d.doc_type && !db.prepare("SELECT 1 FROM documents WHERE staff_user_id = ? AND doc_type = ?").get(d.staff_user_id, d.doc_type)) {
+    const u = db.prepare("SELECT onboarding_docs FROM users WHERE id = ?").get(d.staff_user_id);
+    const merged = { ...(u?.onboarding_docs ? JSON.parse(u.onboarding_docs) : {}), [d.doc_type]: false };
+    db.prepare("UPDATE users SET onboarding_docs = ? WHERE id = ?").run(JSON.stringify(merged), d.staff_user_id);
+  }
   res.json({ ok: true });
 });
 
