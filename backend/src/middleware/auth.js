@@ -1,10 +1,14 @@
 import jwt from "jsonwebtoken";
 import db from "../db.js";
 
-const { JWT_SECRET } = process.env;
+// Read lazily so the value is always the one from backend/.env, however files are loaded.
+const secret = () => {
+  if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is missing in backend/.env");
+  return process.env.JWT_SECRET;
+};
 
 export function signToken(payload) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
+  return jwt.sign(payload, secret(), { expiresIn: "7d" });
 }
 
 // Verifies the token and attaches { userId, roleId, roleName, departmentId } to req.user.
@@ -15,7 +19,7 @@ export function requireAuth(req, res, next) {
   const token = header.startsWith("Bearer ") ? header.slice(7) : null;
   if (!token) return res.status(401).json({ error: "Missing token" });
   try {
-    req.user = jwt.verify(token, JWT_SECRET);
+    req.user = jwt.verify(token, secret());
   } catch {
     return res.status(401).json({ error: "Invalid or expired token" });
   }

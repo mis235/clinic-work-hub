@@ -42,6 +42,17 @@ if (!fs.existsSync(envFile)) {
   ].join("\n"));
 }
 
+// 1b. An older or hand-made settings file may lack the login secret: add whatever is missing (never overwrites).
+if (fs.existsSync(envFile) && freshPassword === null) {
+  let txt = fs.readFileSync(envFile, "utf8");
+  const has = (k) => new RegExp(`^${k}=.+`, "m").test(txt);
+  const add = [];
+  if (!has("JWT_SECRET")) add.push(`JWT_SECRET=${randomBytes(32).toString("hex")}`);
+  if (!has("ADMIN_EMAIL")) add.push("ADMIN_EMAIL=admin@drnishitaranka.com");
+  if (!has("ADMIN_PASSWORD")) { freshPassword = randomBytes(6).toString("base64url"); add.push(`ADMIN_PASSWORD=${freshPassword}`); }
+  if (add.length) { say("Adding missing settings to backend/.env"); fs.writeFileSync(envFile, txt.replace(/\s*$/, "\n") + add.join("\n") + "\n"); }
+}
+
 // 2. Install + build (only when needed)
 if (!fs.existsSync(path.join(backend, "node_modules"))) { say("Installing server (one time, ~1 minute)"); run("npm", ["install", "--no-audit", "--no-fund"], backend); }
 if (!fs.existsSync(path.join(frontend, "node_modules"))) { say("Installing screens (one time, ~1 minute)"); run("npm", ["install", "--no-audit", "--no-fund"], frontend); }

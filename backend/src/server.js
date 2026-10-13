@@ -1,9 +1,9 @@
+import "dotenv/config"; // MUST stay the first line: every other file reads its settings from backend/.env when it loads
 import { documentsRouter, templatesRouter, linksRouter } from "./routes/documents.js";
 import finesRoutes from "./routes/fines.js";
 import portalRoutes from "./routes/portal.js";
 import rosterRoutes from "./routes/roster.js";
 import exitRoutes from "./routes/exits.js";
-import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import path from "node:path";

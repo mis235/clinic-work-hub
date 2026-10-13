@@ -266,6 +266,18 @@ try {
   ok("relieved person can no longer sign in", (await call("POST", "/api/auth/login", { userId: lv.body.id, pin: "5555" })).status === 401);
   ok("the exit shows a history", ((await call("GET", `/api/exits/${xid}`, null, admin)).body?.events?.length || 0) >= 6);
 
+  // Settings come from the .env FILE (how the clinic PC runs it): no secrets in the process environment at all.
+  {
+    const dir2 = fs.mkdtempSync(path.join(os.tmpdir(), "hub-env-")), envPath = path.join(dir2, "test.env"), P2 = PORT + 150;
+    fs.writeFileSync(envPath, `JWT_SECRET=file-secret-file-secret-file-secret\nADMIN_EMAIL=file@admin.test\nADMIN_PASSWORD=filepass123\nDISABLE_CRON=true\n`);
+    const clean = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(JWT_SECRET|ADMIN_EMAIL|ADMIN_PASSWORD)$/.test(k)));
+    const s2 = spawn("node", ["src/server.js"], { env: { ...clean, PORT: String(P2), DATA_DIR: dir2, DOTENV_CONFIG_PATH: envPath }, stdio: "ignore" });
+    let up = false; for (let i = 0; i < 40 && !up; i++) { try { up = (await fetch(`http://localhost:${P2}/health`)).ok; } catch {} if (!up) await new Promise((r) => setTimeout(r, 500)); }
+    let lg = null; if (up) { const r = await fetch(`http://localhost:${P2}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: "file@admin.test", password: "filepass123" }) }); lg = { status: r.status }; }
+    ok("sign-in works when settings come only from backend/.env", lg?.status === 200, JSON.stringify(lg));
+    s2.kill("SIGTERM"); await new Promise((r) => setTimeout(r, 400)); fs.rmSync(dir2, { recursive: true, force: true });
+  }
+
   // Lockout
   let last; for (let i = 0; i < 8; i++) last = await call("POST", "/api/auth/login", { email: "lock@test.local", password: "x" });
   ok("repeated wrong logins are locked out (429)", last.status === 429);
