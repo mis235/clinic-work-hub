@@ -361,3 +361,10 @@ Admin > **Staff Exits**. Steps: Resignation received -> Serving notice -> Handov
 - Settlement sheet works out pending salary, leave pay-out, notice recovery and the month's fines, and writes the net amount in words.
 - Letters (full & final statement, relieving letter, experience certificate) use standard wording, or your own Word file uploaded under "Letter wording".
 - Marking **Relieved** switches the person's login off. Their history stays.
+
+## Latest changes
+- **Attendance** is marked by admin/manager (Present / Late / Half day / Leave / Absent / Off) with a month register and CSV. Staff no longer check in on the app.
+- **Offer letters**: the standard clinic letter is installed automatically. "Generate" has a *Review & edit* step so every value can be changed per person before the Word file is made.
+- **Departments & Workspaces**: each department has a workspace of sheets, dashboards and tools. Staff see their own ("My Workspace"); admin sees all.
+- **Dashboards** has tabs: Clinic overview, Checklist dashboard and Old dashboard, with an "Open in new tab" fallback for Google pages that refuse embedding.
+- **AI Assistant** combines the Help assistant and Advisers. Shift Roster and the Onboarding screen are gone from the menus (use Staff → Add staff).
