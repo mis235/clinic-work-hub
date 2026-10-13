@@ -7,7 +7,7 @@ import {
   verifyAuthenticationResponse,
 } from "@simplewebauthn/server";
 import db from "../db.js";
-import { shiftFor, SHIFT_TYPES } from "./roster.js";
+import { shiftFor, getTypes } from "./roster.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
 
 const router = Router();
@@ -234,7 +234,7 @@ router.post("/punch", requireAuth, (req, res) => {
 // Anyone whose first check-in is after this India-time hour counts as "late" (set LATE_AFTER=HH:MM in .env to change).
 const LATE_AFTER = /^\d{2}:\d{2}$/.test(process.env.LATE_AFTER || "") ? process.env.LATE_AFTER : "10:00";
 export const isLateIn = (utc, start = LATE_AFTER) => !!utc && new Date(new Date(utc.replace(" ", "T") + "Z").getTime() + 19800000).toISOString().slice(11, 16) > start;
-const startFor = (userId, date) => SHIFT_TYPES[shiftFor(userId, date)]?.start || LATE_AFTER; // the person's own shift start, else the clinic default
+const startFor = (userId, date) => getTypes()[shiftFor(userId, date)]?.start || LATE_AFTER; // the person's own shift start, else the clinic default
 
 // Admin / manager board: everyone's first check-in, last check-out and hours for one day (default today).
 router.get("/board", requireAuth, requirePermission("attendance:view_all"), (req, res) => {

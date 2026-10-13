@@ -156,9 +156,20 @@ try {
   // Shift roster + connection check
   const wk = await call("GET", "/api/roster/week?start=2026-10-05", null, admin);
   ok("roster week lists everyone with 7 days", wk.status === 200 && wk.body.days.length === 7 && wk.body.rows[0].shifts.length === 7);
-  ok("lead can set a shift", (await call("PUT", "/api/roster", { userId: staff.id, date: "2026-10-05", shift: "evening" }, admin)).status === 200);
+  ok("lead can set a shift", (await call("PUT", "/api/roster", { userId: staff.id, date: "2026-10-05", shift: "s0930" }, admin)).status === 200);
   ok("staff cannot set a shift", (await call("PUT", "/api/roster", { userId: staff.id, date: "2026-10-05", shift: "morning" }, stoken)).status === 403);
   ok("bad shift rejected", (await call("PUT", "/api/roster", { userId: staff.id, date: "2026-10-05", shift: "nope" }, admin)).status === 400);
+  const nt2 = await call("POST", "/api/roster/types", { start: "10:00", end: "19:30" }, admin);
+  ok("duplicate shift is refused", nt2.status === 409);
+  const nt3 = await call("POST", "/api/roster/types", { start: "08:30", end: "17:00", label: "Early" }, admin);
+  ok("admin can add a custom shift", nt3.status === 201 && Object.values(nt3.body).some((t) => t.label === "Early"));
+  ok("staff cannot add a shift", (await call("POST", "/api/roster/types", { start: "07:00", end: "15:00" }, stoken)).status === 403);
+  ok("end must be after start", (await call("POST", "/api/roster/types", { start: "12:00", end: "11:00" }, admin)).status === 400);
+  const bk2 = await call("PUT", "/api/roster/bulk", { userId: staff.id, dates: ["2026-10-06", "2026-10-07"], shift: "s0900" }, admin);
+  ok("one person can get a shift on several days at once", bk2.status === 200);
+  const ekey = Object.keys(nt3.body).find((k) => nt3.body[k].label === "Early");
+  ok("a shift can be edited", (await call("PATCH", `/api/roster/types/${ekey}`, { start: "08:00", end: "16:30" }, admin)).status === 200);
+  ok("a shift can be removed when unused", (await call("DELETE", `/api/roster/types/${ekey}`, null, admin)).status === 200);
   const cw = await call("POST", "/api/roster/copy-week", { from: "2026-10-05", to: "2026-10-12" }, admin);
   ok("a week's plan can be copied to the next", cw.status === 200 && cw.body.copied >= 1);
   ok("staff sees own shifts", (await call("GET", "/api/roster/me", null, stoken)).status === 200);

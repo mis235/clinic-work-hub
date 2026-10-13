@@ -445,3 +445,5 @@ input.field:focus, select.field:focus, textarea.field:focus { border-color: var(
 .shift-sel { font: inherit; font-size: 11.5px; border: 1px solid var(--line); border-radius: 8px; padding: 3px 2px; background: var(--surface); max-width: 86px; }
 .shift-sel.s-morning { background: var(--amber-soft); } .shift-sel.s-evening { background: var(--violet-soft); }
 .shift-sel.s-general { background: var(--green-soft); } .shift-sel.s-off { background: #eee; color: var(--ink-soft); }
+.shift-sel.s-set { background: var(--green-soft); }
+.shift-sel { max-width: 130px; }
