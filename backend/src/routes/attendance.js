@@ -230,6 +230,10 @@ router.post("/punch", requireAuth, (req, res) => {
   res.status(201).json({ ok: true, type, recorded_at: row.recorded_at });
 });
 
+// Anyone whose first check-in is after this India-time hour counts as "late" (set LATE_AFTER=HH:MM in .env to change).
+const LATE_AFTER = /^\d{2}:\d{2}$/.test(process.env.LATE_AFTER || "") ? process.env.LATE_AFTER : "10:00";
+export const isLateIn = (utc) => !!utc && new Date(new Date(utc.replace(" ", "T") + "Z").getTime() + 19800000).toISOString().slice(11, 16) > LATE_AFTER;
+
 // Admin / manager board: everyone's first check-in, last check-out and hours for one day (default today).
 router.get("/board", requireAuth, requirePermission("attendance:view_all"), (req, res) => {
   const date = /^\d{4}-\d{2}-\d{2}$/.test(req.query.date || "") ? req.query.date : new Date(Date.now() + 19800000).toISOString().slice(0, 10);
@@ -250,12 +254,12 @@ router.get("/board", requireAuth, requirePermission("attendance:view_all"), (req
     const first = list.find((r) => r.type === "check_in");
     const lastOut = [...list].reverse().find((r) => r.type === "check_out");
     return {
-      ...u, status: !list.length ? "absent" : openAt !== null ? "in" : "out",
+      ...u, late: isLateIn(first?.recorded_at), status: !list.length ? "absent" : openAt !== null ? "in" : "out",
       first_in: first?.recorded_at || null, last_out: lastOut?.recorded_at || null,
       hours: Math.round((ms / 3600000) * 10) / 10, methods: [...new Set(list.map((r) => r.method))],
     };
   });
-  res.json({ date, rows, present: rows.filter((r) => r.status !== "absent").length, total: rows.length });
+  res.json({ date, late_after: LATE_AFTER, rows, present: rows.filter((r) => r.status !== "absent").length, total: rows.length });
 });
 
 // Monthly attendance for the whole team: days present per person.
@@ -268,6 +272,39 @@ router.get("/month", requireAuth, requirePermission("attendance:view_all"), (req
      LEFT JOIN attendance a ON a.user_id = u.id AND a.type = 'check_in' AND substr(${istDay("a.recorded_at")}, 1, 7) = ?
      WHERE u.active = 1 GROUP BY u.id ORDER BY d.name, u.name`).all(month);
   res.json({ month, rows });
+});
+
+// The attendance register for a month, one row per person and one column per day:
+// P = present, L = present but late, A = absent, W = Sunday off, "" = future day. Also late count and fines, like the paper sheet.
+router.get("/register", requireAuth, requirePermission("attendance:view_all"), (req, res) => {
+  const nowIst = new Date(Date.now() + 19800000);
+  const month = /^\d{4}-\d{2}$/.test(req.query.month || "") ? req.query.month : nowIst.toISOString().slice(0, 7);
+  const [y, m] = month.split("-").map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const todayStr = nowIst.toISOString().slice(0, 10);
+  const staff = db.prepare(
+    `SELECT u.id, u.name, u.designation, d.name AS department FROM users u LEFT JOIN departments d ON d.id = u.department_id
+     WHERE u.active = 1 ORDER BY d.name, u.name`).all();
+  const recs = db.prepare(`SELECT user_id, recorded_at, ${istDay("recorded_at")} AS day FROM attendance WHERE type = 'check_in' AND substr(${istDay("recorded_at")},1,7) = ? ORDER BY recorded_at`).all(month);
+  const firstIn = new Map();
+  for (const r of recs) { const k = r.user_id + "|" + r.day; if (!firstIn.has(k)) firstIn.set(k, r.recorded_at); }
+  const fines = db.prepare("SELECT user_id, COALESCE(SUM(amount),0) AS total, COUNT(*) AS n FROM fines WHERE substr(fine_date,1,7) = ? GROUP BY user_id").all(month);
+  const fineBy = new Map(fines.map((f) => [f.user_id, f]));
+  const rows = staff.map((u) => {
+    let present = 0, late = 0, absent = 0;
+    const days = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = `${month}-${String(d).padStart(2, "0")}`;
+      if (date > todayStr) { days.push(""); continue; }
+      const t = firstIn.get(u.id + "|" + date);
+      if (!t) { if (new Date(date + "T00:00:00Z").getUTCDay() === 0) days.push("W"); else { days.push("A"); absent++; } }
+      else if (isLateIn(t)) { days.push("L"); late++; present++; }
+      else { days.push("P"); present++; }
+    }
+    const f = fineBy.get(u.id);
+    return { ...u, days, present, late, absent, fine_count: f?.n || 0, fine_total: f?.total || 0 };
+  });
+  res.json({ month, daysInMonth, late_after: LATE_AFTER, rows });
 });
 
 // GET /api/attendance/registered — whether the current user has a registered device

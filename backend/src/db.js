@@ -279,6 +279,18 @@ CREATE TABLE IF NOT EXISTS webauthn_challenges (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS fines (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  fine_date TEXT NOT NULL,            -- YYYY-MM-DD (India date the fine is for)
+  category TEXT NOT NULL,             -- late | dress_code | misbehaviour | absent | other
+  amount REAL NOT NULL,
+  note TEXT,
+  added_by TEXT REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_fines_user_date ON fines(user_id, fine_date);
+
 CREATE TABLE IF NOT EXISTS attendance (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id),

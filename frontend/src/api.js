@@ -87,6 +87,14 @@ export const api = {
   attendancePunch: (payload) => req("/api/attendance/punch", { method: "POST", body: payload }),
   attendanceBoard: (date) => req(`/api/attendance/board${date ? `?date=${date}` : ""}`),
   attendanceMonth: (month) => req(`/api/attendance/month${month ? `?month=${month}` : ""}`),
+  attendanceRegister: (month) => req(`/api/attendance/register${month ? `?month=${month}` : ""}`),
+  fines: (month, userId) => req(`/api/fines?month=${month || ""}${userId ? `&userId=${userId}` : ""}`),
+  finesSummary: (month) => req(`/api/fines/summary?month=${month || ""}`),
+  addFine: (body) => req("/api/fines", { method: "POST", body }),
+  deleteFine: (id) => req(`/api/fines/${id}`, { method: "DELETE" }),
+  portalDepartments: () => req("/api/portal/departments"),
+  portalDepartment: (id) => req(`/api/portal/departments/${id}`),
+  portalMe: () => req("/api/portal/me"),
   manualAttendance: (userId, type) => req("/api/attendance/manual", { method: "POST", body: { userId, type } }),
 
   // Staff management

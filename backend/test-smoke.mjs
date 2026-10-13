@@ -130,6 +130,29 @@ try {
   fd = new FormData(); fd.append("kind", "offer_letter"); fd.append("name", "bad"); fd.append("file", new Blob(["not a word file"]), "bad.docx");
   ok("a broken Word file is rejected with a clear message", (await form("POST", "/api/doc-templates", fd, admin)).status === 400);
 
+  // Fines, register, department portal
+  const fa = await call("POST", "/api/fines", { userId: staff.id, category: "late", amount: 150, note: "Came at 10:40", date: "2026-10-05" }, admin);
+  ok("admin can add a fine", fa.status === 201, JSON.stringify(fa.body));
+  ok("staff cannot add a fine", (await call("POST", "/api/fines", { userId: staff.id, category: "late", amount: 50 }, stoken)).status === 403);
+  ok("bad fine is rejected", (await call("POST", "/api/fines", { userId: staff.id, category: "nonsense", amount: 50 }, admin)).status === 400);
+  const mf = await call("GET", "/api/fines?month=2026-10", null, stoken);
+  ok("staff sees only their own fines", mf.status === 200 && mf.body.rows.length === 1 && mf.body.total === 150);
+  const fs2 = await call("GET", "/api/fines/summary?month=2026-10", null, admin);
+  ok("fines summary totals per person", fs2.body?.total === 150 && fs2.body.rows.find((r) => r.id === staff.id)?.total === 150);
+  await call("POST", "/api/fines", { userId: staff.id, category: "dress_code", amount: 200, date: "2026-10-06" }, admin);
+  const pg2 = await call("POST", "/api/doc-templates/generate", { templateId: pt.body.id, period: "2026-10" }, admin);
+  ok("fines flow into the payslip template", pg2.status === 201);
+  const reg = await call("GET", "/api/attendance/register?month=2026-10", null, admin);
+  ok("attendance register has a row per person and a column per day", reg.status === 200 && reg.body.daysInMonth === 31 && reg.body.rows[0].days.length === 31, JSON.stringify(reg.body).slice(0, 120));
+  ok("register shows fines for the month", reg.body.rows.find((r) => r.id === staff.id)?.fine_total === 350);
+  const dp = await call("GET", "/api/portal/departments", null, admin);
+  ok("department portal lists departments with numbers", dp.status === 200 && dp.body.rows.length >= 3 && "present_today" in dp.body.rows[0]);
+  const dd = await call("GET", `/api/portal/departments/${dp.body.rows[0].id}`, null, admin);
+  ok("one department shows its people and documents", dd.status === 200 && Array.isArray(dd.body.people) && Array.isArray(dd.body.documents));
+  ok("staff cannot open the department portal", (await call("GET", "/api/portal/departments", null, stoken)).status === 403);
+  const me = await call("GET", "/api/portal/me", null, stoken);
+  ok("staff 'my day' summary works", me.status === 200 && "checked_in" in me.body && "fines_month" in me.body);
+
   // Staff add / edit / remove
   const added = await call("POST", "/api/users", { name: "Test Person", departmentName: "Front Desk", roleName: "staff", phone: "+919111111111", pin: "4321" }, admin);
   ok("admin can add a staff member", added.status === 201, JSON.stringify(added.body));

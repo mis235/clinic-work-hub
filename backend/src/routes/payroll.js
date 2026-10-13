@@ -2,6 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import db from "../db.js";
+import { withFines } from "./fines.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
 import { generatePayslipPdf } from "../payslip-pdf.js";
 import { sendEmail, isEmailConfigured } from "../email.js";
@@ -53,7 +54,8 @@ function computeNet(p) {
   return earnings - deductions;
 }
 
-async function generateOneSlip({ profile, period, payDate, adminUserId, sendNow }) {
+async function generateOneSlip({ profile: baseProfile, period, payDate, adminUserId, sendNow }) {
+  const profile = withFines(baseProfile, period); // this month's fines come off the payslip
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(profile.user_id);
   const company = db.prepare("SELECT * FROM companies WHERE id = ?").get(profile.company_id);
   const netPayable = computeNet(profile);

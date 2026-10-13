@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import db from "../db.js";
+import { withFines } from "./fines.js";
 import { requireAuth } from "../middleware/auth.js";
 import { DOC_CHECKLIST } from "./users.js";
 
@@ -145,7 +146,7 @@ export const FIELDS = {
     ["name", "Staff full name"], ["employee_code", "Employee code"], ["role", "Position"], ["department", "Department"],
     ["company", "Company name"], ["company_address", "Company address"], ["period", "Pay period (e.g. October 2026)"], ["pay_date", "Pay date"],
     ["pan", "PAN"], ["basic", "Basic salary"], ["leave_bonus", "Leave bonus"], ["overtime", "Overtime"], ["other_allowances", "Other allowances"],
-    ["gross", "Total earnings"], ["pf", "PF"], ["tds", "TDS"], ["other_deductions", "Other deductions"], ["retention", "Retention"],
+    ["gross", "Total earnings"], ["pf", "PF"], ["tds", "TDS"], ["other_deductions", "Other deductions (includes fines)"], ["fines", "Fines this month"], ["retention", "Retention"],
     ["total_deductions", "Total deductions"], ["net", "Net payable"], ["joining_date", "Joining date"],
   ],
 };
@@ -153,7 +154,8 @@ export const FIELDS = {
 const money = (n) => Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 });
 const longDate = (d) => (d ? new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "");
 
-function valuesFor(kind, user, profile, company, period, extra = {}) {
+function valuesFor(kind, user, profile0, company, period, extra = {}) {
+  const profile = kind === "payslip" && profile0 ? withFines(profile0, period) : profile0;
   const base = {
     name: user.name, first_name: (user.name || "").split(" ")[0], role: profile?.position || user.designation || user.role_name || "",
     department: user.department || "", employee_code: profile?.employee_code || user.employee_code || "",
@@ -171,7 +173,7 @@ function valuesFor(kind, user, profile, company, period, extra = {}) {
       basic: money(profile?.basic_salary), leave_bonus: money(profile?.leave_bonus), overtime: money(profile?.overtime),
       other_allowances: money(profile?.other_allowances), gross: money(gross), pf: money(profile?.pf), tds: money(profile?.tds),
       other_deductions: money(profile?.other_deductions), retention: money(profile?.retention),
-      total_deductions: money(ded), net: money(gross - ded),
+      total_deductions: money(ded), fines: money(profile?.fines), net: money(gross - ded),
     });
   }
   return { ...base, ...extra.fields };
@@ -211,7 +213,7 @@ const SAMPLES = {
     { text: "PAYSLIP - {period}", bold: true }, { text: "Employee: {name}  ({employee_code})" }, { text: "Position: {role}    PAN: {pan}" }, { text: "" },
     { text: "Basic: {basic}" }, { text: "Leave bonus: {leave_bonus}" }, { text: "Overtime: {overtime}" }, { text: "Other allowances: {other_allowances}" },
     { text: "Total earnings: {gross}", bold: true }, { text: "" },
-    { text: "PF: {pf}" }, { text: "TDS: {tds}" }, { text: "Other deductions: {other_deductions}" }, { text: "Retention: {retention}" },
+    { text: "PF: {pf}" }, { text: "TDS: {tds}" }, { text: "Other deductions: {other_deductions}" }, { text: "of which fines: {fines}" }, { text: "Retention: {retention}" },
     { text: "Total deductions: {total_deductions}", bold: true }, { text: "" },
     { text: "NET PAYABLE: Rs. {net}", bold: true }, { text: "Paid on {pay_date}" },
   ],

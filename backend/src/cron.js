@@ -1,6 +1,7 @@
 import { runBackup } from "./backup.js";
 import cron from "node-cron";
 import db from "./db.js";
+import { withFines } from "./routes/fines.js";
 import { sendEmail, isEmailConfigured } from "./email.js";
 import { generatePayslipPdf } from "./payslip-pdf.js";
 import { randomUUID } from "node:crypto";
@@ -23,7 +24,8 @@ export async function runMonthlyPayroll() {
   const profiles = db.prepare("SELECT * FROM pay_profiles").all();
   const results = [];
 
-  for (const profile of profiles) {
+  for (const baseProfile of profiles) {
+    const profile = withFines(baseProfile, period);
     const user = db.prepare("SELECT * FROM users WHERE id = ?").get(profile.user_id);
     const company = db.prepare("SELECT * FROM companies WHERE id = ?").get(profile.company_id);
     if (!user || !company) continue;

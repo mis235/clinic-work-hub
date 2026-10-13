@@ -4,6 +4,7 @@ import { STATUS, effectiveStatus } from "../constants.js";
 import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
 import PunchCard from "../components/PunchCard.jsx";
+import MyDayCard from "../components/MyDayCard.jsx";
 import DocumentsPage from "./DocumentsPage.jsx";
 import LearningPage from "./LearningPage.jsx";
 import ConnectedToolPage from "./ConnectedToolPage.jsx";
@@ -97,6 +98,7 @@ export default function StaffDashboard({ user, onLogout }) {
         </div>
 
         <PunchCard />
+        <MyDayCard onNavigate={setView} />
 
         {loading && <div className="empty">Loading…</div>}
 

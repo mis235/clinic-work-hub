@@ -348,3 +348,9 @@ for month-end review; SMS fallback for staff without WhatsApp.
 - **Training Library** – upload videos or paste YouTube/Drive links; edit, reorder, remove.
 - **Reports** – one completion % that combines shift-checklist items (incl. imported history) and admin-assigned tasks.
 - **System → Import checklist history** – bring in the CSV exported from the old Google Sheet.
+
+## Attendance register, fines and department portal
+- **Attendance > Register (sheet):** one row per person, one column per day (P present, L late, A absent, W Sunday off) with late count and fines, downloadable as CSV. "Late" means first check-in after 10:00 India time; change it with `LATE_AFTER=HH:MM` in `backend/.env`.
+- **Attendance > Fines:** admin or a manager adds a fine (late, dress code, misbehaviour, absent, other). Fines are added to "Other deductions" on that month's payslip, and the template placeholder `{fines}` shows the amount.
+- **Departments:** per-department attendance today, work completion, fines and uploaded documents.
+- **Staff home:** "my day" tiles (attendance, work completed, my documents, my fines).

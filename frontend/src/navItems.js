@@ -7,6 +7,7 @@ export const NAV = {
   "Tracker":          { label: "My Progress",         icon: "tasks" },
   "Attendance":       { label: "Attendance",          icon: "clock" },
   "Shift Logs":       { label: "Checklist Monitor",   icon: "calendarCheck" },
+  "Departments":      { label: "Departments",         icon: "users" },
   "Staff":            { label: "Staff",               icon: "users" },
   "My Profile":       { label: "My Profile",          icon: "user" },
   "Payroll":          { label: "Payroll",             icon: "wallet" },
@@ -28,7 +29,7 @@ export const NAV = {
 export const NAV_GROUPS = [
   { title: "Home",         keys: ["Dashboard", "My checklist"] },
   { title: "Daily work",   keys: ["Shift Checklist", "Tracker", "Attendance", "Shift Logs"] },
-  { title: "People & pay", keys: ["Staff", "My Profile", "Payroll", "HR"] },
+  { title: "People & pay", keys: ["Departments", "Staff", "My Profile", "Payroll", "HR"] },
   { title: "Insights",     keys: ["Reports", "Dashboards"] },
   { title: "Knowledge",    keys: ["Documents", "Policies", "Learning", "Events"] },
   { title: "Assistants",   keys: ["Clinic Assistant", "Assistant", "AI Advisors"] },
@@ -37,7 +38,7 @@ export const NAV_GROUPS = [
 
 export function navItemsFor(user) {
   const common = ["Documents", "Policies", "Learning", "Events", "Clinic Assistant", "Assistant"];
-  if (user.role === "admin") return ["Dashboard", "Attendance", "Shift Logs", "Staff", "Payroll", "HR", "Reports", "Dashboards", ...common, "AI Advisors", "System"];
-  if (user.role === "manager") return ["Dashboard", "Shift Checklist", "Attendance", "Shift Logs", "Reports", "Dashboards", ...common, "AI Advisors"];
+  if (user.role === "admin") return ["Dashboard", "Attendance", "Shift Logs", "Departments", "Staff", "Payroll", "HR", "Reports", "Dashboards", ...common, "AI Advisors", "System"];
+  if (user.role === "manager") return ["Dashboard", "Shift Checklist", "Attendance", "Shift Logs", "Departments", "Reports", "Dashboards", ...common, "AI Advisors"];
   return ["My checklist", "Shift Checklist", "Tracker", "My Profile", ...common.filter((k) => k !== "Events")];
 }
