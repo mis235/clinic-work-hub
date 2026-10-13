@@ -7,6 +7,11 @@ function authHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+function sessionExpired() {
+  localStorage.removeItem("token"); localStorage.removeItem("user");
+  window.location.reload();
+}
+
 async function req(path, { method = "GET", body } = {}) {
   const res = await fetch(`${BASE}${path}`, {
     method,
@@ -14,6 +19,7 @@ async function req(path, { method = "GET", body } = {}) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && path !== "/api/auth/login" && localStorage.getItem("token")) { sessionExpired(); }
   if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
   return data;
 }

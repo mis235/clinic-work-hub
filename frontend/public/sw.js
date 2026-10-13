@@ -4,32 +4,32 @@
 // status. Real offline task queuing (queue an action, replay on reconnect)
 // is listed as a roadmap item in the README rather than faked here.
 
-const CACHE_NAME = "clinic-work-hub-shell-v1";
-const SHELL_FILES = ["/", "/index.html", "/manifest.json"];
+// v2: network-first. The old version served a saved copy of the page forever, which went blank
+// after an update because the saved page pointed at files that no longer existed.
+const CACHE_NAME = "clinic-work-hub-shell-v2";
 
-self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_FILES))
-  );
-  self.skipWaiting();
-});
+self.addEventListener("install", () => { self.skipWaiting(); });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
+    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
+  if (event.request.method !== "GET" || url.origin !== self.location.origin) return;
+  // Never cache API calls or private files -- data must always come fresh from the server.
+  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/webhook/") || url.pathname.startsWith("/uploads/")) return;
 
-  // Never cache API calls — always hit the network so task status is live.
-  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/webhook/")) return;
-
+  // Always try the network first; only fall back to the saved copy when offline.
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request))
+    fetch(event.request)
+      .then((res) => {
+        if (res.ok) { const copy = res.clone(); caches.open(CACHE_NAME).then((c) => c.put(event.request, copy)); }
+        return res;
+      })
+      .catch(() => caches.match(event.request).then((cached) => cached || caches.match("/index.html")))
   );
 });
