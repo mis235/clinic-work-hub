@@ -6,6 +6,7 @@ import MobileTopBar from "../components/MobileTopBar.jsx";
 import PunchCard from "../components/PunchCard.jsx";
 import DocumentsPage from "./DocumentsPage.jsx";
 import LearningPage from "./LearningPage.jsx";
+import ConnectedToolPage from "./ConnectedToolPage.jsx";
 import PoliciesPage from "./PoliciesPage.jsx";
 import TrackerPage from "./TrackerPage.jsx";
 import AssistantPage from "./AssistantPage.jsx";
@@ -45,9 +46,9 @@ export default function StaffDashboard({ user, onLogout }) {
   const done = tasks.filter((t) => t.status === "done");
 
   const shiftSummary = [...shiftToday].sort((x, y) => (y.status === "in_progress") - (x.status === "in_progress"))[0] || null;
-  const NAV_ITEMS = ["My checklist", "Shift Checklist", "Tracker", "My Profile", "Documents", "Learning", "Assistant", "Policies"];
-  const ACTIVE_LABEL = { checklist: "My checklist", shiftchecklist: "Shift Checklist", tracker: "Tracker", profile: "My Profile", assistant: "Assistant", policies: "Policies", documents: "Documents", learning: "Learning" };
-  const VIEW_FOR_LABEL = { "My checklist": "checklist", "Shift Checklist": "shiftchecklist", "Tracker": "tracker", "My Profile": "profile", "Assistant": "assistant", "Policies": "policies", "Documents": "documents", "Learning": "learning" };
+  const NAV_ITEMS = ["My checklist", "Shift Checklist", "Tracker", "My Profile", "Documents", "Learning", "Clinic Assistant", "Assistant", "Policies"];
+  const ACTIVE_LABEL = { checklist: "My checklist", shiftchecklist: "Shift Checklist", tracker: "Tracker", profile: "My Profile", assistant: "Assistant", policies: "Policies", documents: "Documents", learning: "Learning", clinicassistant: "Clinic Assistant" };
+  const VIEW_FOR_LABEL = { "My checklist": "checklist", "Shift Checklist": "shiftchecklist", "Tracker": "tracker", "My Profile": "profile", "Assistant": "assistant", "Policies": "policies", "Documents": "documents", "Learning": "learning", "Clinic Assistant": "clinicassistant" };
 
   return (
     <div className="app-shell">
@@ -72,6 +73,8 @@ export default function StaffDashboard({ user, onLogout }) {
           <ShiftChecklistPage user={user} isStaffLayout />
         ) : view === "documents" ? (
           <DocumentsPage user={user} isStaffLayout />
+        ) : view === "clinicassistant" ? (
+          <ConnectedToolPage toolKey="assistant" user={user} isStaffLayout />
         ) : view === "learning" ? (
           <LearningPage user={user} isStaffLayout />
         ) : view === "assistant" ? (

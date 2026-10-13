@@ -53,6 +53,8 @@ export function assetUrl(path) {
 }
 
 export const api = {
+  listLinks: () => req("/api/links"),
+  setLink: (key, payload) => req(`/api/links/${key}`, { method: "PUT", body: payload }),
   // Documents hub
   listDocuments: () => req("/api/documents"),
   addDocument: (formData) => reqForm("/api/documents", formData),

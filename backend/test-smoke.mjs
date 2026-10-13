@@ -164,6 +164,10 @@ try {
   ok("reports include imported checklists in completion", rp.body?.completion?.total >= 2, JSON.stringify(rp.body?.completion));
   ok("staff cannot import history", (await form("POST", "/api/shift-checklist/import", fd, stoken)).status === 403);
 
+  const lk = await call("GET", "/api/links", null, admin), lks = await call("GET", "/api/links", null, stoken);
+  ok("connected tools: admin sees assistant + dashboard, staff only the assistant", lk.body?.length === 2 && lks.body?.length === 1 && lks.body[0].key === "assistant");
+  ok("only admin can change a tool address", (await call("PUT", "/api/links/assistant", { url: "https://x.example" }, stoken)).status === 403 && (await call("PUT", "/api/links/assistant", { url: "http://72.60.101.59:3005" }, admin)).status === 200);
+
   // Lockout
   let last; for (let i = 0; i < 8; i++) last = await call("POST", "/api/auth/login", { email: "lock@test.local", password: "x" });
   ok("repeated wrong logins are locked out (429)", last.status === 429);

@@ -398,6 +398,17 @@ CREATE TABLE IF NOT EXISTS generated_docs (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 `);
+db.exec(`
+CREATE TABLE IF NOT EXISTS app_links (
+  key TEXT PRIMARY KEY,            -- 'assistant' | 'dashboard' | any future connected tool
+  title TEXT NOT NULL,
+  url TEXT NOT NULL,
+  audience TEXT NOT NULL DEFAULT 'all',   -- 'all' | 'lead' (admin + managers)
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+`);
+db.prepare("INSERT OR IGNORE INTO app_links (key, title, url, audience) VALUES (?, ?, ?, ?)").run("assistant", "Clinic Assistant", "http://72.60.101.59:3005", "all");
+db.prepare("INSERT OR IGNORE INTO app_links (key, title, url, audience) VALUES (?, ?, ?, ?)").run("dashboard", "Clinic Dashboards", "https://claude.ai/code/artifact/c04a5c65-a3ee-4deb-be45-01658e364d8d", "lead");
 ensureColumn("training_videos", "description", "description TEXT");
 ensureColumn("training_videos", "file_path", "file_path TEXT");            // uploaded video file (private, streamed via authenticated route)
 ensureColumn("training_videos", "mime", "mime TEXT");

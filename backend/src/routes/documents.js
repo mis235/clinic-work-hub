@@ -308,3 +308,20 @@ templatesRouter.delete("/generated/:id", requireAuth, adminOnly, (req, res) => {
   if (g) { fs.rm(g.file_path, { force: true }, () => {}); db.prepare("DELETE FROM generated_docs WHERE id = ?").run(g.id); }
   res.json({ ok: true });
 });
+
+// ===========================================================================
+// CONNECTED TOOLS (clinic assistant chatbot, dashboards): admin-editable links
+// ===========================================================================
+export const linksRouter = Router();
+linksRouter.get("/", requireAuth, (req, res) => {
+  const rows = db.prepare("SELECT key, title, url, audience FROM app_links ORDER BY key").all();
+  res.json(rows.filter((r) => r.audience === "all" || isLead(req)));
+});
+linksRouter.put("/:key", requireAuth, adminOnly, (req, res) => {
+  const { url, title } = req.body || {};
+  if (!/^https?:\/\//i.test(url || "")) return res.status(400).json({ error: "The address must start with http:// or https://" });
+  const cur = db.prepare("SELECT * FROM app_links WHERE key = ?").get(req.params.key);
+  if (!cur) return res.status(404).json({ error: "Unknown tool" });
+  db.prepare("UPDATE app_links SET url = ?, title = ?, updated_at = datetime('now') WHERE key = ?").run(url.trim(), (title || cur.title).trim(), cur.key);
+  res.json({ ok: true });
+});
