@@ -8,9 +8,11 @@ function authHeaders() {
 }
 
 function sessionExpired() {
+  try { sessionStorage.setItem("sessionMsg", "Your sign-in ended (for safety it lasts a few days). Please sign in again."); } catch {}
   localStorage.removeItem("token"); localStorage.removeItem("user");
   window.location.reload();
 }
+const checkAuth = (res, path) => { if (res.status === 401 && path !== "/api/auth/login" && localStorage.getItem("token")) sessionExpired(); };
 
 async function req(path, { method = "GET", body } = {}) {
   const res = await fetch(`${BASE}${path}`, {
@@ -28,6 +30,7 @@ async function req(path, { method = "GET", body } = {}) {
 // the browser sets it (with the right boundary) when the body is a FormData.
 async function reqForm(path, formData) {
   const res = await fetch(`${BASE}${path}`, { method: "POST", headers: { ...authHeaders() }, body: formData });
+  checkAuth(res, path);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
   return data;
@@ -39,6 +42,7 @@ export async function downloadFile(path, fallbackName = "download", { method = "
   const res = await fetch(`${BASE}${path}`, {
     method, headers: { ...(body ? { "Content-Type": "application/json" } : {}), ...authHeaders() }, body: body ? JSON.stringify(body) : undefined,
   });
+  checkAuth(res, path);
   if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || "Download failed"); }
   const cd = res.headers.get("Content-Disposition") || "";
   const m = cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
@@ -94,6 +98,11 @@ export const api = {
   deleteFine: (id) => req(`/api/fines/${id}`, { method: "DELETE" }),
   portalDepartments: () => req("/api/portal/departments"),
   portalDepartment: (id) => req(`/api/portal/departments/${id}`),
+  checkLink: (key) => req(`/api/links/${key}/check`),
+  rosterWeek: (start) => req(`/api/roster/week${start ? `?start=${start}` : ""}`),
+  setShift: (userId, date, shift) => req("/api/roster", { method: "PUT", body: { userId, date, shift } }),
+  copyWeek: (from, to) => req("/api/roster/copy-week", { method: "POST", body: { from, to } }),
+  rosterMe: () => req("/api/roster/me"),
   portalMe: () => req("/api/portal/me"),
   manualAttendance: (userId, type) => req("/api/attendance/manual", { method: "POST", body: { userId, type } }),
 

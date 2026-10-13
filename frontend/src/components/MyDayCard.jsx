@@ -9,8 +9,10 @@ const rupee = (n) => "₹" + Number(n || 0).toLocaleString("en-IN");
 export default function MyDayCard({ onNavigate }) {
   const [me, setMe] = useState(null);
   const [fines, setFines] = useState([]);
+  const [roster, setRoster] = useState(null);
   useEffect(() => {
     api.portalMe().then(setMe).catch(() => {});
+    api.rosterMe().then(setRoster).catch(() => {});
     api.fines().then((d) => setFines(d.rows)).catch(() => {});
   }, []);
   if (!me) return null;
@@ -22,6 +24,7 @@ export default function MyDayCard({ onNavigate }) {
   return (
     <>
       <div className="dept-grid tile-grid" style={{ marginTop: 16 }}>
+        {tile("My shift today", roster?.today ? `${roster.types[roster.today].label}${roster.types[roster.today].start ? ` ${roster.types[roster.today].start}–${roster.types[roster.today].end}` : ""}` : "Not planned")}
         {tile("Attendance today", me.checked_in ? `In at ${fmtTime(me.first_in)}` : "Not in yet")}
         {tile("Days present this month", me.days_present)}
         {tile("Work completed (30 days)", me.completion_pct == null ? "—" : me.completion_pct + "%", "shiftchecklist")}

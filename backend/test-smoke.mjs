@@ -153,6 +153,18 @@ try {
   const me = await call("GET", "/api/portal/me", null, stoken);
   ok("staff 'my day' summary works", me.status === 200 && "checked_in" in me.body && "fines_month" in me.body);
 
+  // Shift roster + connection check
+  const wk = await call("GET", "/api/roster/week?start=2026-10-05", null, admin);
+  ok("roster week lists everyone with 7 days", wk.status === 200 && wk.body.days.length === 7 && wk.body.rows[0].shifts.length === 7);
+  ok("lead can set a shift", (await call("PUT", "/api/roster", { userId: staff.id, date: "2026-10-05", shift: "evening" }, admin)).status === 200);
+  ok("staff cannot set a shift", (await call("PUT", "/api/roster", { userId: staff.id, date: "2026-10-05", shift: "morning" }, stoken)).status === 403);
+  ok("bad shift rejected", (await call("PUT", "/api/roster", { userId: staff.id, date: "2026-10-05", shift: "nope" }, admin)).status === 400);
+  const cw = await call("POST", "/api/roster/copy-week", { from: "2026-10-05", to: "2026-10-12" }, admin);
+  ok("a week's plan can be copied to the next", cw.status === 200 && cw.body.copied >= 1);
+  ok("staff sees own shifts", (await call("GET", "/api/roster/me", null, stoken)).status === 200);
+  const ck = await call("GET", "/api/links/assistant/check", null, admin);
+  ok("connection check answers (reachable or not, never an error)", ck.status === 200 && "reachable" in ck.body);
+
   // Staff add / edit / remove
   const added = await call("POST", "/api/users", { name: "Test Person", departmentName: "Front Desk", roleName: "staff", phone: "+919111111111", pin: "4321" }, admin);
   ok("admin can add a staff member", added.status === 201, JSON.stringify(added.body));

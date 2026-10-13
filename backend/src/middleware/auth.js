@@ -4,7 +4,7 @@ import db from "../db.js";
 const { JWT_SECRET } = process.env;
 
 export function signToken(payload) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "12h" });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 }
 
 // Verifies the token and attaches { userId, roleId, roleName, departmentId } to req.user.

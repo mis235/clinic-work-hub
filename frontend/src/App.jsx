@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { api } from "./api.js";
 import Login from "./pages/Login.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import StaffDashboard from "./pages/StaffDashboard.jsx";
@@ -20,6 +21,8 @@ import OnboardingPage from "./pages/OnboardingPage.jsx";
 import SystemPage from "./pages/SystemPage.jsx";
 import ConnectedToolPage from "./pages/ConnectedToolPage.jsx";
 import AttendancePage from "./pages/AttendancePage.jsx";
+import RosterPage from "./pages/RosterPage.jsx";
+import ClinicDashboardPage from "./pages/ClinicDashboardPage.jsx";
 import DepartmentsPage from "./pages/DepartmentsPage.jsx";
 import DocumentsPage from "./pages/DocumentsPage.jsx";
 import ChangePinModal from "./components/ChangePinModal.jsx";
@@ -27,7 +30,7 @@ import ChangePinModal from "./components/ChangePinModal.jsx";
 const VIEW_KEY = {
   "Dashboard": "dashboard", "AI Advisors": "advisors", "Policies": "policies", "Reports": "reports",
   "About": "about", "Learning": "learning", "Events": "events", "HR": "hr", "Payroll": "payroll", "Staff": "staff",
-  "Assistant": "assistant", "Tracker": "tracker", "Shift Checklist": "shiftchecklist", "Shift Logs": "shiftlogs", "Onboarding": "onboarding", "System": "system", "Attendance": "attendance", "Clinic Assistant": "clinicassistant", "Dashboards": "dashboards", "Documents": "documents", "Departments": "departments",
+  "Assistant": "assistant", "Tracker": "tracker", "Shift Checklist": "shiftchecklist", "Shift Logs": "shiftlogs", "Onboarding": "onboarding", "System": "system", "Attendance": "attendance", "Clinic Assistant": "clinicassistant", "Dashboards": "dashboards", "Documents": "documents", "Departments": "departments", "Roster": "roster",
 };
 
 export default function App() {
@@ -36,6 +39,8 @@ export default function App() {
     return raw ? JSON.parse(raw) : null;
   });
   const [view, setView] = useState("dashboard");
+  // Check the saved sign-in as soon as the app opens, so an old login is cleared right away instead of failing mid-task.
+  useEffect(() => { if (localStorage.getItem("token")) api.portalMe().catch(() => {}); }, []);
   const [profile, setProfile] = useState(null); // { id, from } while viewing a staff profile
 
   function logout() {
@@ -67,7 +72,8 @@ export default function App() {
     if (view === "onboarding" && user.role === "admin") return <OnboardingPage user={user} onLogout={logout} onBack={navigate} onOpenProfile={(id) => openProfile(id, "Onboarding")} />;
     if (view === "system" && user.role === "admin") return <SystemPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "clinicassistant") return <ConnectedToolPage toolKey="assistant" active="Clinic Assistant" user={user} onLogout={logout} onBack={navigate} />;
-    if (view === "dashboards") return <ConnectedToolPage toolKey="dashboard" active="Dashboards" user={user} onLogout={logout} onBack={navigate} />;
+    if (view === "dashboards") return <ClinicDashboardPage user={user} onLogout={logout} onBack={navigate} onNavigate={navigate} />;
+    if (view === "roster") return <RosterPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "attendance") return <AttendancePage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "departments") return <DepartmentsPage user={user} onLogout={logout} onBack={navigate} onOpenProfile={(id) => openProfile(id, "Departments")} />;
     if (view === "documents") return <DocumentsPage user={user} onLogout={logout} onBack={navigate} />;

@@ -8,8 +8,9 @@ export default function ConnectedToolPage({ toolKey, active, user, isStaffLayout
   const [editing, setEditing] = useState(false);
   const [url, setUrl] = useState("");
   const [err, setErr] = useState("");
+  const [check, setCheck] = useState(null); // result of the server-side connection test
   const load = () => api.listLinks().then((l) => { const x = l.find((r) => r.key === toolKey); setLink(x || false); setUrl(x?.url || ""); }).catch(() => setLink(false));
-  useEffect(() => { load(); }, [toolKey]);
+  useEffect(() => { load(); setCheck(null); api.checkLink(toolKey).then(setCheck).catch(() => setCheck({ reachable: false, reason: "Could not run the test" })); }, [toolKey]);
 
   async function save() {
     try { await api.setLink(toolKey, { url, title: link.title }); setEditing(false); setErr(""); load(); } catch (e) { setErr(e.message); }
@@ -35,10 +36,16 @@ export default function ConnectedToolPage({ toolKey, active, user, isStaffLayout
         </div>)}
       {link === null && <div className="empty">Loading…</div>}
       {link === false && <div className="empty">This tool is not set up yet.</div>}
+      {check && (
+        <div className={`note ${check.reachable && check.canEmbed ? "" : "warn"}`}>
+          {!check.reachable && <>❌ <b>Not connected.</b> This computer cannot reach {link?.url} ({check.reason}). Check that the chatbot/dashboard server is running and the address is right{user.role === "admin" ? " (use “Change address”)" : ""}.</>}
+          {check.reachable && !check.canEmbed && <>⚠️ <b>Connected, but it will not show inside the app</b> — that site blocks being embedded. Press “Open in new tab”.</>}
+          {check.reachable && check.canEmbed && <>✅ <b>Connected.</b></>}
+        </div>
+      )}
       {insecure && <div className="note warn">This app is on https but the tool address is http, so the browser will block showing it here. Use “Open in new tab”, or give the tool an https address.</div>}
-      {link && !insecure && (
+      {link && !insecure && check?.reachable && check?.canEmbed && (
         <>
-          <div className="note">If the page below stays blank, that tool does not allow being shown inside other apps — use “Open in new tab”.</div>
           <iframe title={link.title} src={link.url} style={{ width: "100%", height: "calc(100vh - 260px)", minHeight: 480, border: "1px solid var(--line)", borderRadius: 16, background: "#fff" }} allow="clipboard-write; microphone" />
         </>
       )}

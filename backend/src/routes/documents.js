@@ -353,6 +353,20 @@ linksRouter.get("/", requireAuth, (req, res) => {
   const rows = db.prepare("SELECT key, title, url, audience FROM app_links ORDER BY key").all();
   res.json(rows.filter((r) => r.audience === "all" || isLead(req)));
 });
+// Server-side test: can this computer reach the tool, and does the tool allow being shown inside the app?
+linksRouter.get("/:key/check", requireAuth, async (req, res) => {
+  const row = db.prepare("SELECT * FROM app_links WHERE key = ?").get(req.params.key);
+  if (!row || (row.audience === "lead" && !isLead(req))) return res.status(404).json({ error: "Unknown tool" });
+  try {
+    const r = await fetch(row.url, { redirect: "follow", signal: AbortSignal.timeout(6000) });
+    const xfo = (r.headers.get("x-frame-options") || "").toLowerCase();
+    const csp = (r.headers.get("content-security-policy") || "").toLowerCase();
+    const blocksFrame = xfo.includes("deny") || xfo.includes("sameorigin") || /frame-ancestors\s+('none'|'self')/.test(csp);
+    res.json({ reachable: true, status: r.status, canEmbed: !blocksFrame });
+  } catch (e) {
+    res.json({ reachable: false, canEmbed: false, reason: e.name === "TimeoutError" ? "No answer within 6 seconds" : (e.cause?.code || e.message) });
+  }
+});
 linksRouter.put("/:key", requireAuth, adminOnly, (req, res) => {
   const { url, title } = req.body || {};
   if (!/^https?:\/\//i.test(url || "")) return res.status(400).json({ error: "The address must start with http:// or https://" });

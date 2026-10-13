@@ -1,6 +1,7 @@
 import { documentsRouter, templatesRouter, linksRouter } from "./routes/documents.js";
 import finesRoutes from "./routes/fines.js";
 import portalRoutes from "./routes/portal.js";
+import rosterRoutes from "./routes/roster.js";
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
@@ -96,6 +97,7 @@ app.use("/api/doc-templates", templatesRouter);
 app.use("/api/links", linksRouter);
 app.use("/api/fines", finesRoutes);
 app.use("/api/portal", portalRoutes);
+app.use("/api/roster", rosterRoutes);
 app.use("/api/payroll", payrollRoutes);
 app.use("/api/assistant", assistantRoutes);
 app.use("/api/shift-checklist", shiftChecklistRoutes);

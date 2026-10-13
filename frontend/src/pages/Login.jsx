@@ -15,7 +15,7 @@ export default function Login({ onLoggedIn }) {
   const [pin, setPin] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() => { try { const m = sessionStorage.getItem("sessionMsg"); sessionStorage.removeItem("sessionMsg"); return m || ""; } catch { return ""; } });
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {

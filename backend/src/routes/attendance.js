@@ -7,6 +7,7 @@ import {
   verifyAuthenticationResponse,
 } from "@simplewebauthn/server";
 import db from "../db.js";
+import { shiftFor, SHIFT_TYPES } from "./roster.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
 
 const router = Router();
@@ -232,7 +233,8 @@ router.post("/punch", requireAuth, (req, res) => {
 
 // Anyone whose first check-in is after this India-time hour counts as "late" (set LATE_AFTER=HH:MM in .env to change).
 const LATE_AFTER = /^\d{2}:\d{2}$/.test(process.env.LATE_AFTER || "") ? process.env.LATE_AFTER : "10:00";
-export const isLateIn = (utc) => !!utc && new Date(new Date(utc.replace(" ", "T") + "Z").getTime() + 19800000).toISOString().slice(11, 16) > LATE_AFTER;
+export const isLateIn = (utc, start = LATE_AFTER) => !!utc && new Date(new Date(utc.replace(" ", "T") + "Z").getTime() + 19800000).toISOString().slice(11, 16) > start;
+const startFor = (userId, date) => SHIFT_TYPES[shiftFor(userId, date)]?.start || LATE_AFTER; // the person's own shift start, else the clinic default
 
 // Admin / manager board: everyone's first check-in, last check-out and hours for one day (default today).
 router.get("/board", requireAuth, requirePermission("attendance:view_all"), (req, res) => {
@@ -254,7 +256,7 @@ router.get("/board", requireAuth, requirePermission("attendance:view_all"), (req
     const first = list.find((r) => r.type === "check_in");
     const lastOut = [...list].reverse().find((r) => r.type === "check_out");
     return {
-      ...u, late: isLateIn(first?.recorded_at), status: !list.length ? "absent" : openAt !== null ? "in" : "out",
+      ...u, late: isLateIn(first?.recorded_at, startFor(u.id, date)), shift: shiftFor(u.id, date), status: !list.length ? "absent" : openAt !== null ? "in" : "out",
       first_in: first?.recorded_at || null, last_out: lastOut?.recorded_at || null,
       hours: Math.round((ms / 3600000) * 10) / 10, methods: [...new Set(list.map((r) => r.method))],
     };
@@ -297,8 +299,9 @@ router.get("/register", requireAuth, requirePermission("attendance:view_all"), (
       const date = `${month}-${String(d).padStart(2, "0")}`;
       if (date > todayStr) { days.push(""); continue; }
       const t = firstIn.get(u.id + "|" + date);
-      if (!t) { if (new Date(date + "T00:00:00Z").getUTCDay() === 0) days.push("W"); else { days.push("A"); absent++; } }
-      else if (isLateIn(t)) { days.push("L"); late++; present++; }
+      const planned = shiftFor(u.id, date);
+      if (!t) { if (planned === "off" || (!planned && new Date(date + "T00:00:00Z").getUTCDay() === 0)) days.push("W"); else { days.push("A"); absent++; } }
+      else if (isLateIn(t, startFor(u.id, date))) { days.push("L"); late++; present++; }
       else { days.push("P"); present++; }
     }
     const f = fineBy.get(u.id);
