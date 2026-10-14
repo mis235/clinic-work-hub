@@ -8,3 +8,6 @@ backend/payslips
 demo
 .DS_Store
 .build-stamp.json
+backend/private
+backend/backups
+*.log
