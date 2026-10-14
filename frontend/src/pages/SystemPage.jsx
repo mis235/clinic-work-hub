@@ -44,6 +44,57 @@ function EmailCard({ onChanged }) {
   );
 }
 
+const mb = (b) => (b == null ? "—" : b > 1073741824 ? `${(b / 1073741824).toFixed(1)} GB` : b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+
+function BackupCopyCard({ onChanged }) {
+  const [cur, setCur] = useState(null); const [dir, setDir] = useState(""); const [msg, setMsg] = useState(null); const [busy, setBusy] = useState(false);
+  const load = () => api.backupCopy().then((r) => { setCur(r); setDir(r.dir || ""); }).catch(() => {});
+  useEffect(() => { load(); }, []);
+  async function save() {
+    setBusy(true); setMsg(null);
+    try { const r = await api.saveBackupCopy(dir); setMsg({ ok: true, t: r.dir ? "Saved. A backup was copied there just now." : "Extra copy turned off." }); load(); onChanged?.(); } catch (e) { setMsg({ ok: false, t: e.message }); }
+    setBusy(false);
+  }
+  const st = cur?.status;
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <div className="card-head"><div><span className="name">Safe copy outside this app (Google Drive)</span><span className="dept">Every night the database and all photos/files are also copied to this folder</span></div>
+        <span className={`badge ${cur?.dir ? (st && !st.ok ? "overdue" : "done") : "overdue"}`}>{cur?.dir ? (st && !st.ok ? "Problem" : "On") : "Not set up"}</span></div>
+      <ol className="meta" style={{ lineHeight: 1.8, paddingLeft: 18, marginTop: 0 }}>
+        <li>On the computer that runs the app, install <b>Google Drive for desktop</b> (free) and sign in with the clinic Google account.</li>
+        <li>In File Explorer open the Drive (usually <b>G:\My Drive</b>) and make a folder called <b>ClinicBackups</b>.</li>
+        <li>Paste the full path below, e.g. <b>G:\My Drive\ClinicBackups</b>, and press Save. Drive uploads it to the cloud by itself.</li>
+      </ol>
+      <input className="field" value={dir} onChange={(e) => setDir(e.target.value)} placeholder="G:\My Drive\ClinicBackups" />
+      {st && <div className="meta" style={{ marginTop: 8 }}>Last copy: {new Date(st.at).toLocaleString("en-IN")} — {st.ok ? `OK (${st.files} new files copied)` : <span style={{ color: "var(--red)" }}>{st.error}</span>}</div>}
+      {msg && <div className={msg.ok ? "note" : "login-error"} style={{ marginTop: 10 }}>{msg.t}</div>}
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}><button className="btn btn-primary btn-sm" disabled={busy} onClick={save}>{busy ? "Working…" : "Save & copy now"}</button></div>
+      <div className="meta" style={{ marginTop: 10 }}>This protects you if the computer breaks. It does not keep the app running when the computer is off — that needs the cloud server.</div>
+    </div>
+  );
+}
+
+function StorageCard() {
+  const [s, setS] = useState(null); const [msg, setMsg] = useState("");
+  const load = () => api.storage().then(setS).catch(() => {});
+  useEffect(() => { load(); }, []);
+  async function clean() { try { const r = await api.cleanSnapshots(90); setMsg(`Removed ${r.removed} old check-in photo${r.removed === 1 ? "" : "s"} (${mb(r.bytes)}).`); load(); } catch (e) { setMsg(e.message); } }
+  if (!s) return null;
+  const used = s.parts.reduce((t, p) => t + p.bytes, 0);
+  const lowDisk = s.free != null && s.free < 5 * 1073741824;
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <div className="card-head"><div><span className="name">Storage</span><span className="dept">What the app is using on this computer</span></div><span className="badge done">{mb(used)}</span></div>
+      {s.parts.map((p) => <div className="kv" key={p.name}><span className="k">{p.name}</span><span className="v">{mb(p.bytes)}</span></div>)}
+      {s.free != null && <div className="kv"><span className="k">Free space left on the disk</span><span className="v"><span className={`badge ${lowDisk ? "overdue" : "done"}`}>{mb(s.free)}</span></span></div>}
+      {lowDisk && <div className="login-error" style={{ marginTop: 10 }}>The disk is nearly full. Free some space or move to the cloud server.</div>}
+      {msg && <div className="note" style={{ marginTop: 10 }}>{msg}</div>}
+      <button className="btn btn-outline btn-sm" style={{ marginTop: 12 }} onClick={clean}>Delete face check-in photos older than 90 days</button>
+      <div className="meta" style={{ marginTop: 6 }}>Attendance records stay; only the little snapshot pictures are removed.</div>
+    </div>
+  );
+}
+
 function ImportCard({ onDone }) {
   const [file, setFile] = useState(null);
   const [result, setResult] = useState(null);
@@ -165,6 +216,8 @@ export default function SystemPage({ user, onLogout, onBack }) {
           </div>
         </div>
 
+        <BackupCopyCard onChanged={load} />
+        <StorageCard />
         <EmailCard onChanged={load} />
         <ImportCard onDone={load} />
 

@@ -12,7 +12,7 @@ services:
     disk:
       name: clinic-data
       mountPath: /var/data
-      sizeGB: 1
+      sizeGB: 10            # photos, check-in snapshots and training videos grow; can be enlarged later, never shrunk
     envVars:
       - key: NODE_VERSION
         value: 22

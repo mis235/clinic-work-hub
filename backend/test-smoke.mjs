@@ -465,6 +465,13 @@ try {
   // Audit + backup
   const au = await call("GET", "/api/admin/audit?limit=1000", null, admin);
   ok("activity log records sign-ins and changes", au.status === 200 && au.body.some((r) => r.action === "LOGIN") && au.body.some((r) => r.action.startsWith("POST /api/users/me/pin")));
+  const copyDir = path.join(dir, "drive-copy");
+  ok("extra backup folder can be set", (await call("PUT", "/api/admin/backup-copy", { dir: copyDir }, admin)).status === 200);
+  ok("extra backup copy was written", fs.readdirSync(path.join(copyDir, "database")).some((f) => f.endsWith(".db")));
+  ok("relative folder is refused", (await call("PUT", "/api/admin/backup-copy", { dir: "backups2" }, admin)).status === 400);
+  const stg = await call("GET", "/api/admin/storage", null, admin); ok("storage report works", stg.status === 200 && stg.body.parts.some((p) => p.name === "Database" && p.bytes > 0));
+  ok("old snapshot clean-up works", (await call("POST", "/api/admin/cleanup-snapshots", { days: 90 }, admin)).status === 200);
+  ok("staff cannot touch backup settings", (await call("PUT", "/api/admin/backup-copy", { dir: copyDir }, stoken)).status === 403);
   const bk = await call("POST", "/api/admin/backups", null, admin); ok("backup can be created", bk.status === 201);
   const bl = await call("GET", "/api/admin/backups", null, admin); ok("backup is listed and not empty", bl.body?.[0]?.bytes > 10000);
   ok("unknown API route returns 404 JSON", (await call("GET", "/api/nope", null, admin)).status === 404);

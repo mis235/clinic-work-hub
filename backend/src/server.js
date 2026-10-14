@@ -34,7 +34,7 @@ import db from "./db.js"; // ensures tables exist on boot
 import fs from "node:fs";
 import { securityHeaders, checkEnv } from "./security.js";
 import { auditMiddleware } from "./audit.js";
-import { runBackup, listBackups, backupDir } from "./backup.js";
+import { runBackup, listBackups, backupDir, copyFolder, setCopyFolder, copyStatus, storageReport, cleanSnapshots } from "./backup.js";
 
 const envProblems = checkEnv();
 if (envProblems.length) {
@@ -93,6 +93,20 @@ app.post("/api/admin/email/test", ...adminOnly, async (req, res) => {
 app.get("/api/admin/audit", ...adminOnly, (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 100, 500);
   res.json(db.prepare("SELECT * FROM audit_log ORDER BY id DESC LIMIT ?").all(limit));
+});
+// Extra backup copy (e.g. a Google Drive folder) + storage report + clean-up of old check-in photos
+app.get("/api/admin/backup-copy", ...adminOnly, (req, res) => res.json({ dir: copyFolder(), status: copyStatus() }));
+app.put("/api/admin/backup-copy", ...adminOnly, async (req, res) => {
+  try {
+    const dir = setCopyFolder(req.body?.dir);
+    if (dir) await runBackup();
+    res.json({ dir, status: copyStatus() });
+  } catch (e) { res.status(400).json({ error: "That folder can't be used: " + e.message }); }
+});
+app.get("/api/admin/storage", ...adminOnly, (req, res) => res.json(storageReport()));
+app.post("/api/admin/cleanup-snapshots", ...adminOnly, (req, res) => {
+  const days = Math.max(7, Number(req.body?.days) || 90);
+  res.json({ days, ...cleanSnapshots(days) });
 });
 app.get("/api/admin/backups", ...adminOnly, (req, res) => res.json(listBackups()));
 app.post("/api/admin/backups", ...adminOnly, async (req, res) => {

@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const OUT_DIR = path.join(__dirname, "..", "payslips");
+const OUT_DIR = path.join(process.env.DATA_DIR || path.join(__dirname, ".."), "payslips"); // inside the data folder so backups and the cloud disk include it
 if (!fs.existsSync(OUT_DIR)) fs.mkdirSync(OUT_DIR, { recursive: true });
 
 function inr(n) {
