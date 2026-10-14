@@ -7,7 +7,7 @@ import path from "node:path";
 
 const PORT = 4590 + Math.floor(Math.random() * 100);
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hub-test-"));
-const env = { ...process.env, PORT: String(PORT), DATA_DIR: dir, JWT_SECRET: "test-secret-for-smoke-tests-1234567890", ADMIN_EMAIL: "admin@test.local", ADMIN_PASSWORD: "testpass123", DISABLE_CRON: "true", NODE_ENV: "test" };
+const env = { ...process.env, PORT: String(PORT), DATA_DIR: dir, JWT_SECRET: "test-secret-for-smoke-tests-1234567890", ADMIN_EMAIL: "admin@test.local", ADMIN_PASSWORD: "testpass123", DISABLE_CRON: "true", NODE_ENV: "test", MAIL_DRY_RUN: "1" };
 const server = spawn("node", ["src/server.js"], { env, stdio: ["ignore", "pipe", "pipe"] });
 let log = ""; server.stdout.on("data", (d) => (log += d)); server.stderr.on("data", (d) => (log += d));
 const base = `http://localhost:${PORT}`;
@@ -314,7 +314,7 @@ try {
   // ---- admin limited to four owners; photo; alt phone; face kiosk; training folders
   const allU = (await call("GET", "/api/users/full", null, admin)).body;
   const admins = allU.filter((u) => u.role === "admin").map((u) => u.name.toLowerCase());
-  ok("admin role is held by Dr. Nishita, Shreyas, Naga and Neelima only", admins.length === 4 && ["nishita", "shreyas", "naga", "neelima"].every((n) => admins.some((a) => a.includes(n))), admins.join(","));
+  ok("only the admin email account is admin", admins.length === 1 && allU.find((u) => u.role === "admin").email === "admin@test.local", admins.join(","));
   const plain = allU.find((u) => u.role === "staff");
   ok("admin cannot be given to anyone else", (await call("PATCH", `/api/users/${plain.id}/role`, { roleName: "admin" }, admin)).status === 403);
   ok("admin cannot be given when editing a person either", (await call("PATCH", `/api/users/${plain.id}`, { roleName: "admin" }, admin)).status === 403);
@@ -334,6 +334,12 @@ try {
   ok("face needs enough samples", (await call("POST", `/api/kiosk/enroll/${mkd.body.id}`, { descriptors: [fdesc(1)] }, admin)).status === 400);
   ok("face can be registered", (await call("POST", `/api/kiosk/enroll/${mkd.body.id}`, { descriptors: [fdesc(1), fdesc(1), fdesc(1)] }, admin)).status === 200);
   ok("staff cannot register faces", (await call("POST", `/api/kiosk/enroll/${mkd.body.id}`, { descriptors: [fdesc(1), fdesc(1), fdesc(1)] }, stoken)).status === 403);
+  // one face = one person
+  const faceOther = allU.find((u) => u.role === "staff" && u.id !== mkd.body.id);
+  const dupTry = await call("POST", `/api/kiosk/enroll/${faceOther.id}`, { descriptors: [fdesc(1), fdesc(1), fdesc(1)] }, admin);
+  ok("the same face cannot be registered to a second person", dupTry.status === 409 && /already registered/.test(dupTry.body?.error || ""), JSON.stringify(dupTry.body));
+  ok("the duplicate check works before saving", (await call("POST", "/api/kiosk/check-duplicate", { descriptors: [fdesc(1)] }, admin)).body?.duplicate === true);
+  ok("a different face can be registered to another person", (await call("POST", `/api/kiosk/enroll/${faceOther.id}`, { descriptors: [fdesc(70), fdesc(70), fdesc(70)] }, admin)).status === 200);
   const kdev = await call("POST", "/api/kiosk/devices", { label: "Clinic phone" }, admin);
   ok("a clinic phone key can be created", kdev.status === 201 && !!kdev.body.key);
   ok("a person's login cannot be used as a clinic phone", (await call("POST", "/api/kiosk/checkin", { descriptor: fdesc(1) }, admin)).status === 401);
@@ -341,6 +347,7 @@ try {
   const cki = await call("POST", "/api/kiosk/checkin", { descriptor: fdesc(1) }, kdev.body.key);
   ok("the right face is recognised and marked", cki.body?.matched === true && cki.body.name === "Photo Person" && ["P", "L"].includes(cki.body.mark), JSON.stringify(cki.body));
   ok("checking in twice does not duplicate", (await call("POST", "/api/kiosk/checkin", { descriptor: fdesc(1) }, kdev.body.key)).body?.already === true);
+  ok("the first look is the login", cki.body?.kind === "in" && /^\d\d:\d\d$/.test(cki.body.inTime));
   ok("a stranger is not recognised", (await call("POST", "/api/kiosk/checkin", { descriptor: fdesc(50) }, kdev.body.key)).body?.matched === false);
   const brd2 = (await call("GET", "/api/attendance/board", null, admin)).body;
   ok("the face check-in shows on the attendance board", ["P", "L"].includes(brd2.rows.find((r) => r.id === mkd.body.id)?.mark));
@@ -354,6 +361,31 @@ try {
   ok("training item remembers its folder and type", trainItem?.folder === "Onboarding" && trainItem.kind === "file");
   ok("a folder can be renamed", (await call("POST", "/api/hr/training-folders/rename", { department: "Front Desk", from: "Onboarding", to: "Joining" }, admin)).body?.moved === 1);
 
+  const xl = await fetch(base + "/api/attendance/export", { headers: { Authorization: `Bearer ${admin}` } });
+  ok("attendance sheet downloads as Excel", xl.status === 200 && /spreadsheetml/.test(xl.headers.get("content-type") || "") && (await xl.arrayBuffer()).byteLength > 2000);
+  ok("lan addresses endpoint works", (await call("GET", "/api/kiosk/lan", null, admin)).body?.addresses !== undefined);
+  const em = await call("GET", "/api/admin/email", null, admin); ok("email settings readable", em.status === 200 && em.body.configured === false);
+  ok("bad email address refused", (await call("PUT", "/api/admin/email", { user: "nope", pass: "x" }, admin)).status === 400);
+  ok("email settings can be saved", (await call("PUT", "/api/admin/email", { user: "clinic@test.local", pass: "abcd efgh ijkl mnop" }, admin)).status === 200);
+  ok("test email can be sent", (await call("POST", "/api/admin/email/test", { to: "x@test.local" }, admin)).body?.ok === true);
+  ok("staff cannot read email settings", (await call("GET", "/api/admin/email", null, stoken)).status === 403);
+  // ---- per-task photo, combined dashboard, sheet sync
+  const tpForm = new FormData(); tpForm.append("photo", new Blob([tinyPng], { type: "image/png" }), "t.png");
+  const tpRes = await fetch(base + "/api/shift-checklist/item-photo", { method: "POST", headers: { Authorization: `Bearer ${ctoken || stoken}` }, body: tpForm });
+  ok("a photo can be added to a single task", tpRes.status === 201 && /^\/uploads\/shift-checklist\//.test((await tpRes.json()).url));
+  const dashRes = await call("GET", "/api/shift-checklist/dashboard", null, admin);
+  ok("combined checklist dashboard loads", dashRes.status === 200 && dashRes.body.summary && dashRes.body.trend.length === 14);
+  ok("staff cannot open the checklist dashboard", (await call("GET", "/api/shift-checklist/dashboard", null, stoken)).status === 403);
+  const sheetStaff = users.find((u) => u.shift_role);
+  const sheetCsv = ["Submitted At,Staff Name,Role,Date,Shift,Completed,Total,Checklist Detail,Metrics", `01/09/2026 09:15:00,${sheetStaff.name},${sheetStaff.shift_role},2026-09-01,Morning,1,2,"Opening:\n[DONE] Switch on lights\n[PENDING] Clean desk",`].join("\n");
+  const sheetSrv = (await import("node:http")).createServer((q, r) => { r.setHeader("Content-Type", "text/csv"); r.end(sheetCsv); }); await new Promise((r) => sheetSrv.listen(0, r));
+  const sheetUrl = `http://localhost:${sheetSrv.address().port}/log.csv`;
+  ok("sheet link can be saved", (await call("PUT", "/api/shift-checklist/sheet", { url: sheetUrl }, admin)).status === 200);
+  const syncRes = await call("POST", "/api/shift-checklist/sheet/sync", null, admin);
+  ok("sheet entries sync into the app", syncRes.status === 200 && syncRes.body.imported >= 1, JSON.stringify(syncRes.body));
+  const dash2 = await call("GET", "/api/shift-checklist/dashboard?date=2026-09-01", null, admin);
+  ok("dashboard shows sheet entries together with app entries", dash2.body.summary.fromSheet >= 1 && dash2.body.people.some((p) => p.source === "sheet"));
+  sheetSrv.close();
   // Lockout
   let last; for (let i = 0; i < 8; i++) last = await call("POST", "/api/auth/login", { email: "lock@test.local", password: "x" });
   ok("repeated wrong logins are locked out (429)", last.status === 429);

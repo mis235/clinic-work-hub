@@ -7,6 +7,7 @@ import StaffEditModal from "../components/StaffEditModal.jsx";
 import Icon from "../components/Icon.jsx";
 import Avatar from "../components/Avatar.jsx";
 import FaceEnrollModal from "../components/FaceEnrollModal.jsx";
+import FaceCapture from "../components/FaceCapture.jsx";
 
 const DEPTS = ["Management", "Front Desk", "Therapist", "MDO", "Doctors", "Pharmacy", "Floor Coordinator", "Finance", "Supporting Staff"];
 
@@ -25,7 +26,7 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const refresh = () => api.listRosterAll().then(setRoster).catch(() => setRoster([]));
-  const loadFaces = () => api.enrolledFaces().then((r) => setFaces(Object.fromEntries(r.map((x) => [x.user_id, true])))).catch(() => {});
+  const loadFaces = () => api.enrolledFaces().then((r) => setFaces(Object.fromEntries(r.map((x) => [x.user_id, x])))).catch(() => {});
   useEffect(() => { refresh(); loadFaces(); api.listShiftRoles().then(setShiftRoles).catch(() => setShiftRoles([])); }, []);
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
@@ -88,7 +89,7 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
                   {s.employment_type && <span className="chip">{s.employment_type}</span>}
                   <span className={`chip ${realPhone ? "" : "warn"}`}>{realPhone ? s.phone : "placeholder phone"}</span>
                   {s.alt_phone && <span className="chip">Alt: {s.alt_phone}</span>}
-                  {s.active && <span className={`chip ${faces[s.id] ? "" : "warn"}`}>{faces[s.id] ? "Face registered" : "Face not registered"}</span>}
+                  {s.active && <span className={`chip ${faces[s.id] && !faces[s.id].same_as ? "" : "warn"}`}>{faces[s.id]?.same_as ? `Same face as ${faces[s.id].same_as} — redo` : faces[s.id] ? "Face registered" : "Face not registered"}</span>}
                   {!s.email && <span className="chip warn">no email</span>}
                 </div>
                 <div className="meta" style={{ marginTop: 6 }}>
@@ -132,6 +133,8 @@ function AddStaffModal({ departments, shiftRoles, onClose, onDone }) {
   const [types, setTypes] = useState([]);
   const [files, setFiles] = useState({}); // docType -> File
   const [photo, setPhoto] = useState(null);
+  const [face, setFace] = useState(null);   // { descriptors, photo } taken with the camera
+  const [cam, setCam] = useState(false);
   useEffect(() => { api.getOnboarding().then((o) => setTypes(o.docChecklist || [])).catch(() => {}); }, []);
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
   async function save() {
@@ -142,7 +145,9 @@ function AddStaffModal({ departments, shiftRoles, onClose, onDone }) {
     } catch (e) { setErr(e.message); setBusy(false); return; }
     // The person now exists, so a failed upload must not look like a failed "add" -- report it and carry on.
     const failed = [];
-    if (photo) { try { await api.uploadPhoto(created.id, photo); } catch { failed.push("profile picture"); } }
+    const pic = photo || (face?.photo ? new File([face.photo], "face.jpg", { type: "image/jpeg" }) : null);
+    if (face) { try { await api.enrollFace(created.id, face.descriptors); } catch (e) { failed.push(`face (${e.message})`); } }
+    if (pic) { try { await api.uploadPhoto(created.id, pic); } catch { failed.push("profile picture"); } }
     for (const [type, file] of Object.entries(files)) {
       try { const fd = new FormData(); fd.append("docType", type); fd.append("file", file); await api.addStaffFile(created.id, fd); }
       catch { failed.push(file.name); }
@@ -167,6 +172,20 @@ function AddStaffModal({ departments, shiftRoles, onClose, onDone }) {
           <div><label className="field-label">Shift checklist role</label><select className="field" value={f.shiftRole} onChange={set("shiftRole")}><option value="">— None —</option>{shiftRoles.map((r) => <option key={r}>{r}</option>)}</select></div>
           <div><label className="field-label">Starting PIN (4 digits)</label><input className="field" maxLength={4} value={f.pin} onChange={set("pin")} /></div>
         </div>
+        <div className="step-label" style={{ marginTop: 20 }}>Face for attendance</div>
+        {face ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {face.photo && <img alt="" src={URL.createObjectURL(face.photo)} style={{ width: 64, height: 64, borderRadius: "50%", objectFit: "cover" }} />}
+            <div><div className="title">Face captured ✓</div><div className="meta">Attendance will be taken from this face. It is also used as the profile picture if you did not choose one.</div></div>
+            <button className="btn btn-ghost btn-sm" onClick={() => { setFace(null); setCam(true); }}>Retake</button>
+          </div>
+        ) : cam ? (
+          <FaceCapture who={f.name || "the new staff member"} onCaptured={async (r) => {
+            const d = await api.checkFaceDuplicate(r.descriptors);
+            if (d.duplicate) throw new Error(`This face is already registered to ${d.name}. One face can belong to only one person.`);
+            setFace(r); setCam(false);
+          }} />
+        ) : <button className="btn btn-outline btn-sm" onClick={() => setCam(true)}>📷 Take photo with camera</button>}
         <div className="step-label" style={{ marginTop: 20 }}>Documents (optional — you can also add these later from their profile)</div>
         <div className="form-grid">
           {types.map((t) => (

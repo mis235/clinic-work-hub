@@ -29,8 +29,13 @@ export default function KioskPage() {
           setState({ phase: "check", text: "Checking…" });
           const r = await kioskApi.call("checkin", { descriptor: f.descriptor, snapshot: snapshotJpeg(video.current) });
           last = { at: Date.now() };
-          if (r.matched) setState({ phase: "result", ok: true, text: r.already ? `Already marked, ${r.name}` : `Welcome, ${r.name}`, sub: r.already ? "You are already marked for today." : `${r.label} · ${r.time}` });
-          else setState({ phase: "result", ok: false, text: "Face not recognised", sub: "Try again, face the light. Ask the admin if it keeps happening." });
+          const hm = (m) => `${Math.floor(m / 60)}h ${m % 60}m`;
+          if (r.matched) {
+            const out = r.kind === "out";
+            setState({ phase: "result", ok: true,
+              text: r.already ? `Already ${out ? "logged out" : "logged in"}, ${r.name}` : out ? `Goodbye, ${r.name}` : `Welcome, ${r.name}`,
+              sub: r.already ? `${out ? "Out" : "In"} at ${r.time}` : out ? `Logged out ${r.time}${r.workedMinutes ? ` · worked ${hm(r.workedMinutes)}` : ""}` : `Logged in ${r.time} · ${r.label}` });
+          } else setState({ phase: "result", ok: false, text: r.ambiguous ? "Please try again" : "Face not recognised", sub: r.ambiguous ? "Stand alone in front of the camera." : "Face the light and look straight at the camera. Ask the admin if it keeps happening." });
           setTimeout(() => setState((s) => (s.phase === "result" ? { phase: "look", text: "Look at the camera" } : s)), 4000);
         }
       } catch (e) {

@@ -32,14 +32,8 @@ export default function AttendancePage({ user, onLogout, onBack }) {
   async function markAll(status) {
     try { const r = await api.markAttendanceDay(date, status); flash(`${r.marked} people marked.`); load(); } catch (e) { flash(e.message); }
   }
-  function download() {
-    if (!reg) return;
-    const head = ["Staff", "Department", ...Array.from({ length: reg.daysInMonth }, (_, i) => i + 1), "Present", "Late", "Absent", "Leave", "Fines (Rs)"];
-    const lines = [head, ...reg.rows.map((r) => [r.name, r.department || "", ...r.days, r.present, r.late, r.absent, r.leave, r.fine_total])];
-    const csv = lines.map((l) => l.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = `attendance-register-${reg.month}.csv`; a.click();
-  }
+  const [dlBusy, setDlBusy] = useState(false);
+  async function download() { setDlBusy(true); try { await api.downloadAttendanceXlsx(month); } catch (e) { flash(e.message); } setDlBusy(false); }
   const c = board?.counts || {};
 
   return (
@@ -47,7 +41,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
       <div className="page-head row">
         <div><div className="eyebrow">People</div><h1>Attendance</h1>
           <p>Mark the day's attendance here (like the paper register). Staff do not need to check in on the app.</p></div>
-        <input className="field" type="date" style={{ width: 180 }} value={date} max={todayIST()} onChange={(e) => setDate(e.target.value)} />
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button className="btn btn-outline btn-sm" disabled={dlBusy} onClick={download}>{dlBusy ? "Preparing…" : "⬇ Attendance sheet (Excel)"}</button><input className="field" type="date" style={{ width: 180 }} value={date} max={todayIST()} onChange={(e) => setDate(e.target.value)} /></div>
       </div>
 
       <div className="dept-grid tile-grid">
@@ -71,7 +65,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
           </div>
           {board.rows.map((r) => (
             <div key={r.id} className="task-row" style={{ flexWrap: "wrap", gap: 8 }}>
-              <div><div className="title">{r.name}</div><div className="meta">{r.department || "—"}{r.designation ? ` · ${r.designation}` : ""}</div></div>
+              <div><div className="title">{r.name}</div><div className="meta">{r.department || "—"}{r.designation ? ` · ${r.designation}` : ""}{r.in_time ? ` · In ${r.in_time}` : ""}{r.out_time ? ` · Out ${r.out_time}` : ""}</div></div>
               <div className="right" style={{ gap: 4, flexWrap: "wrap" }}>
                 {MARKS.map(([k, label]) => (
                   <button key={k} className={`pill ${r.mark === k ? "active" : ""}`} style={{ padding: "5px 10px" }} onClick={() => mark(r.id, date, r.mark === k ? "" : k)}>{label}</button>
@@ -87,7 +81,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
         <div className="card" style={{ overflowX: "auto" }}>
           <div className="row" style={{ justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
             <div className="meta">Click a box to change it: P present · L late · A absent · H half day · LV leave · W off. Month: {reg.month}</div>
-            <button className="btn btn-ghost btn-sm" onClick={download}>Download (Excel/CSV)</button>
+            <button className="btn btn-outline btn-sm" disabled={dlBusy} onClick={download}>{dlBusy ? "Preparing…" : "⬇ Download attendance sheet (Excel)"}</button>
           </div>
           <table className="reg-table">
             <thead><tr><th>Staff</th>{Array.from({ length: reg.daysInMonth }, (_, i) => <th key={i}>{i + 1}</th>)}<th>Pres</th><th>Late</th><th>Abs</th><th>Leave</th><th>Fines</th></tr></thead>
@@ -116,31 +110,40 @@ function FacePanel({ date, people, isAdmin, flash }) {
   const [log, setLog] = useState([]);
   const [devices, setDevices] = useState([]);
   const [link, setLink] = useState("");
+  const [lan, setLan] = useState(null);
   const [enrolling, setEnrolling] = useState(null);
   const load = () => {
-    if (isAdmin) { api.enrolledFaces().then((r) => setEnrolled(Object.fromEntries(r.map((x) => [x.user_id, true])))).catch(() => {}); api.kioskDevices().then(setDevices).catch(() => {}); }
+    if (isAdmin) { api.enrolledFaces().then((r) => setEnrolled(Object.fromEntries(r.map((x) => [x.user_id, x])))).catch(() => {}); api.kioskDevices().then(setDevices).catch(() => {}); api.kioskLan().then(setLan).catch(() => {}); }
     api.kioskLog(date).then(setLog).catch(() => setLog([]));
   };
   useEffect(load, [date]);
   async function newPhone() {
-    try { const d = await api.createKioskDevice("Clinic phone"); setLink(`${window.location.origin}/kiosk#key=${encodeURIComponent(d.key)}`); load(); } catch (e) { flash(e.message); }
+    try { const d = await api.createKioskDevice("Clinic phone"); const host = window.location.hostname;
+      const phoneReachable = host !== "localhost" && host !== "127.0.0.1";
+      const ip = lan?.addresses?.[0];
+      let origin = window.location.origin;
+      if (!phoneReachable && ip) origin = lan.httpsPort ? `https://${ip}:${lan.httpsPort}` : `http://${ip}:${lan.httpPort}`;
+      setLink(`${origin}/kiosk#key=${encodeURIComponent(d.key)}`); load(); } catch (e) { flash(e.message); }
   }
   const secure = window.isSecureContext;
   return (
     <>
       <div className="card">
         <div className="title">How it works</div>
-        <p className="meta" style={{ margin: "6px 0 0", lineHeight: 1.6 }}>Register each person's face once. Then leave the clinic phone open on the check-in screen: when someone looks at the camera they are recognised and marked <b>Present</b> (or <b>Late</b> after {"10:30 AM"}). Their picture at that moment is saved for you to review below.</p>
+        <p className="meta" style={{ margin: "6px 0 0", lineHeight: 1.6 }}>Register each person's face once. Leave the clinic phone open on the check-in screen. The <b>first</b> time someone looks at the camera each day is their <b>login</b> (marked Present, or Late after 10:30 AM). Looking again later (at least 30 minutes after) records their <b>logout</b>. One face can belong to only one person. A picture of each check-in is saved below for you to review.</p>
       </div>
 
       {isAdmin && (
         <div className="card">
           <div className="title">Setting up the clinic phone</div>
           <ol className="meta" style={{ lineHeight: 1.8, paddingLeft: 18 }}>
-            <li>Press <b>Create phone link</b>, then open that link once in Chrome on the clinic phone. It saves itself and shows the check-in screen.</li>
-            <li>Allow the camera when asked. Keep the phone propped up with the screen on.</li>
-            <li><b>Important:</b> phone cameras only work on secure (https) addresses. If the app runs on a PC in the clinic, either put the app online with https, or on the phone open <code>chrome://flags</code>, search “Insecure origins treated as secure”, add the app address, and relaunch.</li>
+            <li>The clinic phone and this computer must be on the <b>same Wi-Fi</b>, and the app must be running on this computer.</li>
+            <li>Press <b>Create phone link</b>, then send that link to the phone (WhatsApp it to yourself) and open it in Chrome.</li>
+            <li>The first time, Chrome says <b>“Your connection isn't private”</b> — tap <b>Advanced → Proceed</b>. This is normal (the app makes its own security certificate). Then allow the <b>camera</b>.</li>
+            <li>Keep the phone propped up with the screen on. If Windows asks about network access the first time, choose <b>Allow</b>.</li>
           </ol>
+          {lan && !lan.httpsPort && <div className="login-error" style={{ marginBottom: 10 }}>The secure address is not running, so the phone camera may be blocked. Restart the app once after updating.</div>}
+          {lan && lan.addresses.length === 0 && <div className="login-error" style={{ marginBottom: 10 }}>This computer is not connected to a network, so a phone cannot reach it.</div>}
           <button className="btn btn-primary btn-sm" onClick={newPhone}>Create phone link</button>
           {!secure && <span className="meta" style={{ marginLeft: 10 }}>(This computer is on http — registering faces works here only at localhost.)</span>}
           {link && <div style={{ marginTop: 10 }}><input className="field" readOnly value={link} onFocus={(e) => e.target.select()} /><div className="meta">Open this link on the clinic phone. Keep it private — anyone with it can use the check-in screen.</div></div>}
@@ -158,7 +161,7 @@ function FacePanel({ date, people, isAdmin, flash }) {
             <div key={p.id} className="task-row">
               <div><div className="title">{p.name}</div><div className="meta">{p.department}</div></div>
               <div className="right" style={{ gap: 8 }}>
-                <span className={`badge ${enrolled[p.id] ? "done" : "sent"}`}>{enrolled[p.id] ? "Registered" : "Not registered"}</span>
+                <span className={`badge ${enrolled[p.id]?.same_as ? "overdue" : enrolled[p.id] ? "done" : "sent"}`}>{enrolled[p.id]?.same_as ? `Same face as ${enrolled[p.id].same_as}` : enrolled[p.id] ? "Registered" : "Not registered"}</span>
                 <button className="btn btn-outline btn-sm" onClick={() => setEnrolling(p)}>{enrolled[p.id] ? "Re-do" : "Register face"}</button>
               </div>
             </div>
@@ -175,7 +178,7 @@ function FacePanel({ date, people, isAdmin, flash }) {
               {l.has_snap && <img alt="" src={snapUrl(l.id)} style={{ width: 44, height: 44, borderRadius: 10, objectFit: "cover" }} />}
               <div><div className="title">{l.name}</div><div className="meta">{new Date(l.created_at.replace(" ", "T") + "Z").toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })} · match {Math.round((1 - l.distance) * 100)}%</div></div>
             </div>
-            <span className={`badge ${l.mark === "P" ? "done" : "overdue"}`}>{l.mark === "P" ? "Present" : "Late"}</span>
+            <span className={`badge ${l.kind === "out" ? "accepted" : l.mark === "P" ? "done" : "overdue"}`}>{l.kind === "out" ? "Logged out" : l.mark === "P" ? "Logged in" : "Logged in (late)"}</span>
           </div>
         ))}
       </div>

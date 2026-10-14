@@ -4,6 +4,46 @@ import { api } from "../api.js";
 import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
 
+function EmailCard({ onChanged }) {
+  const [cur, setCur] = useState(null);
+  const [user, setUser] = useState(""); const [pass, setPass] = useState(""); const [to, setTo] = useState("");
+  const [msg, setMsg] = useState(null); const [busy, setBusy] = useState(false);
+  const load = () => api.emailSettings().then((r) => { setCur(r); setUser(r.user || ""); }).catch(() => {});
+  useEffect(() => { load(); }, []);
+  async function save() {
+    setBusy(true); setMsg(null);
+    try { await api.saveEmailSettings({ user, pass }); setPass(""); setMsg({ ok: true, t: "Saved. Now press “Send test email”." }); load(); onChanged?.(); } catch (e) { setMsg({ ok: false, t: e.message }); }
+    setBusy(false);
+  }
+  async function test() {
+    setBusy(true); setMsg(null);
+    try { const r = await api.testEmail(to || user); setMsg({ ok: true, t: `Test email sent to ${r.to}. Check that inbox (and Spam).` }); } catch (e) { setMsg({ ok: false, t: e.message }); }
+    setBusy(false);
+  }
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <div className="card-head"><div><span className="name">Email settings</span><span className="dept">Needed to email payslips and letters to staff</span></div>
+        <span className={`badge ${cur?.configured ? "done" : "overdue"}`}>{cur?.configured ? "Set up" : "Not set up"}</span></div>
+      <ol className="meta" style={{ lineHeight: 1.8, paddingLeft: 18, marginTop: 0 }}>
+        <li>Use the clinic's Gmail address that should send the emails.</li>
+        <li>In that Google account: Security → turn on <b>2-Step Verification</b>, then search “<b>App passwords</b>” and create one (name it Work Hub). Google shows 16 letters.</li>
+        <li>Paste the address and those 16 letters below, press Save, then Send test email.</li>
+      </ol>
+      <div className="form-grid">
+        <div><label className="field-label">Gmail address</label><input className="field" value={user} onChange={(e) => setUser(e.target.value)} placeholder="payroll@drnishitaranka.com" /></div>
+        <div><label className="field-label">App password {cur?.hasPassword && "(saved — leave empty to keep)"}</label><input className="field" type="password" value={pass} onChange={(e) => setPass(e.target.value)} placeholder="16 letters" autoComplete="new-password" /></div>
+        <div><label className="field-label">Send the test to (optional)</label><input className="field" value={to} onChange={(e) => setTo(e.target.value)} placeholder="your own email" /></div>
+      </div>
+      {msg && <div className={msg.ok ? "note" : "login-error"} style={{ marginTop: 10 }}>{msg.t}</div>}
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <button className="btn btn-primary btn-sm" disabled={busy || !user} onClick={save}>Save</button>
+        <button className="btn btn-outline btn-sm" disabled={busy || !cur?.configured} onClick={test}>Send test email</button>
+      </div>
+      <div className="meta" style={{ marginTop: 10 }}>If Google says app passwords are not available, the Workspace admin must allow them (Admin console → Security).</div>
+    </div>
+  );
+}
+
 function ImportCard({ onDone }) {
   const [file, setFile] = useState(null);
   const [result, setResult] = useState(null);
@@ -125,6 +165,7 @@ export default function SystemPage({ user, onLogout, onBack }) {
           </div>
         </div>
 
+        <EmailCard onChanged={load} />
         <ImportCard onDone={load} />
 
         <div className="section-head"><h2>Activity log</h2><span className="sub">Latest 100 actions</span></div>

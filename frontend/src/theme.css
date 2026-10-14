@@ -461,3 +461,9 @@ input.field:focus, select.field:focus, textarea.field:focus { border-color: var(
 .reg-table td.clk { cursor: pointer; user-select: none; } .reg-table td.clk:hover { outline: 2px solid var(--primary); outline-offset: -2px; }
 .folder-head { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; margin: 4px 0; border-radius: 10px; background: var(--surface-sunk, #f1f5f9); font-weight: 600; font-size: 13.5px; cursor: pointer; }
 .avatar-img { border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+
+.check-row { display: flex; align-items: center; gap: 8px; }
+.check-row .check-item { flex: 1; min-width: 0; }
+.task-photo { display: flex; align-items: center; gap: 2px; flex: none; }
+.task-photo img { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; display: block; }
+.cam-btn { flex: none; cursor: pointer; padding: 6px 10px; }

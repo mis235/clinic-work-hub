@@ -14,6 +14,7 @@ import { withFines } from "./fines.js";
 import { inWords } from "../words.js";
 import { requireAuth } from "../middleware/auth.js";
 import { DOC_CHECKLIST } from "./users.js";
+import { sendEmail, isEmailConfigured, friendlyMailError } from "../email.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA = process.env.DATA_DIR || path.join(__dirname, "..", "..");
@@ -405,8 +406,8 @@ templatesRouter.post("/prefill", requireAuth, adminOnly, (req, res) => {
 const safe = (s) => String(s || "").replace(/[^\w.-]+/g, "_");
 
 // POST /api/doc-templates/generate  { templateId, userIds?: [] (omit = everyone who fits), period?: 'YYYY-MM' }
-templatesRouter.post("/generate", requireAuth, adminOnly, (req, res) => {
-  const { templateId, userIds, period, overrides } = req.body || {};
+templatesRouter.post("/generate", requireAuth, adminOnly, async (req, res) => {
+  const { templateId, userIds, period, overrides, emailAfter } = req.body || {};
   const t = db.prepare("SELECT * FROM doc_templates WHERE id = ?").get(templateId);
   if (!t) return res.status(404).json({ error: "Template not found" });
   if (EXIT_KINDS.includes(t.kind)) return res.status(400).json({ error: "Relieving, experience and settlement letters are made from the Staff exits page, one person at a time." });
@@ -447,13 +448,57 @@ templatesRouter.post("/generate", requireAuth, adminOnly, (req, res) => {
       skipped.push({ name: u.name, reason: "Could not fill the template" });
     }
   }
-  res.status(201).json({ generated: results, skipped });
+  let emailed = 0; const emailFailed = [];
+  if (emailAfter) {
+    if (!isEmailConfigured()) emailFailed.push({ name: "Everyone", reason: "Email is not set up yet (System & Backups → Email settings)" });
+    else for (const r of results) {
+      const g = db.prepare("SELECT * FROM generated_docs WHERE id = ?").get(r.id);
+      const x = await emailGenerated(g); if (x.ok) emailed++; else emailFailed.push({ name: r.name, reason: x.error });
+    }
+  }
+  res.status(201).json({ generated: results, skipped, emailed, emailFailed });
+});
+
+// Email generated files (payslips, letters) to each person's own email address.
+const KIND_LABEL = { payslip: "payslip", offer_letter: "offer letter" };
+async function emailGenerated(g) {
+  const u = db.prepare("SELECT name, email FROM users WHERE id = ?").get(g.user_id);
+  if (!u?.email) { db.prepare("UPDATE generated_docs SET email_error = ? WHERE id = ?").run("No email address on file", g.id); return { ok: false, error: "No email address on file" }; }
+  if (!fs.existsSync(g.file_path)) return { ok: false, error: "File missing" };
+  const what = KIND_LABEL[g.kind] || "document";
+  try {
+    await sendEmail({
+      to: u.email,
+      subject: `Your ${what}${g.period ? ` — ${g.period}` : ""} — Dr. Nishita's Clinic`,
+      html: `<p>Hi ${u.name},</p><p>Please find your ${what}${g.period ? ` for ${g.period}` : ""} attached.</p><p>Regards,<br>Dr. Nishita's Clinic</p>`,
+      attachments: [{ filename: g.file_name, path: g.file_path }],
+    });
+    db.prepare("UPDATE generated_docs SET emailed_at = datetime('now'), email_error = NULL WHERE id = ?").run(g.id);
+    return { ok: true };
+  } catch (e) {
+    const msg = friendlyMailError(e);
+    db.prepare("UPDATE generated_docs SET email_error = ? WHERE id = ?").run(msg, g.id);
+    return { ok: false, error: msg };
+  }
+}
+templatesRouter.post("/generated/email", requireAuth, adminOnly, async (req, res) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+  if (!ids.length) return res.status(400).json({ error: "Nothing selected" });
+  if (!isEmailConfigured()) return res.status(503).json({ error: "Email is not set up yet. Open System & Backups → Email settings first." });
+  const sent = [], failed = [];
+  for (const id of ids) {
+    const g = db.prepare("SELECT g.*, u.name AS user_name FROM generated_docs g LEFT JOIN users u ON u.id = g.user_id WHERE g.id = ?").get(id);
+    if (!g) continue;
+    const r = await emailGenerated(g);
+    (r.ok ? sent : failed).push(r.ok ? g.user_name : { name: g.user_name, reason: r.error });
+  }
+  res.json({ sent, failed });
 });
 
 templatesRouter.get("/generated", requireAuth, adminOnly, (req, res) => {
   const { kind } = req.query;
   res.json(db.prepare(
-    `SELECT g.id, g.kind, g.period, g.file_name, g.created_at, u.name AS user_name, c.name AS company
+    `SELECT g.id, g.kind, g.period, g.file_name, g.created_at, g.emailed_at, g.email_error, u.name AS user_name, c.name AS company
      FROM generated_docs g LEFT JOIN users u ON u.id = g.user_id LEFT JOIN companies c ON c.id = g.company_id
      ${kind ? "WHERE g.kind = ?" : ""} ORDER BY g.created_at DESC LIMIT 300`).all(...(kind ? [kind] : [])));
 });

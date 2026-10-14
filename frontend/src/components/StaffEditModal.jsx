@@ -13,7 +13,7 @@ export default function StaffEditModal({ staff, shiftRoles, managers = [], depar
   const [pv, setPv] = useState(0);
   const [hasPhoto, setHasPhoto] = useState(!!staff.has_photo);
   const [pErr, setPErr] = useState("");
-  const canAdmin = /^(dr\.? ?nishita|shreyas|naga|neelima)\b/i.test(staff.name || "");
+  const canAdmin = false; // only the one admin account is admin
   async function pickPhoto(file) {
     if (!file) return;
     try { await api.uploadPhoto(staff.id, file); setHasPhoto(true); setPv(Date.now()); setPErr(""); onPhoto?.(); } catch (e) { setPErr(e.message); }

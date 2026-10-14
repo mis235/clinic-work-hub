@@ -106,7 +106,7 @@ router.post("/generate", requireAuth, requirePermission("payroll:manage"), async
 
   if (profiles.length === 0) return res.status(400).json({ error: "No matching pay profile(s) found" });
   if (shouldSend && !isEmailConfigured()) {
-    return res.status(503).json({ error: "Email isn't configured yet. Add GMAIL_USER and GMAIL_APP_PASSWORD to backend/.env to send payslips." });
+    return res.status(503).json({ error: "Email is not set up yet. Open System & Backups → Email settings first." });
   }
 
   const payDate = new Date().toISOString().slice(0, 10);

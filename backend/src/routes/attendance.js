@@ -243,6 +243,7 @@ db.exec(`CREATE TABLE IF NOT EXISTS attendance_marks (
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (user_id, mark_date)
 );`);
+for (const col of ["in_time", "out_time"]) { try { db.exec(`ALTER TABLE attendance_marks ADD COLUMN ${col} TEXT`); } catch {} } // "HH:MM" India time, set by the face check-in
 export const MARKS = { P: "Present", L: "Late", H: "Half day", LV: "Leave", A: "Absent", W: "Week off / holiday" };
 const isLead = (u) => u?.roleName === "admin" || u?.roleName === "manager";
 const istToday = () => new Date(Date.now() + 19800000).toISOString().slice(0, 10);
@@ -260,7 +261,7 @@ export const markFor = (userId, date) => db.prepare("SELECT status FROM attendan
 router.get("/board", requireAuth, requirePermission("attendance:view_all"), (req, res) => {
   const date = DATE_RE.test(req.query.date || "") ? req.query.date : istToday();
   const rows = db.prepare(
-    `SELECT u.id, u.name, u.designation, d.name AS department, m.status AS mark, m.note
+    `SELECT u.id, u.name, u.designation, d.name AS department, m.status AS mark, m.note, m.in_time, m.out_time
      FROM users u LEFT JOIN departments d ON d.id = u.department_id
      LEFT JOIN attendance_marks m ON m.user_id = u.id AND m.mark_date = ?
      WHERE u.active = 1 ORDER BY d.name, u.name`).all(date);
@@ -324,6 +325,41 @@ router.get("/register", requireAuth, requirePermission("attendance:view_all"), (
     return { ...u, days, present: c.P + c.L + c.H * 0.5, late: c.L, absent: c.A, leave: c.LV, fine_count: f?.n || 0, fine_total: f?.total || 0 };
   });
   res.json({ month, daysInMonth, today: now, labels: MARKS, rows });
+});
+
+// Download the month as an Excel sheet: every person, every day: status, login time, logout time, hours.
+const hoursBetween = (a, b) => { if (!a || !b) return null; const [h1, m1] = a.split(":").map(Number), [h2, m2] = b.split(":").map(Number); const x = (h2 * 60 + m2) - (h1 * 60 + m1); return x > 0 ? Math.round(x / 6) / 10 : null; };
+router.get("/export", requireAuth, requirePermission("attendance:view_all"), async (req, res) => {
+  const now = istToday();
+  const month = /^\d{4}-\d{2}$/.test(req.query.month || "") ? req.query.month : now.slice(0, 7);
+  const [y, m] = month.split("-").map(Number);
+  const last = Math.min(new Date(y, m, 0).getDate(), month === now.slice(0, 7) ? Number(now.slice(8)) : 31);
+  const staff = db.prepare(`SELECT u.id, u.name, u.employee_code, u.designation, d.name AS department FROM users u LEFT JOIN departments d ON d.id = u.department_id WHERE u.active = 1 ORDER BY d.name, u.name`).all();
+  const marks = new Map(db.prepare("SELECT * FROM attendance_marks WHERE substr(mark_date,1,7) = ?").all(month).map((r) => [r.user_id + "|" + r.mark_date, r]));
+  const fines = new Map(db.prepare("SELECT user_id, COALESCE(SUM(amount),0) t FROM fines WHERE substr(fine_date,1,7) = ? GROUP BY user_id").all(month).map((f) => [f.user_id, f.t]));
+  const { default: ExcelJS } = await import("exceljs");
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Daily log");
+  ws.columns = [["Date", 12], ["Employee code", 14], ["Name", 24], ["Department", 18], ["Designation", 24], ["Status", 16], ["Login time", 11], ["Logout time", 11], ["Hours", 8], ["Note", 28]].map(([header, width]) => ({ header, width }));
+  const sm = wb.addWorksheet("Month summary");
+  sm.columns = [["Name", 24], ["Department", 18], ["Present", 9], ["Late", 7], ["Half day", 9], ["Leave", 8], ["Absent", 8], ["Week off", 9], ["Not marked", 11], ["Total hours", 11], ["Fines (Rs)", 11]].map(([header, width]) => ({ header, width }));
+  for (const u of staff) {
+    const c = { P: 0, L: 0, H: 0, LV: 0, A: 0, W: 0, none: 0 }; let hrs = 0;
+    for (let d = 1; d <= last; d++) {
+      const date = `${month}-${String(d).padStart(2, "0")}`;
+      const r = marks.get(u.id + "|" + date);
+      const h = hoursBetween(r?.in_time, r?.out_time);
+      if (h) hrs += h;
+      c[r?.status || "none"]++;
+      ws.addRow([date, u.employee_code || "", u.name, u.department || "", u.designation || "", r ? MARKS[r.status] : "Not marked", r?.in_time || "", r?.out_time || "", h ?? "", r?.note || ""]);
+    }
+    sm.addRow([u.name, u.department || "", c.P, c.L, c.H, c.LV, c.A, c.W, c.none, Math.round(hrs * 10) / 10, fines.get(u.id) || 0]);
+  }
+  for (const sh of [ws, sm]) { sh.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } }; sh.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F766E" } }; sh.views = [{ state: "frozen", ySplit: 1 }]; }
+  ws.autoFilter = { from: "A1", to: "J1" };
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="attendance-${month}.xlsx"`);
+  await wb.xlsx.write(res); res.end();
 });
 
 // GET /api/attendance/registered — whether the current user has a registered device

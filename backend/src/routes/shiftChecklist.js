@@ -21,6 +21,20 @@ const upload = multer({
 });
 
 const router = Router();
+try { db.exec("ALTER TABLE shift_checklist_submissions ADD COLUMN source TEXT NOT NULL DEFAULT 'app'"); } catch {}  // 'app' = filled in here, 'sheet' = came from the old Google form / sheet
+db.exec("CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT)");
+const getSetting = (k) => db.prepare("SELECT value FROM app_settings WHERE key = ?").get(k)?.value || "";
+const putSetting = (k, v) => db.prepare("INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(k, v);
+
+// Only keep fields we know; a task photo must be one of our own uploaded files.
+function cleanItems(items) {
+  return items.map((i) => {
+    const o = { section: String(i.section ?? ""), text: String(i.text ?? ""), done: !!i.done };
+    if (typeof i.photoUrl === "string" && /^\/uploads\/shift-checklist\/[\w.-]+$/.test(i.photoUrl)) { o.photoUrl = i.photoUrl; if (i.photoAt) o.photoAt = String(i.photoAt).slice(0, 40); }
+    return o;
+  });
+}
+
 
 function todayISO() {
   return new Date(Date.now() + 19800000).toISOString().slice(0, 10); // India date
@@ -122,14 +136,22 @@ async function runAiPhotoCheck(filePath, mimeType) {
   }
 }
 
+// POST /api/shift-checklist/item-photo — a live photo for ONE task (multipart: photo). Returns where it was saved;
+// the page keeps it on that task and it is stored with the checklist when progress is saved.
+router.post("/item-photo", requireAuth, requirePermission("shiftchecklist:submit"), upload.single("photo"), (req, res) => {
+  if (!req.file || !/^image\//.test(req.file.mimetype || "")) { if (req.file) fs.rm(req.file.path, { force: true }, () => {}); return res.status(400).json({ error: "Take or choose a photo" }); }
+  res.status(201).json({ url: `/uploads/shift-checklist/${path.basename(req.file.path)}`, takenAt: new Date().toISOString() });
+});
+
 // POST /api/shift-checklist/progress — autosave while the checklist is being filled in.
 // JSON { shift, items:[{section,text,done}], metrics }. Creates the day's row as 'in_progress'
 // (so managers see live progress); never downgrades an already-submitted row's status.
 router.post("/progress", requireAuth, requirePermission("shiftchecklist:submit"), (req, res) => {
   const user = db.prepare(`SELECT shift_role FROM users WHERE id = ?`).get(req.user.userId);
   if (!user?.shift_role) return res.status(400).json({ error: "No shift checklist is assigned to your role." });
-  const { shift, items, metrics } = req.body || {};
-  if (!shift || !Array.isArray(items) || items.length === 0) return res.status(400).json({ error: "shift and items are required" });
+  const { shift, metrics } = req.body || {};
+  if (!shift || !Array.isArray(req.body?.items) || req.body.items.length === 0) return res.status(400).json({ error: "shift and items are required" });
+  const items = cleanItems(req.body.items);
   const completed = items.filter((i) => i.done).length;
   const total = items.length;
   const pct = Math.round((completed / total) * 100);
@@ -166,6 +188,7 @@ router.post("/submit", requireAuth, requirePermission("shiftchecklist:submit"), 
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: "items array is required" });
   }
+  items = cleanItems(items);
 
   const completed = items.filter((i) => i.done).length;
   const total = items.length;
@@ -256,18 +279,15 @@ function editDistance(a, b) {
 }
 const norm = (x) => String(x || "").toLowerCase().replace(/[^a-z]/g, "");
 
-router.post("/import", requireAuth, importUpload.single("file"), (req, res) => {
-  if (req.user.roleName !== "admin") return res.status(403).json({ error: "Admin only" });
-  if (!req.file) return res.status(400).json({ error: "Choose the CSV file exported from the Google Sheet" });
-  const table = parseCsv(req.file.buffer.toString("utf8").replace(/^\uFEFF/, ""));
+/** Reads the checklist log (CSV text) into the app. Entries filled in the app are never overwritten; sheet entries keep the latest. */
+export function importChecklistCsv(text, { mapping = {}, dryRun = false } = {}) {
+  const table = parseCsv(String(text).replace(/^\uFEFF/, ""));
   const head = table.shift() || [];
   const col = (n) => head.findIndex((h) => h.trim().toLowerCase() === n.toLowerCase());
   const ix = { at: col("Submitted At"), name: col("Staff Name"), role: col("Role"), date: col("Date"), shift: col("Shift"), done: col("Completed"), total: col("Total"), detail: col("Checklist Detail"), metrics: col("Metrics") };
-  if (ix.name < 0 || ix.date < 0 || ix.detail < 0) return res.status(400).json({ error: "This does not look like the checklist log (needs Staff Name, Date and Checklist Detail columns)." });
+  if (ix.name < 0 || ix.date < 0 || ix.detail < 0) { const e = new Error("This does not look like the checklist log (needs Staff Name, Date and Checklist Detail columns)."); e.status = 400; throw e; }
 
   const users = db.prepare("SELECT id, name FROM users WHERE active = 1").all();
-  let mapping = {};
-  try { mapping = JSON.parse(req.body?.mapping || "{}"); } catch {}
   const resolve = (sheetName) => {
     if (mapping[sheetName] === "skip") return null;
     if (mapping[sheetName]) return users.find((u) => u.id === mapping[sheetName]) || null;
@@ -288,8 +308,12 @@ router.post("/import", requireAuth, importUpload.single("file"), (req, res) => {
 
   const unmatched = new Map(); let imported = 0, existing = 0;
   const insert = db.prepare(`INSERT INTO shift_checklist_submissions
-    (id, user_id, role_name, shift, work_date, items_json, metrics_json, completed, total, completion_pct, status, submitted_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', ?, ?) ON CONFLICT(user_id, work_date, shift) DO NOTHING`);
+    (id, user_id, role_name, shift, work_date, items_json, metrics_json, completed, total, completion_pct, status, submitted_at, updated_at, source)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', ?, ?, 'sheet')
+    ON CONFLICT(user_id, work_date, shift) DO UPDATE SET
+      items_json = excluded.items_json, metrics_json = excluded.metrics_json, completed = excluded.completed, total = excluded.total,
+      completion_pct = excluded.completion_pct, submitted_at = excluded.submitted_at, updated_at = excluded.updated_at
+    WHERE shift_checklist_submissions.source = 'sheet' AND excluded.completed != shift_checklist_submissions.completed`);
   const run = db.transaction(() => {
     for (const { r } of latest.values()) {
       const sheetName = (r[ix.name] || "").trim();
@@ -310,7 +334,7 @@ router.post("/import", requireAuth, importUpload.single("file"), (req, res) => {
       const completed = items.filter((i) => i.done).length;
       const [dd, mm, rest] = (r[ix.at] || "").split(/[\/ ]/);
       const when = r[ix.at] && rest ? `${rest}-${mm}-${dd} ${r[ix.at].split(" ")[1] || "00:00:00"}` : null;
-      if (!req.body?.dryRun || req.body.dryRun === "false") {
+      if (!dryRun) {
         const info = insert.run(randomUUID(), u.id, (r[ix.role] || "").trim() || "Imported", r[ix.shift] || "Morning", r[ix.date],
           JSON.stringify(items), Object.keys(metrics).length ? JSON.stringify(metrics) : null, completed, items.length,
           Math.round((completed / items.length) * 100), when || new Date().toISOString().replace("T", " ").slice(0, 19), when);
@@ -319,10 +343,94 @@ router.post("/import", requireAuth, importUpload.single("file"), (req, res) => {
     }
   });
   run();
+  return { dryRun, rowsInFile: table.length, uniqueEntries: latest.size, imported, alreadyInApp: existing, unmatched: [...unmatched].map(([name, count]) => ({ name, count })), staff: users };
+}
+
+router.post("/import", requireAuth, importUpload.single("file"), (req, res) => {
+  if (req.user.roleName !== "admin") return res.status(403).json({ error: "Admin only" });
+  if (!req.file) return res.status(400).json({ error: "Choose the CSV file exported from the Google Sheet" });
+  let mapping = {};
+  try { mapping = JSON.parse(req.body?.mapping || "{}"); } catch {}
+  try {
+    const dry = !!req.body?.dryRun && req.body.dryRun !== "false";
+    if (!dry && Object.keys(mapping).length) putSetting("checklist_name_map", JSON.stringify({ ...JSON.parse(getSetting("checklist_name_map") || "{}"), ...mapping }));
+    res.json(importChecklistCsv(req.file.buffer.toString("utf8"), { mapping, dryRun: dry }));
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+
+// ---------------------------------------------------------------------------
+// Live link to the old Google Sheet: the app reads the sheet's "published CSV" address every 10 minutes (and on demand),
+// so checklists filled through the old form and checklists filled in the app show together in ONE dashboard.
+// ---------------------------------------------------------------------------
+export async function syncChecklistSheet() {
+  const url = getSetting("checklist_sheet_csv");
+  if (!url) return { skipped: "No sheet link saved yet" };
+  const set = (o) => putSetting("checklist_sync_status", JSON.stringify({ at: new Date().toISOString(), ...o }));
+  try {
+    const r = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(30000) });
+    const text = await r.text();
+    if (!r.ok) throw new Error(`The sheet link answered with an error (${r.status}). Check that the sheet is published to the web.`);
+    if (/<html/i.test(text.slice(0, 500))) throw new Error("The link opened a web page, not the CSV. Use File → Share → Publish to web → choose the log tab and “Comma-separated values (.csv)”.");
+    const out = importChecklistCsv(text, { mapping: JSON.parse(getSetting("checklist_name_map") || "{}") });
+    set({ ok: true, imported: out.imported, unmatched: out.unmatched.length, rows: out.rowsInFile });
+    return { ok: true, ...out };
+  } catch (e) { set({ ok: false, error: e.message }); return { ok: false, error: e.message }; }
+}
+router.get("/sheet", requireAuth, requirePermission("shiftchecklist:view_all"), (req, res) => {
+  let status = null; try { status = JSON.parse(getSetting("checklist_sync_status") || "null"); } catch {}
+  res.json({ url: req.user.roleName === "admin" ? getSetting("checklist_sheet_csv") : (getSetting("checklist_sheet_csv") ? "set" : ""), status });
+});
+router.put("/sheet", requireAuth, (req, res) => {
+  if (req.user.roleName !== "admin") return res.status(403).json({ error: "Admin only" });
+  const url = String(req.body?.url || "").trim();
+  if (url && !/^https?:\/\//i.test(url)) return res.status(400).json({ error: "The link must start with https://" });
+  putSetting("checklist_sheet_csv", url); res.json({ ok: true });
+});
+router.post("/sheet/sync", requireAuth, async (req, res) => {
+  if (req.user.roleName !== "admin") return res.status(403).json({ error: "Admin only" });
+  const r = await syncChecklistSheet();
+  if (r.skipped) return res.status(400).json({ error: r.skipped });
+  if (!r.ok) return res.status(502).json({ error: r.error });
+  res.json({ ok: true, imported: r.imported, unmatched: r.unmatched, rows: r.rowsInFile });
+});
+
+// ---------------------------------------------------------------------------
+// ONE dashboard: app submissions + sheet submissions together.
+// ---------------------------------------------------------------------------
+router.get("/dashboard", requireAuth, requirePermission("shiftchecklist:view_all"), (req, res) => {
+  const today = todayISO();
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(req.query.date || "") ? req.query.date : today;
+  const days = Math.min(Math.max(Number(req.query.days) || 14, 3), 60);
+  const since = new Date(new Date(date).getTime() - (days - 1) * 86400000).toISOString().slice(0, 10);
+  const rows = db.prepare(`SELECT s.*, u.name AS staff_name FROM shift_checklist_submissions s JOIN users u ON u.id = s.user_id WHERE s.work_date BETWEEN ? AND ?`).all(since, date);
+  const dayRows = rows.filter((r) => r.work_date === date);
+  const photosIn = (r) => JSON.parse(r.items_json).filter((i) => i.photoUrl).length + (r.photo_path ? 1 : 0);
+  const expected = db.prepare("SELECT id, name, shift_role FROM users WHERE shift_role IS NOT NULL AND active = 1").all();
+  const started = new Set(dayRows.map((r) => r.user_id));
+  const avg = (a) => (a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : null);
+
+  const trend = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(new Date(date).getTime() - i * 86400000).toISOString().slice(0, 10);
+    const rs = rows.filter((r) => r.work_date === d && r.status === "submitted");
+    trend.push({ date: d, submitted: rs.length, avgPct: avg(rs.map((r) => r.completion_pct)) });
+  }
+  const byRole = {};
+  for (const r of rows.filter((x) => x.status === "submitted")) (byRole[r.role_name] ||= []).push(r.completion_pct);
+  const missedCount = new Map();
+  for (const r of rows.filter((x) => x.status === "submitted")) for (const i of JSON.parse(r.items_json)) if (!i.done) { const k = `${r.role_name}|||${i.text}`; missedCount.set(k, (missedCount.get(k) || 0) + 1); }
   res.json({
-    dryRun: !!req.body?.dryRun && req.body.dryRun !== "false",
-    rowsInFile: table.length, uniqueEntries: latest.size, imported, alreadyInApp: existing,
-    unmatched: [...unmatched].map(([name, count]) => ({ name, count })), staff: users,
+    date, today,
+    summary: {
+      expected: expected.length, submitted: dayRows.filter((r) => r.status === "submitted").length, inProgress: dayRows.filter((r) => r.status === "in_progress").length,
+      notStarted: expected.filter((u) => !started.has(u.id)).length, avgPct: avg(dayRows.filter((r) => r.status === "submitted").map((r) => r.completion_pct)),
+      photos: dayRows.reduce((n, r) => n + photosIn(r), 0), fromSheet: dayRows.filter((r) => r.source === "sheet").length, fromApp: dayRows.filter((r) => r.source !== "sheet").length,
+    },
+    trend,
+    byRole: Object.entries(byRole).map(([role, v]) => ({ role, avgPct: avg(v), submissions: v.length })).sort((a, b) => a.avgPct - b.avgPct),
+    missedMost: [...missedCount].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, n]) => ({ role: k.split("|||")[0], task: k.split("|||")[1], times: n })),
+    people: dayRows.map((r) => ({ ...serializeSubmission(r), source: r.source || "app", photos: photosIn(r) })).sort((a, b) => a.staffName.localeCompare(b.staffName)),
+    missing: expected.filter((u) => !started.has(u.id)).map((u) => ({ userId: u.id, name: u.name, roleName: u.shift_role })),
   });
 });
 

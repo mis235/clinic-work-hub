@@ -85,6 +85,15 @@ export const api = {
   listGeneratedDocs: (kind) => req(`/api/doc-templates/generated${kind ? `?kind=${kind}` : ""}`),
   downloadGenerated: (id, name) => downloadFile(`/api/doc-templates/generated/${id}/file`, name),
   downloadGeneratedZip: (ids) => downloadFile("/api/doc-templates/generated/zip", "documents.zip", { method: "POST", body: { ids } }),
+  emailGenerated: (ids) => req("/api/doc-templates/generated/email", { method: "POST", body: { ids } }),
+  emailSettings: () => req("/api/admin/email"),
+  saveEmailSettings: (body) => req("/api/admin/email", { method: "PUT", body }),
+  testEmail: (to) => req("/api/admin/email/test", { method: "POST", body: { to } }),
+  shiftItemPhoto: (file) => { const fd = new FormData(); fd.append("photo", file); return reqForm("/api/shift-checklist/item-photo", fd); },
+  checklistDashboard: (date, days) => req(`/api/shift-checklist/dashboard?date=${date}&days=${days || 14}`),
+  checklistSheet: () => req("/api/shift-checklist/sheet"),
+  saveChecklistSheet: (url) => req("/api/shift-checklist/sheet", { method: "PUT", body: { url } }),
+  syncChecklistSheet: () => req("/api/shift-checklist/sheet/sync", { method: "POST" }),
   deleteGenerated: (id) => req(`/api/doc-templates/generated/${id}`, { method: "DELETE" }),
 
   // Staff exits
@@ -131,6 +140,9 @@ export const api = {
   // Staff management
   uploadPhoto: (id, file) => { const fd = new FormData(); fd.append("photo", file); return reqForm(`/api/users/${id}/photo`, fd); },
   removePhoto: (id) => req(`/api/users/${id}/photo`, { method: "DELETE" }),
+  checkFaceDuplicate: (descriptors, exceptUserId) => req("/api/kiosk/check-duplicate", { method: "POST", body: { descriptors, exceptUserId } }),
+  kioskLan: () => req("/api/kiosk/lan"),
+  downloadAttendanceXlsx: (month) => downloadFile(`/api/attendance/export?month=${month}`, `attendance-${month}.xlsx`),
   enrolledFaces: () => req("/api/kiosk/enrolled"),
   enrollFace: (id, descriptors) => req(`/api/kiosk/enroll/${id}`, { method: "POST", body: { descriptors } }),
   removeFace: (id) => req(`/api/kiosk/enroll/${id}`, { method: "DELETE" }),

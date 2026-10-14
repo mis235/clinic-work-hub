@@ -22,7 +22,7 @@ export async function startCamera(video) {
   return () => stream.getTracks().forEach((t) => t.stop());
 }
 export const cameraHelp = (e) => e?.message === "INSECURE"
-  ? "The camera is blocked because this address is not secure (http://). Use the app on the computer itself at http://localhost:4000, or see “Setting up the clinic phone” on the Attendance page."
+  ? "The camera is blocked because this address is not secure. Open the https:// link created on Attendance → Face check-in (on the phone tap Advanced → Proceed once), or use the app on the computer at localhost."
   : /denied|Permission|NotAllowed/i.test(e?.name + e?.message) ? "Camera permission was denied. Allow the camera for this site and try again." : `Camera problem: ${e?.message || e}`;
 export function snapshotJpeg(video, w = 240) {
   const c = document.createElement("canvas"); c.width = w; c.height = Math.round(w * (video.videoHeight || 480) / (video.videoWidth || 640));

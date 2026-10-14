@@ -374,3 +374,11 @@ Admin > **Staff Exits**. Steps: Resignation received -> Serving notice -> Handov
 - **Staff photo and alternate number** are on Add staff / Edit details. Pictures are private (signed-in people only).
 - **Face check-in:** Attendance → Face check-in. Register each person's face once (needs a camera), create a *phone link* and open it once on the clinic phone. Staff look at the camera and are marked Present, or Late after 10:30 AM (`LATE_AFTER` in `backend/.env`). A snapshot of each check-in is kept for review. Phone cameras need an https address (or Chrome's "Insecure origins treated as secure" flag on that one phone).
 - **Training Library** has folders per department and accepts PDFs, slides and sheets as well as videos.
+
+## Latest features (quick notes)
+- **One admin only**: the account in `ADMIN_EMAIL` (admin@drnishitaranka.com). Everyone else is staff or manager.
+- **Face attendance**: one face per person (duplicates are refused); check-in and check-out times are saved; download the register from Attendance → Excel.
+- **Phone camera**: phones need `https://<PC-address>:4443` (accept the certificate warning once, same Wi-Fi, allow Windows firewall).
+- **Email**: System & Backups → Email settings (Gmail + app password) → Send test; then Documents → payslips → Email.
+- **Checklist dashboard**: app checklists and the old Google form appear together; paste the published CSV link in the dashboard to auto-sync every 10 minutes. Each task can carry a photo.
+- Updates: `npm start` now reinstalls and rebuilds by itself when files changed.

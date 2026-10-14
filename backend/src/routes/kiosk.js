@@ -10,12 +10,15 @@ import { fileURLToPath } from "node:url";
 import db from "../db.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
 import { MARKS } from "./attendance.js"; // also makes sure the attendance_marks table exists
+import { lanAddresses, HTTPS_PORT, httpsRunning } from "../https.js";
 
 const router = Router();
 const DATA = process.env.DATA_DIR || path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const SNAP_DIR = path.join(DATA, "private", "checkin-snaps");
 fs.mkdirSync(SNAP_DIR, { recursive: true });
 const MATCH_DISTANCE = Number(process.env.FACE_MATCH_DISTANCE || 0.5); // lower = stricter
+const UNIQUE_DISTANCE = Number(process.env.FACE_UNIQUE_DISTANCE || 0.45); // two people closer than this are treated as the same face
+const MIN_GAP_MIN = Number(process.env.MIN_STAY_MINUTES || 30);        // a second look within this many minutes is not a logout
 const LATE_AFTER = process.env.LATE_AFTER || "10:30";                   // IST, HH:MM — arrivals after this are marked Late
 const secret = () => process.env.JWT_SECRET;
 const istNow = () => new Date(Date.now() + 19800000);
@@ -35,13 +38,36 @@ function requireKiosk(req, res, next) {
 }
 
 // ---- admin side ----------------------------------------------------------
+// Is this face already registered to somebody else?  Returns { name } of the other person, or null.
+function otherOwnerOfFace(list, exceptUserId) {
+  for (const t of db.prepare("SELECT t.user_id, t.descriptors, u.name FROM face_templates t JOIN users u ON u.id = t.user_id WHERE u.active = 1 AND t.user_id != ?").all(exceptUserId || "")) {
+    const theirs = JSON.parse(t.descriptors);
+    let hits = 0;
+    for (const d of list) if (theirs.some((x) => dist(d, x) <= UNIQUE_DISTANCE)) hits++;
+    if (hits >= Math.max(1, Math.ceil(list.length / 2))) return { userId: t.user_id, name: t.name };
+  }
+  return null;
+}
 router.get("/enrolled", requireAuth, requirePermission("staff:manage"), (req, res) => {
-  res.json(db.prepare("SELECT user_id, enrolled_at, json_array_length(descriptors) AS samples FROM face_templates").all());
+  const rows = db.prepare("SELECT t.user_id, t.enrolled_at, t.descriptors FROM face_templates t JOIN users u ON u.id = t.user_id WHERE u.active = 1").all();
+  res.json(rows.map((r) => {
+    const dup = otherOwnerOfFace(JSON.parse(r.descriptors), r.user_id);
+    return { user_id: r.user_id, enrolled_at: r.enrolled_at, samples: JSON.parse(r.descriptors).length, same_as: dup?.name || null };
+  }));
+});
+// Used while adding staff, before saving: is this face already registered?
+router.post("/check-duplicate", requireAuth, requirePermission("staff:manage"), (req, res) => {
+  const list = (req.body?.descriptors || []).filter(okDesc).slice(0, 8);
+  if (!list.length) return res.status(400).json({ error: "No clear face" });
+  const dup = otherOwnerOfFace(list, req.body?.exceptUserId);
+  res.json({ duplicate: !!dup, name: dup?.name || null });
 });
 router.post("/enroll/:userId", requireAuth, requirePermission("staff:manage"), (req, res) => {
   const list = (req.body?.descriptors || []).filter(okDesc).slice(0, 8);
   if (list.length < 3) return res.status(400).json({ error: "Not enough clear face samples. Try again in good light, looking at the camera." });
   if (!db.prepare("SELECT 1 FROM users WHERE id = ? AND active = 1").get(req.params.userId)) return res.status(404).json({ error: "Staff member not found" });
+  const dup = otherOwnerOfFace(list, req.params.userId);
+  if (dup) return res.status(409).json({ error: `This face is already registered to ${dup.name}. One face can belong to only one person.` });
   db.prepare(`INSERT INTO face_templates (user_id, descriptors, enrolled_by) VALUES (?,?,?)
     ON CONFLICT(user_id) DO UPDATE SET descriptors = excluded.descriptors, enrolled_by = excluded.enrolled_by, enrolled_at = datetime('now')`)
     .run(req.params.userId, JSON.stringify(list), req.user.userId);
@@ -49,6 +75,11 @@ router.post("/enroll/:userId", requireAuth, requirePermission("staff:manage"), (
 });
 router.delete("/enroll/:userId", requireAuth, requirePermission("staff:manage"), (req, res) => {
   db.prepare("DELETE FROM face_templates WHERE user_id = ?").run(req.params.userId); res.json({ ok: true });
+});
+// Addresses a phone on the clinic Wi-Fi can use to reach this computer (a phone's "localhost" is the phone itself).
+router.get("/lan", requireAuth, requirePermission("staff:manage"), (req, res) => {
+  const port = process.env.PORT || 4000;
+  res.json({ addresses: lanAddresses(), httpPort: Number(port), httpsPort: httpsRunning ? HTTPS_PORT : null });
 });
 router.get("/devices", requireAuth, requirePermission("staff:manage"), (req, res) => {
   res.json(db.prepare("SELECT id, label, created_at, last_seen, revoked_at FROM kiosk_devices ORDER BY created_at DESC").all());
@@ -66,7 +97,7 @@ router.delete("/devices/:id", requireAuth, requirePermission("staff:manage"), (r
 router.get("/log", requireAuth, requirePermission("attendance:view_all"), (req, res) => {
   const date = /^\d{4}-\d{2}-\d{2}$/.test(req.query.date || "") ? req.query.date : istNow().toISOString().slice(0, 10);
   res.json(db.prepare(
-    `SELECT f.id, u.name, f.mark, f.distance, f.created_at, (f.snapshot_path IS NOT NULL) AS has_snap
+    `SELECT f.id, u.name, f.mark, f.kind, f.distance, f.created_at, (f.snapshot_path IS NOT NULL) AS has_snap
      FROM face_checkins f JOIN users u ON u.id = f.user_id
      WHERE date(f.created_at,'+5 hours','+30 minutes') = ? ORDER BY f.created_at DESC`).all(date));
 });
@@ -83,33 +114,41 @@ router.get("/ping", requireKiosk, (req, res) => res.json({ ok: true, label: req.
 router.post("/checkin", requireKiosk, (req, res) => {
   const { descriptor, snapshot } = req.body || {};
   if (!okDesc(descriptor)) return res.status(400).json({ error: "No clear face seen" });
-  let best = null;
+  const per = new Map(); // best distance per person
   for (const t of db.prepare("SELECT t.user_id, t.descriptors, u.name FROM face_templates t JOIN users u ON u.id = t.user_id WHERE u.active = 1").all()) {
-    for (const d of JSON.parse(t.descriptors)) {
-      const x = dist(descriptor, d);
-      if (!best || x < best.distance) best = { userId: t.user_id, name: t.name, distance: x };
-    }
+    let d = Infinity;
+    for (const x of JSON.parse(t.descriptors)) d = Math.min(d, dist(descriptor, x));
+    per.set(t.user_id, { userId: t.user_id, name: t.name, distance: d });
   }
+  const ranked = [...per.values()].sort((a, b) => a.distance - b.distance);
+  const best = ranked[0];
   if (!best || best.distance > MATCH_DISTANCE) return res.json({ matched: false });
+  // Two different people both fit: refuse rather than mark the wrong person.
+  if (ranked[1] && ranked[1].distance <= MATCH_DISTANCE && ranked[1].distance - best.distance < 0.04) return res.json({ matched: false, ambiguous: true });
 
   const now = istNow(), date = now.toISOString().slice(0, 10), hhmm = now.toISOString().slice(11, 16);
-  const existing = db.prepare("SELECT status FROM attendance_marks WHERE user_id = ? AND mark_date = ?").get(best.userId, date)?.status;
-  let mark = existing, already = false;
-  if (existing === "P" || existing === "L" || existing === "H") already = true;
-  else {
-    mark = hhmm > LATE_AFTER ? "L" : "P";
-    db.prepare(`INSERT INTO attendance_marks (user_id, mark_date, status, note, marked_by) VALUES (?,?,?,?,NULL)
-      ON CONFLICT(user_id, mark_date) DO UPDATE SET status = excluded.status, note = excluded.note, updated_at = datetime('now')`)
-      .run(best.userId, date, mark, `Face check-in ${hhmm}`);
-  }
+  const mins = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+  const row = db.prepare("SELECT status, in_time, out_time FROM attendance_marks WHERE user_id = ? AND mark_date = ?").get(best.userId, date);
+  let kind, mark = row?.status, inTime = row?.in_time || null, outTime = row?.out_time || null, already = false;
+  if (!row || !row.in_time) {
+    kind = "in"; inTime = hhmm;
+    if (!row || !["P", "L", "H"].includes(row.status)) mark = hhmm > LATE_AFTER ? "L" : "P";
+    db.prepare(`INSERT INTO attendance_marks (user_id, mark_date, status, in_time, note, marked_by) VALUES (?,?,?,?,?,NULL)
+      ON CONFLICT(user_id, mark_date) DO UPDATE SET status = excluded.status, in_time = excluded.in_time, updated_at = datetime('now')`)
+      .run(best.userId, date, mark, inTime, `Face check-in ${hhmm}`);
+  } else if (mins(hhmm) - mins(outTime || inTime) >= MIN_GAP_MIN) {
+    kind = "out"; outTime = hhmm;
+    db.prepare("UPDATE attendance_marks SET out_time = ?, updated_at = datetime('now') WHERE user_id = ? AND mark_date = ?").run(outTime, best.userId, date);
+  } else { kind = outTime ? "out" : "in"; already = true; }
+  const worked = inTime && outTime ? mins(outTime) - mins(inTime) : null;
   if (!already) {
     let snapPath = null;
     const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(snapshot || "");
     if (m && m[1].length < 400000) { snapPath = path.join(SNAP_DIR, `${randomUUID()}.jpg`); fs.writeFileSync(snapPath, Buffer.from(m[1], "base64")); }
-    db.prepare("INSERT INTO face_checkins (id, user_id, device_id, distance, mark, snapshot_path) VALUES (?,?,?,?,?,?)")
-      .run(randomUUID(), best.userId, req.kiosk.id, best.distance, mark, snapPath);
+    db.prepare("INSERT INTO face_checkins (id, user_id, device_id, distance, mark, kind, snapshot_path) VALUES (?,?,?,?,?,?,?)")
+      .run(randomUUID(), best.userId, req.kiosk.id, best.distance, mark, kind, snapPath);
   }
-  res.json({ matched: true, name: best.name, mark, label: MARKS[mark], time: hhmm, already });
+  res.json({ matched: true, name: best.name, kind, mark, label: MARKS[mark], time: kind === "out" ? outTime : inTime, inTime, outTime, workedMinutes: worked, already });
 });
 
 export default router;

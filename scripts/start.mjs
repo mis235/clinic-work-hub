@@ -53,10 +53,19 @@ if (fs.existsSync(envFile) && freshPassword === null) {
   if (add.length) { say("Adding missing settings to backend/.env"); fs.writeFileSync(envFile, txt.replace(/\s*$/, "\n") + add.join("\n") + "\n"); }
 }
 
-// 2. Install + build (only when needed)
-if (!fs.existsSync(path.join(backend, "node_modules"))) { say("Installing server (one time, ~1 minute)"); run("npm", ["install", "--no-audit", "--no-fund"], backend); }
-if (!fs.existsSync(path.join(frontend, "node_modules"))) { say("Installing screens (one time, ~1 minute)"); run("npm", ["install", "--no-audit", "--no-fund"], frontend); }
-if (!fs.existsSync(path.join(frontend, "dist", "index.html")) || process.env.REBUILD) { say("Building the app screens"); run("npm", ["run", "build"], frontend); }
+// 2. Install + build (only when needed; re-does it automatically after an update)
+import crypto from "node:crypto";
+const sig = (files) => crypto.createHash("md5").update(files.map((f) => (fs.existsSync(f) ? fs.readFileSync(f) : "")).join("|")).digest("hex");
+const walk = (d) => (fs.existsSync(d) ? fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)])) : []);
+const stampFile = path.join(root, ".build-stamp.json");
+let stamp = {}; try { stamp = JSON.parse(fs.readFileSync(stampFile, "utf8")); } catch {}
+const depSig = sig([path.join(backend, "package.json"), path.join(frontend, "package.json")]);
+const srcSig = sig([...walk(path.join(frontend, "src")), ...walk(path.join(frontend, "public")).filter((f) => !f.includes("models")), path.join(frontend, "index.html")]);
+const depsChanged = stamp.dep !== depSig;
+if (depsChanged || !fs.existsSync(path.join(backend, "node_modules"))) { say("Installing server parts (~1 minute)"); run("npm", ["install", "--no-audit", "--no-fund"], backend); }
+if (depsChanged || !fs.existsSync(path.join(frontend, "node_modules"))) { say("Installing screen parts (~1 minute)"); run("npm", ["install", "--no-audit", "--no-fund"], frontend); }
+if (depsChanged || stamp.src !== srcSig || !fs.existsSync(path.join(frontend, "dist", "index.html")) || process.env.REBUILD) { say("Building the app screens"); run("npm", ["run", "build"], frontend); }
+fs.writeFileSync(stampFile, JSON.stringify({ dep: depSig, src: srcSig }));
 
 // 3. Tell people where to open it
 const lan = Object.values(os.networkInterfaces()).flat().filter((i) => i && i.family === "IPv4" && !i.internal).map((i) => i.address);
@@ -67,7 +76,7 @@ console.log(`
 ==============================================================
   Dr. Nishita's Clinic - Work Hub is starting
   On this computer:      http://localhost:${PORT}
-  Phones on same Wi-Fi:  ${lan.length ? lan.map((a) => `http://${a}:${PORT}`).join("   ") : "(no network found)"}
+  Phones on same Wi-Fi:  ${lan.length ? lan.map((a) => `https://${a}:4443`).join("   ") : "(no network found)"}   (accept the certificate warning once)
 ${adminLine}
   Staff sign-in:  pick your name + PIN 1234 (you must then choose a new PIN)
   Stop the app:   press Ctrl+C

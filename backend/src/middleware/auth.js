@@ -24,8 +24,10 @@ export function requireAuth(req, res, next) {
     return res.status(401).json({ error: "Invalid or expired token" });
   }
   // Removed / deactivated people lose access immediately, not when their token expires.
-  const row = db.prepare("SELECT active FROM users WHERE id = ?").get(req.user.userId);
+  const row = db.prepare("SELECT u.active, u.role_id, r.name AS role_name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ?").get(req.user.userId);
   if (!row || !row.active) return res.status(401).json({ error: "This account is no longer active" });
+  // The role is always read fresh, so a change of access applies at once (not when the old sign-in expires).
+  req.user.roleId = row.role_id; req.user.roleName = row.role_name;
   next();
 }
 

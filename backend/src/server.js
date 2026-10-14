@@ -6,7 +6,9 @@ import rosterRoutes from "./routes/roster.js";
 import exitRoutes from "./routes/exits.js";
 import workspaceRoutes from "./routes/workspace.js";
 import kioskRoutes from "./routes/kiosk.js";
-import { ensureOwnerAdmins } from "./access.js";
+import { ensureSingleAdmin } from "./access.js";
+import { startHttps } from "./https.js";
+import { isEmailConfigured, mailSettings, saveMailSettings, clearMailSettings, sendEmail, friendlyMailError } from "./email.js";
 import express from "express";
 import cors from "cors";
 import path from "node:path";
@@ -67,9 +69,25 @@ app.get("/api/admin/status", ...adminOnly, (req, res) => {
     ok: true, uptimeSec: Math.round((Date.now() - startedAt) / 1000),
     users: count("users"), tasks: count("tasks"), shiftSubmissions: count("shift_checklist_submissions"),
     lastBackup: backups[0] || null, backups: backups.length,
-    whatsappConfigured: !!process.env.WHATSAPP_ACCESS_TOKEN, emailConfigured: !!process.env.GMAIL_USER,
+    whatsappConfigured: !!process.env.WHATSAPP_ACCESS_TOKEN, emailConfigured: isEmailConfigured(),
     aiConfigured: !!process.env.ANTHROPIC_API_KEY, persistentDisk: !!process.env.DATA_DIR,
   });
+});
+// Email (payslips, digest): settings saved here so nobody has to edit backend/.env
+app.get("/api/admin/email", ...adminOnly, (req, res) => { const m = mailSettings(); res.json({ configured: isEmailConfigured(), user: m.user, hasPassword: !!m.pass }); });
+app.put("/api/admin/email", ...adminOnly, (req, res) => {
+  const { user, pass } = req.body || {};
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(user || ""))) return res.status(400).json({ error: "Enter the Gmail address that will send the emails" });
+  if (!pass && !mailSettings().pass) return res.status(400).json({ error: "Enter the app password" });
+  saveMailSettings({ user, pass }); res.json({ ok: true });
+});
+app.delete("/api/admin/email", ...adminOnly, (req, res) => { clearMailSettings(); res.json({ ok: true }); });
+app.post("/api/admin/email/test", ...adminOnly, async (req, res) => {
+  const to = String(req.body?.to || "").trim() || mailSettings().user;
+  try {
+    await sendEmail({ to, subject: "Work Hub test email", html: "<p>This is a test from the clinic Work Hub. If you can read this, payslips can be emailed.</p>" });
+    res.json({ ok: true, to });
+  } catch (e) { res.status(400).json({ error: friendlyMailError(e) }); }
 });
 app.get("/api/admin/audit", ...adminOnly, (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 100, 500);
@@ -165,14 +183,16 @@ if (db.prepare("SELECT COUNT(*) AS c FROM users").get().c === 0) {
   }
 }
 
-// Only Dr. Nishita, Shreyas, Naga and Neelima hold admin access (done after the PIN check above so a starter PIN is still forced to change).
-ensureOwnerAdmins();
+// Only the ADMIN_EMAIL account is admin; everyone else is staff.
+ensureSingleAdmin();
 
 const port = process.env.PORT || 4000;
 const server = app.listen(port, () => {
   console.log(`Clinic Work Hub API listening on http://localhost:${port}`);
   startScheduledJobs();
 });
+
+await startHttps(app);
 
 // Clean shutdown so a redeploy never cuts a database write in half.
 for (const sig of ["SIGTERM", "SIGINT"]) {

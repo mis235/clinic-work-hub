@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import PageShell from "../components/PageShell.jsx";
 import ConnectedToolPage from "./ConnectedToolPage.jsx";
+import ChecklistDashboard from "../components/ChecklistDashboard.jsx";
 
 const rupee = (n) => "₹" + Number(n || 0).toLocaleString("en-IN");
 const pctText = (p) => (p == null ? "—" : p + "%");
@@ -10,7 +11,7 @@ const pctText = (p) => (p == null ? "—" : p + "%");
 export default function ClinicDashboardPage({ user, onLogout, onBack, onNavigate }) {
   const [depts, setDepts] = useState(null);
   const [rep, setRep] = useState(null);
-  const [tab, setTab] = useState("live");
+  const [tab, setTab] = useState("checklist");
   useEffect(() => {
     api.portalDepartments().then((d) => setDepts(d.rows)).catch(() => setDepts([]));
     api.getReports(30).then(setRep).catch(() => setRep({}));
@@ -25,11 +26,13 @@ export default function ClinicDashboardPage({ user, onLogout, onBack, onNavigate
         <div><div className="eyebrow">Insights</div><h1>Clinic dashboard</h1><p>Live numbers from attendance, checklists, tasks, documents and fines. Last 30 days for work completion.</p></div>
       </div>
       <div className="pill-row">
-        <button className={`pill ${tab === "live" ? "active" : ""}`} onClick={() => setTab("live")}>Clinic overview</button>
         <button className={`pill ${tab === "checklist" ? "active" : ""}`} onClick={() => setTab("checklist")}>Checklist dashboard</button>
-        <button className={`pill ${tab === "old" ? "active" : ""}`} onClick={() => setTab("old")}>Old dashboard</button>
+        <button className={`pill ${tab === "live" ? "active" : ""}`} onClick={() => setTab("live")}>Clinic overview</button>
+        <button className={`pill ${tab === "google" ? "active" : ""}`} onClick={() => setTab("google")}>Old Google dashboard</button>
+        <button className={`pill ${tab === "old" ? "active" : ""}`} onClick={() => setTab("old")}>Earlier dashboard</button>
       </div>
-      {tab === "checklist" && <ConnectedToolPage toolKey="checklist_dashboard" active="Dashboards" user={user} isStaffLayout />}
+      {tab === "checklist" && <ChecklistDashboard user={user} />}
+      {tab === "google" && <ConnectedToolPage toolKey="checklist_dashboard" active="Dashboards" user={user} isStaffLayout />}
       {tab === "old" && <ConnectedToolPage toolKey="dashboard" active="Dashboards" user={user} isStaffLayout />}
       {tab === "live" && (!depts ? <div className="empty">Loading…</div> : (
         <>

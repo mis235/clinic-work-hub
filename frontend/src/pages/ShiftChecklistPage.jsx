@@ -15,6 +15,8 @@ export default function ShiftChecklistPage({ user, isStaffLayout, onLogout, onBa
   const [shift, setShift] = useState(defaultShift());
   const [checked, setChecked] = useState({});
   const [metricValues, setMetricValues] = useState({});
+  const [photos, setPhotos] = useState({});        // per-task photos: key -> { url, at }
+  const [uploadingKey, setUploadingKey] = useState("");
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [photoCapturedAt, setPhotoCapturedAt] = useState(null);
@@ -40,8 +42,9 @@ export default function ShiftChecklistPage({ user, isStaffLayout, onLogout, onBa
     if (loadedKey.current === id) return;
     loadedKey.current = id;
     const c = {};
-    (todays?.items || []).forEach((i) => { if (i.done) c[keyOf(i.section, i.text)] = true; });
-    setChecked(c);
+    const ph = {};
+    (todays?.items || []).forEach((i) => { if (i.done) c[keyOf(i.section, i.text)] = true; if (i.photoUrl) ph[keyOf(i.section, i.text)] = { url: i.photoUrl, at: i.photoAt }; });
+    setChecked(c); setPhotos(ph);
     setMetricValues(todays?.metrics || {});
     setEditing(false);
   }, [template, shift, todays]);
@@ -49,7 +52,7 @@ export default function ShiftChecklistPage({ user, isStaffLayout, onLogout, onBa
   const allItems = useMemo(() => (template ? template.sections.flatMap((s) => s.items.map((t) => ({ section: s.section, text: t }))) : []), [template]);
   const doneCount = allItems.filter((i) => checked[keyOf(i.section, i.text)]).length;
   const pct = allItems.length ? Math.round((doneCount / allItems.length) * 100) : 0;
-  const buildItems = () => allItems.map((i) => ({ ...i, done: !!checked[keyOf(i.section, i.text)] }));
+  const buildItems = () => allItems.map((i) => { const ph = photos[keyOf(i.section, i.text)]; return { ...i, done: !!checked[keyOf(i.section, i.text)], ...(ph ? { photoUrl: ph.url, photoAt: ph.at } : {}) }; });
 
   // Autosave 0.7s after the last change, so progress is never lost and managers see it live.
   const dirty = useRef(false);
@@ -67,12 +70,20 @@ export default function ShiftChecklistPage({ user, isStaffLayout, onLogout, onBa
     }, 700);
     return () => clearTimeout(saveTimer.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checked, metricValues]);
+  }, [checked, metricValues, photos]);
 
   function toggle(section, text) {
     dirty.current = true;
     setChecked((c) => ({ ...c, [keyOf(section, text)]: !c[keyOf(section, text)] }));
   }
+  async function attachPhoto(section, text, file) {
+    if (!file) return;
+    const k = keyOf(section, text); setUploadingKey(k); setError("");
+    try { const r = await api.shiftItemPhoto(file); dirty.current = true; setPhotos((p) => ({ ...p, [k]: { url: r.url, at: r.takenAt } })); setChecked((c) => ({ ...c, [k]: true })); }
+    catch (e) { setError(`Photo not saved: ${e.message}`); }
+    setUploadingKey("");
+  }
+  function dropPhoto(section, text) { dirty.current = true; setPhotos((p) => { const n = { ...p }; delete n[keyOf(section, text)]; return n; }); }
   function setMetric(field, value) {
     dirty.current = true;
     setMetricValues((m) => ({ ...m, [field]: value }));
@@ -161,11 +172,17 @@ export default function ShiftChecklistPage({ user, isStaffLayout, onLogout, onBa
                     {sec.items.map((text) => {
                       const on = !!checked[keyOf(sec.section, text)];
                       return (
-                        <label key={text} className={`check-item ${on ? "on" : ""}`}>
-                          <input type="checkbox" checked={on} onChange={() => toggle(sec.section, text)} />
-                          <span className="box">{on && <Icon name="check" size={14} strokeWidth={3} />}</span>
-                          <span className="txt">{text}</span>
-                        </label>
+                        <div key={text} className="check-row">
+                          <label className={`check-item ${on ? "on" : ""}`}>
+                            <input type="checkbox" checked={on} onChange={() => toggle(sec.section, text)} />
+                            <span className="box">{on && <Icon name="check" size={14} strokeWidth={3} />}</span>
+                            <span className="txt">{text}</span>
+                          </label>
+                          {photos[keyOf(sec.section, text)]
+                            ? <span className="task-photo"><a href={assetUrl(photos[keyOf(sec.section, text)].url)} target="_blank" rel="noreferrer"><img alt="Task photo" src={assetUrl(photos[keyOf(sec.section, text)].url)} /></a><button className="btn btn-ghost btn-sm" title="Remove photo" onClick={() => dropPhoto(sec.section, text)}>✕</button></span>
+                            : <label className="btn btn-outline btn-sm cam-btn" title="Take a photo for this task">{uploadingKey === keyOf(sec.section, text) ? "…" : "📷"}
+                                <input type="file" accept="image/*" capture="environment" hidden onChange={(e) => { attachPhoto(sec.section, text, e.target.files?.[0]); e.target.value = ""; }} /></label>}
+                        </div>
                       );
                     })}
                   </div>
@@ -231,6 +248,7 @@ function SubmittedView({ submission, onEdit }) {
         <span className={`badge ${submission.completionPct === 100 ? "done" : "in_progress"}`}>{submission.completed}/{submission.total} done</span>
       </div>
       <div className={`progress lg ${submission.completionPct === 100 ? "green" : "amber"}`}><span style={{ width: `${submission.completionPct}%` }} /></div>
+      {(submission.items || []).some((i) => i.photoUrl) && <div className="meta" style={{ marginTop: 14 }}>Task photos<div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>{submission.items.filter((i) => i.photoUrl).map((i) => <a key={i.text} href={assetUrl(i.photoUrl)} target="_blank" rel="noreferrer" title={i.text}><img alt={i.text} src={assetUrl(i.photoUrl)} style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 10 }} /></a>)}</div></div>}
       {submission.photoUrl && <img src={assetUrl(submission.photoUrl)} alt="Submitted evidence" style={{ maxWidth: 240, borderRadius: 14, display: "block", marginTop: 14 }} />}
       {submission.photoAiCheck && <div className="note" style={{ marginTop: 14, marginBottom: 0 }}>AI photo check: {submission.photoAiCheck}</div>}
       <div className="meta" style={{ marginTop: 12 }}>Submitted {new Date(submission.submittedAt.replace(" ", "T") + "Z").toLocaleString()}</div>

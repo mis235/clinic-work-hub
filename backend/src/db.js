@@ -463,6 +463,9 @@ CREATE TABLE IF NOT EXISTS face_checkins (
   snapshot_path TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );`);
+ensureColumn("generated_docs", "emailed_at", "emailed_at TEXT");
+ensureColumn("generated_docs", "email_error", "email_error TEXT");
+ensureColumn("face_checkins", "kind", "kind TEXT");
 ensureColumn("attendance", "note", "note TEXT");
 ensureColumn("attendance", "selfie_path", "selfie_path TEXT");
 

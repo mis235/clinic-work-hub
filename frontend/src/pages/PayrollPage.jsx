@@ -28,7 +28,7 @@ export default function PayrollPage({ user, onLogout, onBack }) {
     const period = new Date().toISOString().slice(0, 7);
     try {
       await api.generatePayroll({ period, userId, sendEmail: false });
-      flash(`Payslip generated for ${period}. Add GMAIL_USER/GMAIL_APP_PASSWORD to .env to email it automatically.`);
+      flash(`Payslip generated for ${period}. To email it, use Documents → Payslips → Email, after setting up email in System & Backups.`);
     } catch (e) { flash(e.message); }
   }
 

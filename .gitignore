@@ -7,3 +7,4 @@ backend/uploads
 backend/payslips
 demo
 .DS_Store
+.build-stamp.json

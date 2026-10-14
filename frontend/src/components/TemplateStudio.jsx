@@ -52,7 +52,7 @@ export default function TemplateStudio({ kind, companies = [], roster = [], flas
 
       {generated.length > 0 && <GeneratedList items={generated} onChange={load} flash={flash} />}
       {showUpload && <UploadModal kind={kind} companies={companies} onClose={() => setShowUpload(false)} onDone={() => { setShowUpload(false); flash("Template saved."); load(); }} />}
-      {gen && <GenerateModal kind={kind} template={gen} roster={roster} onClose={() => setGen(null)} onDone={(r) => { setGen(null); flash(`Generated ${r.generated.length} document(s)${r.skipped.length ? ` · skipped ${r.skipped.length}: ${r.skipped.slice(0, 3).map((s) => `${s.name} (${s.reason})`).join(", ")}` : ""}`); load(); }} />}
+      {gen && <GenerateModal kind={kind} template={gen} roster={roster} onClose={() => setGen(null)} onDone={(r) => { setGen(null); flash(`Generated ${r.generated.length} document(s)${r.emailed ? ` · emailed ${r.emailed}` : ""}${r.emailFailed?.length ? ` · NOT emailed: ${r.emailFailed.slice(0, 3).map((s) => `${s.name} (${s.reason})`).join(", ")}` : ""}${r.skipped.length ? ` · skipped ${r.skipped.length}: ${r.skipped.slice(0, 3).map((s) => `${s.name} (${s.reason})`).join(", ")}` : ""}`); load(); }} />}
     </div>
   );
 }
@@ -61,12 +61,16 @@ function GeneratedList({ items, onChange, flash }) {
   const [sel, setSel] = useState(new Set());
   const toggle = (id) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const all = sel.size === items.length;
+  async function emailSel(ids) {
+    try { const r = await api.emailGenerated(ids); flash(`Emailed ${r.sent.length}${r.failed.length ? ` · not sent: ${r.failed.slice(0, 3).map((f) => `${f.name} (${f.reason})`).join(", ")}` : ""}`); onChange(); } catch (e) { flash(e.message); }
+  }
   return (
     <>
       <div className="section-head" style={{ marginTop: 20 }}>
         <h2 style={{ fontSize: 15 }}>Generated documents ({items.length})</h2>
         <div style={{ display: "flex", gap: 8 }}>
           <button className="btn btn-ghost btn-sm" onClick={() => setSel(all ? new Set() : new Set(items.map((i) => i.id)))}>{all ? "Clear" : "Select all"}</button>
+          <button className="btn btn-outline btn-sm" disabled={!sel.size} onClick={() => emailSel([...sel])}>Email {sel.size || ""} to staff</button>
           <button className="btn btn-outline btn-sm" disabled={!sel.size} onClick={() => api.downloadGeneratedZip([...sel]).catch((e) => flash(e.message))}>Download {sel.size || ""} as ZIP</button>
         </div>
       </div>
@@ -74,9 +78,10 @@ function GeneratedList({ items, onChange, flash }) {
         <div key={g.id} className="task-row">
           <label style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer" }}>
             <input type="checkbox" checked={sel.has(g.id)} onChange={() => toggle(g.id)} />
-            <span><div className="title">{g.user_name}</div><div className="meta">{[g.company, g.period].filter(Boolean).join(" · ")} · {new Date(g.created_at.replace(" ", "T") + "Z").toLocaleDateString("en-IN")}</div></span>
+            <span><div className="title">{g.user_name}</div><div className="meta">{g.emailed_at ? "✉ emailed · " : ""}{g.email_error ? <span style={{ color: "var(--red)" }}>not emailed: {g.email_error} · </span> : null}{[g.company, g.period].filter(Boolean).join(" · ")} · {new Date(g.created_at.replace(" ", "T") + "Z").toLocaleDateString("en-IN")}</div></span>
           </label>
           <div className="right" style={{ gap: 6 }}>
+            <button className="btn btn-ghost btn-sm" onClick={() => emailSel([g.id])}>Email</button>
             <button className="btn btn-outline btn-sm" onClick={() => api.downloadGenerated(g.id, g.file_name).catch((e) => flash(e.message))}>Download</button>
             <button className="btn btn-ghost btn-sm" onClick={async () => { await api.deleteGenerated(g.id); onChange(); }}>Remove</button>
           </div>
@@ -132,6 +137,7 @@ function GenerateModal({ kind, template, roster, onClose, onDone }) {
   const [review, setReview] = useState(null);   // { fields, people } once "Review & edit" is pressed
   const [edits, setEdits] = useState({});       // { userId: { key: value } } only what the admin changed
   const [open, setOpen] = useState(null);
+  const [emailAfter, setEmailAfter] = useState(false);
 
   const ids = () => (pick === "some" ? [...chosen] : undefined);
   async function loadReview() {
@@ -143,7 +149,7 @@ function GenerateModal({ kind, template, roster, onClose, onDone }) {
   const setField = (uid, k, v) => setEdits((e) => ({ ...e, [uid]: { ...(e[uid] || {}), [k]: v } }));
   async function go() {
     setBusy(true); setErr("");
-    try { onDone(await api.generateDocs({ templateId: template.id, period: isPay ? period : undefined, userIds: ids(), overrides: edits })); }
+    try { onDone(await api.generateDocs({ templateId: template.id, period: isPay ? period : undefined, userIds: ids(), overrides: edits, emailAfter })); }
     catch (e) { setErr(e.message); setBusy(false); }
   }
   const toggle = (id) => setChosen((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -189,6 +195,7 @@ function GenerateModal({ kind, template, roster, onClose, onDone }) {
               </div>))}
           </div>)}
         {err && <div className="login-error" style={{ marginTop: 12 }}>{err}</div>}
+        <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 14, fontSize: 13.5, cursor: "pointer" }}><input type="checkbox" checked={emailAfter} onChange={(e) => setEmailAfter(e.target.checked)} /> Also email each person their {isPay ? "payslip" : "letter"} (to the email on their profile)</label>
         <div className="actions">
           <button className="btn btn-ghost" onClick={review ? () => setReview(null) : onClose}>{review ? "← Back" : "Cancel"}</button>
           {!review && <button className="btn btn-outline" disabled={busy || (pick === "some" && !chosen.size)} onClick={loadReview}>{busy ? "Loading…" : "Review & edit"}</button>}

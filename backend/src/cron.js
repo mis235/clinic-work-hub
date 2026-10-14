@@ -3,6 +3,7 @@ import cron from "node-cron";
 import db from "./db.js";
 import { withFines } from "./routes/fines.js";
 import { sendEmail, isEmailConfigured } from "./email.js";
+import { syncChecklistSheet } from "./routes/shiftChecklist.js";
 import { generatePayslipPdf } from "./payslip-pdf.js";
 import { randomUUID } from "node:crypto";
 
@@ -110,6 +111,10 @@ export function startScheduledJobs() {
   // Nightly database backup at 2am, plus one shortly after boot.
   cron.schedule(process.env.BACKUP_CRON || "0 2 * * *", () => { runBackup().catch((e) => console.error("Backup failed:", e)); });
   setTimeout(() => runBackup().catch((e) => console.error("Backup failed:", e)), 15000).unref();
+
+  // Pull the old Google sheet's checklist log into the app every 10 minutes (only does anything once a sheet link is saved).
+  cron.schedule("*/10 * * * *", () => { syncChecklistSheet().catch((e) => console.error("Checklist sync failed:", e.message)); });
+  setTimeout(() => syncChecklistSheet().catch(() => {}), 20000).unref();
 
   const payrollSchedule = process.env.PAYROLL_CRON || "0 9 1 * *"; // 9am on the 1st of each month
   const digestSchedule = process.env.CHECKLIST_DIGEST_CRON || "0 8 * * *"; // 8am daily

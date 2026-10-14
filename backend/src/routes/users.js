@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { requireAuth, requirePermission, clearPermissionCache } from "../middleware/auth.js";
-import { adminGrantError, isOwnerName } from "../access.js";
+import { adminGrantError } from "../access.js";
 
 const router = Router();
 
@@ -98,7 +98,7 @@ router.post("/", requireAuth, requirePermission("staff:manage"), (req, res) => {
   if (email && db.prepare("SELECT 1 FROM users WHERE email = ?").get(email)) return res.status(409).json({ error: "A staff member with this email already exists" });
   const role = db.prepare("SELECT id FROM roles WHERE name = ?").get(roleName);
   if (!role) return res.status(400).json({ error: `Unknown role: ${roleName}` });
-  if (roleName === "admin" && !isOwnerName(name)) return res.status(403).json({ error: "Admin access is only for Dr. Nishita, Shreyas, Naga and Neelima." });
+  if (roleName === "admin") return res.status(403).json({ error: "There is only one admin account. Choose Staff or Manager." });
   let dept = db.prepare("SELECT id FROM departments WHERE name = ?").get(departmentName);
   if (!dept) {
     const id = randomUUID();

@@ -1,20 +1,22 @@
-// Who may hold the "admin" role. Only the four owners/leaders below; nobody else can be made admin from the app.
+// Only ONE account is the admin: the ADMIN_EMAIL account (admin@drnishitaranka.com). Everyone else is staff (or a manager the admin chooses).
 import db from "./db.js";
 
-const OWNER_PREFIXES = ["dr. nishita", "dr nishita", "shreyas", "naga", "neelima"];
-export const isOwnerName = (name = "") => { const n = String(name).trim().toLowerCase(); return OWNER_PREFIXES.some((p) => n === p || n.startsWith(p + " ") || n.startsWith(p + "(")); };
+export const adminEmail = () => String(process.env.ADMIN_EMAIL || "admin@drnishitaranka.com").trim().toLowerCase();
+const isAdminAccount = (u) => String(u?.email || "").trim().toLowerCase() === adminEmail();
 
-// Run at start-up: make sure those four are admins (safe to run every time).
-export function ensureOwnerAdmins() {
+// Run at start-up (safe every time): that account is admin; anyone else who is admin goes back to staff.
+export function ensureSingleAdmin() {
   const admin = db.prepare("SELECT id FROM roles WHERE name = 'admin'").get();
-  if (!admin) return;
-  for (const u of db.prepare("SELECT id, name, role_id FROM users WHERE active = 1").all()) {
-    if (isOwnerName(u.name) && u.role_id !== admin.id) db.prepare("UPDATE users SET role_id = ? WHERE id = ?").run(admin.id, u.id);
+  const staff = db.prepare("SELECT id FROM roles WHERE name = 'staff'").get();
+  if (!admin || !staff) return;
+  for (const u of db.prepare("SELECT id, email, role_id FROM users").all()) {
+    if (isAdminAccount(u) && u.role_id !== admin.id) db.prepare("UPDATE users SET role_id = ? WHERE id = ?").run(admin.id, u.id);
+    else if (!isAdminAccount(u) && u.role_id === admin.id) db.prepare("UPDATE users SET role_id = ? WHERE id = ?").run(staff.id, u.id);
   }
 }
-// Returns an error message if this role change is not allowed, otherwise null.
+// Error message if this role change is not allowed, otherwise null.
 export function adminGrantError(roleName, targetUserId) {
   if (roleName !== "admin") return null;
-  const t = db.prepare("SELECT name FROM users WHERE id = ?").get(targetUserId);
-  return t && isOwnerName(t.name) ? null : "Admin access is only for Dr. Nishita, Shreyas, Naga and Neelima.";
+  const t = db.prepare("SELECT email FROM users WHERE id = ?").get(targetUserId);
+  return isAdminAccount(t) ? null : `Only one account is admin (${adminEmail()}). Everyone else is staff.`;
 }
