@@ -9,7 +9,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const dataDir = process.env.DATA_DIR || path.join(__dirname, "..");
 export const backupDir = path.join(dataDir, "backups");
 const KEEP = Number(process.env.BACKUP_KEEP || 14);
-const COPY_KEEP = 30;
+const COPY_KEEP = 14;
+const BIG = ["private/videos", "private/checkin-snaps", "private/certs"]; // left out of the Drive copy unless "include big files" is on
 const FILE_DIRS = ["uploads", "private", "payslips"];
 
 db.exec("CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT)");
@@ -17,6 +18,8 @@ const get = (k) => db.prepare("SELECT value FROM app_settings WHERE key = ?").ge
 const put = (k, v) => db.prepare("INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(k, v);
 
 export const copyFolder = () => get("backup_copy_dir");
+export const includeBig = () => get("backup_include_big") === "1";
+export const setIncludeBig = (v) => put("backup_include_big", v ? "1" : "0");
 export function copyStatus() { try { return JSON.parse(get("backup_copy_status") || "null"); } catch { return null; } }
 
 /** Saves the folder after proving we can write to it. Empty string turns the extra copy off. */
@@ -31,13 +34,14 @@ export function setCopyFolder(dir) {
   return dir;
 }
 
-function mirror(src, dst) {           // copies new or changed files only (never deletes in the backup copy)
+function mirror(src, dst, skip = []) {           // copies new or changed files only (never deletes in the backup copy)
   let n = 0;
   if (!fs.existsSync(src)) return 0;
   fs.mkdirSync(dst, { recursive: true });
   for (const e of fs.readdirSync(src, { withFileTypes: true })) {
     const s = path.join(src, e.name), d = path.join(dst, e.name);
-    if (e.isDirectory()) n += mirror(s, d);
+    if (skip.some((k) => s.split(path.sep).join("/").endsWith(k))) continue;
+    if (e.isDirectory()) n += mirror(s, d, skip);
     else { const a = fs.statSync(s); let b = null; try { b = fs.statSync(d); } catch {} if (!b || b.size !== a.size || b.mtimeMs < a.mtimeMs - 1000) { fs.copyFileSync(s, d); n++; } }
   }
   return n;
@@ -52,7 +56,7 @@ export function copyOffsite(dbFile) {
     fs.copyFileSync(dbFile, path.join(dbDir, path.basename(dbFile)));
     for (const old of fs.readdirSync(dbDir).filter((f) => f.endsWith(".db")).sort().reverse().slice(COPY_KEEP)) fs.rmSync(path.join(dbDir, old), { force: true });
     let files = 0;
-    for (const d of FILE_DIRS) files += mirror(path.join(dataDir, d), path.join(dir, "files", d));
+    for (const d of FILE_DIRS) files += mirror(path.join(dataDir, d), path.join(dir, "files", d), includeBig() ? [] : BIG);
     const st = { ok: true, at: new Date().toISOString(), dir, files };
     put("backup_copy_status", JSON.stringify(st)); return st;
   } catch (e) {

@@ -200,7 +200,7 @@ export const api = {
   getSystemStatus: () => req("/api/admin/status"),
   getAuditLog: (limit = 100) => req(`/api/admin/audit?limit=${limit}`),
   backupCopy: () => req("/api/admin/backup-copy"),
-  saveBackupCopy: (dir) => req("/api/admin/backup-copy", { method: "PUT", body: { dir } }),
+  saveBackupCopy: (dir, includeBig) => req("/api/admin/backup-copy", { method: "PUT", body: { dir, includeBig } }),
   storage: () => req("/api/admin/storage"),
   cleanSnapshots: (days) => req("/api/admin/cleanup-snapshots", { method: "POST", body: { days } }),
   getBackups: () => req("/api/admin/backups"),

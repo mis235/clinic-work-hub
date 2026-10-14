@@ -47,12 +47,12 @@ function EmailCard({ onChanged }) {
 const mb = (b) => (b == null ? "—" : b > 1073741824 ? `${(b / 1073741824).toFixed(1)} GB` : b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
 
 function BackupCopyCard({ onChanged }) {
-  const [cur, setCur] = useState(null); const [dir, setDir] = useState(""); const [msg, setMsg] = useState(null); const [busy, setBusy] = useState(false);
-  const load = () => api.backupCopy().then((r) => { setCur(r); setDir(r.dir || ""); }).catch(() => {});
+  const [cur, setCur] = useState(null); const [dir, setDir] = useState(""); const [big, setBig] = useState(false); const [msg, setMsg] = useState(null); const [busy, setBusy] = useState(false);
+  const load = () => api.backupCopy().then((r) => { setCur(r); setDir(r.dir || ""); setBig(!!r.includeBig); }).catch(() => {});
   useEffect(() => { load(); }, []);
   async function save() {
     setBusy(true); setMsg(null);
-    try { const r = await api.saveBackupCopy(dir); setMsg({ ok: true, t: r.dir ? "Saved. A backup was copied there just now." : "Extra copy turned off." }); load(); onChanged?.(); } catch (e) { setMsg({ ok: false, t: e.message }); }
+    try { const r = await api.saveBackupCopy(dir, big); setMsg({ ok: true, t: r.dir ? "Saved. A backup was copied there just now." : "Extra copy turned off." }); load(); onChanged?.(); } catch (e) { setMsg({ ok: false, t: e.message }); }
     setBusy(false);
   }
   const st = cur?.status;
@@ -66,6 +66,7 @@ function BackupCopyCard({ onChanged }) {
         <li>Paste the full path below, e.g. <b>G:\My Drive\ClinicBackups</b>, and press Save. Drive uploads it to the cloud by itself.</li>
       </ol>
       <input className="field" value={dir} onChange={(e) => setDir(e.target.value)} placeholder="G:\My Drive\ClinicBackups" />
+      <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 10, fontSize: 13 }}><input type="checkbox" checked={big} onChange={(e) => setBig(e.target.checked)} style={{ marginTop: 3 }} /><span>Also copy training videos and face check-in photos <span className="meta">(they use a lot of space — leave this off unless you have plenty of Drive space)</span></span></label>
       {st && <div className="meta" style={{ marginTop: 8 }}>Last copy: {new Date(st.at).toLocaleString("en-IN")} — {st.ok ? `OK (${st.files} new files copied)` : <span style={{ color: "var(--red)" }}>{st.error}</span>}</div>}
       {msg && <div className={msg.ok ? "note" : "login-error"} style={{ marginTop: 10 }}>{msg.t}</div>}
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}><button className="btn btn-primary btn-sm" disabled={busy} onClick={save}>{busy ? "Working…" : "Save & copy now"}</button></div>
