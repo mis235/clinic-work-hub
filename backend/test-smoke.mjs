@@ -386,6 +386,78 @@ try {
   const dash2 = await call("GET", "/api/shift-checklist/dashboard?date=2026-09-01", null, admin);
   ok("dashboard shows sheet entries together with app entries", dash2.body.summary.fromSheet >= 1 && dash2.body.people.some((p) => p.source === "sheet"));
   sheetSrv.close();
+  // ---- HR: leave, late fines, birthdays ----
+  {
+    const hrUser = users.find((u) => /\bHR\b/i.test(u.designation || ""));
+    ok("an HR person exists", !!hrUser);
+    const hrTok = (await call("POST", "/api/auth/login", { userId: hrUser.id, pin: "1234" })).body?.token;
+    const t0 = new Date(Date.now() + 19800000), ymd = (d) => d.toISOString().slice(0, 10);
+    const dd = t0.getUTCDate(), dA = ymd(new Date(t0.getTime() - (dd > 27 ? 86400000 : 0))), dB = ymd(new Date(t0.getTime() + (dd > 27 ? 0 : 86400000)));
+    const month = ymd(t0).slice(0, 7);
+    const lvTarget = users.find((u) => u.role === "staff" && u.id !== staff.id && u.id !== hrUser.id);
+    const lvTok = (await call("POST", "/api/auth/login", { userId: lvTarget.id, pin: "1234" })).body?.token;
+    const ap1 = await call("POST", "/api/leave/apply", { fromDate: dA, toDate: dA, reasonType: "sick", reason: "fever" }, lvTok);
+    ok("staff can apply for leave", ap1.status === 201, JSON.stringify(ap1.body));
+    ok("overlapping request refused", (await call("POST", "/api/leave/apply", { fromDate: dA, reasonType: "travel" }, lvTok)).status === 409);
+    ok("'Other' needs a written reason", (await call("POST", "/api/leave/apply", { fromDate: dB, reasonType: "other" }, lvTok)).status === 400);
+    ok("staff cannot approve", (await call("POST", `/api/leave/${ap1.body.id}/decide`, { decision: "approved", mgmtOk: "Sir" }, lvTok)).status === 403);
+    ok("staff cannot see all requests", (await call("GET", "/api/leave/requests", null, lvTok)).status === 403);
+    const pend = await call("GET", "/api/leave/overview", null, hrTok);
+    ok("HR overview lists the waiting request", pend.body.pending?.some((r) => r.id === ap1.body.id));
+    ok("approval needs Sir/Mam to be recorded", (await call("POST", `/api/leave/${ap1.body.id}/decide`, { decision: "approved" }, hrTok)).status === 400);
+    ok("HR approves with Sir & Mam", (await call("POST", `/api/leave/${ap1.body.id}/decide`, { decision: "approved", mgmtOk: "Sir & Mam" }, hrTok)).status === 200);
+    const ap2 = await call("POST", "/api/leave/apply", { fromDate: dB, toDate: dB, reasonType: "family" }, lvTok);
+    ok("second day warns about salary cut", ap2.status === 201 && /salary/i.test(ap2.body.warning || ""), JSON.stringify(ap2.body));
+    await call("POST", `/api/leave/${ap2.body.id}/decide`, { decision: "approved", mgmtOk: "Mam" }, hrTok);
+    const mine = await call("GET", "/api/leave/mine", null, lvTok);
+    ok("one free day, one unpaid day", mine.body.summary.taken === 2 && mine.body.summary.lopDays === 1, JSON.stringify(mine.body.summary));
+    const news = await call("GET", "/api/leave/overview", null, lvTok);
+    ok("staff sees the decision as news", news.body.mine.news.length === 2);
+    await call("POST", "/api/leave/seen", null, lvTok);
+    ok("news clears once seen", (await call("GET", "/api/leave/overview", null, lvTok)).body.mine.news.length === 0);
+    const dF = ymd(new Date(t0.getTime() + 5 * 86400000)); const ap3 = await call("POST", "/api/leave/apply", { fromDate: dF, reasonType: "travel" }, lvTok); await call("POST", `/api/leave/${ap3.body.id}/decide`, { decision: "approved", mgmtOk: "Sir" }, hrTok);
+    const brd = await call("GET", `/api/attendance/board?date=${dF}`, null, admin); ok("approved leave shows in attendance register", brd.body.rows?.find((r) => r.id === lvTarget.id)?.mark === "LV");
+    await call("POST", `/api/leave/${ap3.body.id}/decide`, { decision: "rejected" }, hrTok);
+    ok("rejecting later removes it from the register", (await call("GET", `/api/attendance/board?date=${dF}`, null, admin)).body.rows?.find((r) => r.id === lvTarget.id)?.mark == null);
+    ok("HR can change the rules", (await call("PUT", "/api/leave/settings", { late_fine: 150 }, hrTok)).body?.late_fine === 150);
+    ok("staff cannot change the rules", (await call("PUT", "/api/leave/settings", { late_fine: 1 }, lvTok)).status === 403);
+
+    // late arrivals -> automatic fine after 3
+    const lateU = users.find((u) => u.role === "staff" && ![staff.id, hrUser.id, lvTarget.id].includes(u.id));
+    for (const d of ["01", "02", "03"]) await call("PUT", "/api/attendance/mark", { userId: lateU.id, date: `${month}-${d}`, status: "L" }, admin);
+    const lateRep = await call("GET", `/api/leave/late?month=${month}`, null, hrTok);
+    const lr = lateRep.body.rows?.find((r) => r.id === lateU.id);
+    ok("3 late arrivals counted", lr?.count === 3 && lr.fine === 150, JSON.stringify(lr));
+    const fl = await call("GET", `/api/fines?month=${month}&userId=${lateU.id}`, null, admin);
+    ok("late fine was created automatically", fl.body.rows?.some((r) => r.category === "late" && r.amount === 150), JSON.stringify(fl.body.rows));
+    await call("GET", `/api/leave/late?month=${month}`, null, hrTok);
+    ok("fine is not duplicated", (await call("GET", `/api/fines?month=${month}&userId=${lateU.id}`, null, admin)).body.rows.length === 1);
+    await call("PUT", "/api/attendance/mark", { userId: lateU.id, date: `${month}-03`, status: "P" }, admin);
+    await call("GET", `/api/leave/late?month=${month}`, null, hrTok);
+    ok("fine goes away if the late mark is corrected", (await call("GET", `/api/fines?month=${month}&userId=${lateU.id}`, null, admin)).body.rows.length === 0);
+    await call("PUT", "/api/attendance/mark", { userId: lateU.id, date: `${month}-03`, status: "L" }, admin);
+
+    // payslip carries leave cut + fine
+    await call("POST", "/api/payroll/profile", { userId: lvTarget.id, companyId: comps[0].id, employeeCode: "LV9", position: "Exec", basicSalary: 30000 }, admin);
+    await call("POST", "/api/payroll/profile", { userId: lateU.id, companyId: comps[0].id, employeeCode: "LT9", position: "Exec", basicSalary: 30000 }, admin);
+    const g = await call("POST", "/api/payroll/generate", { period: month, userId: lvTarget.id }, admin);
+    ok("payslip deducts one day's salary (30000/30)", g.status === 201 && g.body[0].lop_days === 1 && g.body[0].lop_amount === 1000 && g.body[0].net_payable === 29000, JSON.stringify(g.body));
+    const g2 = await call("POST", "/api/payroll/generate", { period: month, userId: lateU.id }, admin);
+    ok("payslip carries the late fine", g2.body[0].fine_amount === 150 && g2.body[0].late_count === 3 && g2.body[0].net_payable === 29850, JSON.stringify(g2.body));
+
+    // birthdays
+    await call("PATCH", `/api/users/${lvTarget.id}`, { birthday: ymd(t0).slice(5) }, admin);
+    const bd = await call("GET", "/api/leave/overview", null, admin);
+    ok("today's birthday pops up for admin", bd.body.birthdaysToday?.some((b) => b.id === lvTarget.id));
+    ok("staff cannot see birthdays", (await call("GET", "/api/leave/birthdays", null, lvTok)).status === 403);
+    const ask = async (q, tok) => (await call("POST", "/api/assistant/ask", { message: q }, tok)).body?.reply || "";
+    ok("assistant: HR sees today's birthday", (await ask("upcoming birthdays", hrTok)).includes("Today"));
+    ok("assistant: staff are told birthdays are HR-only", /HR/.test(await ask("any birthdays?", lvTok)));
+    ok("assistant: my leave balance", /free casual leave/.test(await ask("how many leaves do I have left?", lvTok)));
+    ok("assistant: late list for HR", (await ask("who was late this month?", hrTok)).includes(lateU.name));
+    ok("assistant: staff cannot list staff", /managers, HR/.test(await ask("how many staff are there", lvTok)));
+    ok("assistant: HR gets the staff count", /active staff/.test(await ask("how many staff are there", hrTok)));
+  }
   // Lockout
   let last; for (let i = 0; i < 8; i++) last = await call("POST", "/api/auth/login", { email: "lock@test.local", password: "x" });
   ok("repeated wrong logins are locked out (429)", last.status === 429);

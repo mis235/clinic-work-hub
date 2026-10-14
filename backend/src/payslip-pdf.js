@@ -123,6 +123,14 @@ export function generatePayslipPdf({ company, employee, payslip }) {
   doc.fontSize(11).text("Net Payable (Earnings)", colA, ry, { continued: true }).text(`   ${inr(payslip.net_payable)}`, { align: "left" });
   ry += 18;
   doc.font("Helvetica").fontSize(9).fillColor("#5B6675").text(`${numberToWordsIndian(payslip.net_payable)} Only`, colA, ry);
+  if (payslip.leave_allowed != null) {
+    ry += 22;
+    doc.font("Helvetica-Bold").fontSize(9).fillColor("#0F766E").text("Leave & attendance this month", colA, ry);
+    ry += 13;
+    doc.font("Helvetica").fontSize(9).fillColor("#334155").text(
+      `Casual leave allowed: ${payslip.leave_allowed}   Leave taken: ${payslip.leave_taken}   Unpaid days: ${payslip.lop_days}${payslip.lop_amount ? ` (deducted ${inr(payslip.lop_amount)})` : ""}   Late arrivals: ${payslip.late_count || 0}   Fines: ${inr(payslip.fine_amount || 0)}`, colA, ry, { width: 495 });
+    ry += 14;
+  }
   ry += 30;
 
   doc.moveTo(50, ry).lineTo(545, ry).stroke();

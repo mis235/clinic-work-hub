@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import db from "../db.js";
 import { withFines } from "./fines.js";
+import { stampPayslip } from "./leave.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
 import { generatePayslipPdf } from "../payslip-pdf.js";
 import { sendEmail, isEmailConfigured } from "../email.js";
@@ -69,6 +70,7 @@ async function generateOneSlip({ profile: baseProfile, period, payDate, adminUse
     profile.basic_salary, profile.leave_bonus, profile.overtime, profile.other_allowances,
     profile.pf, profile.tds, profile.other_deductions, profile.retention, netPayable);
 
+  stampPayslip(id, profile);
   const payslip = db.prepare("SELECT * FROM payslips WHERE id = ?").get(id);
   const pdfPath = generatePayslipPdf({
     company,

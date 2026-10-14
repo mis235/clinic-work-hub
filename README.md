@@ -382,3 +382,4 @@ Admin > **Staff Exits**. Steps: Resignation received -> Serving notice -> Handov
 - **Email**: System & Backups → Email settings (Gmail + app password) → Send test; then Documents → payslips → Email.
 - **Checklist dashboard**: app checklists and the old Google form appear together; paste the published CSV link in the dashboard to auto-sync every 10 minutes. Each task can carry a photo.
 - Updates: `npm start` now reinstalls and rebuilds by itself when files changed.
+- **Leave & HR** (menu → Leave & HR): staff apply (casual leave, with a reason), HR approves after Sir/Mam's OK (recorded), approved days show in the attendance register. 1 free day a month (HR can change); each extra day cuts one day's salary on the payslip. Late = more than 15 min after shift start; every 3rd late adds an automatic fine (HR sets amount). Birthdays, leave decisions and late counts pop up on the Overview. The AI Assistant answers leave, birthday, late and staff questions.

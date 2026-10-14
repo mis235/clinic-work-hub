@@ -1,3 +1,4 @@
+import HrOverview from "../components/HrOverview.jsx";
 import { useEffect, useState, useCallback } from "react";
 import { navItemsFor } from "../navItems.js";
 import { api } from "../api.js";
@@ -122,6 +123,8 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
           <Kpi icon="clipboard" tone="blue" value={`${submitted.length}/${expected || 0}`} label="Checklists submitted today" hint={inProgress.length ? `${inProgress.length} in progress now` : "Live from staff phones"} />
           <Kpi icon="fingerprint" tone="violet" value={`${checkedIn}/${board?.total ?? assignable.length}`} label="Present today" hint="Open Attendance to mark" />
         </div>
+
+        <HrOverview user={user} onNavigate={onNavigate} />
 
         <div className="grid-2">
           <div className="card" style={{ marginBottom: 0 }}>

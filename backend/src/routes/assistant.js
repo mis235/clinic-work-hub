@@ -1,6 +1,7 @@
 import { Router } from "express";
 import db from "../db.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
+import { isHr, leaveSummary, settings as hrSettings, birthdays, lateDays } from "./leave.js";
 
 const router = Router();
 
@@ -15,7 +16,15 @@ const router = Router();
 // conversational if ANTHROPIC_API_KEY is set in .env — but never requires it.
 // ---------------------------------------------------------------------------
 
+const todayIST = () => new Date(Date.now() + 19800000).toISOString().slice(0, 10);
+const dmy = (d) => new Date(d + "T00:00:00Z").toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
+const list = (rows, f) => rows.map((r) => "• " + f(r)).join("\n");
 const SUGGESTED_QUESTIONS = [
+  "How many leaves do I have left?",
+  "Who is on leave today?",
+  "Which leave requests are waiting?",
+  "Upcoming birthdays",
+  "Who was late this month?",
   "How many tasks do I have open?",
   "Did I check in today?",
   "What's the leave policy?",
@@ -81,6 +90,47 @@ router.post("/ask", requireAuth, requirePermission("assistant:use"), async (req,
 
   const m = message.toLowerCase();
   const userId = req.user.userId;
+
+  // 0) HR answers: leave, birthdays, late arrivals, staff list — straight from the live data.
+  const me = db.prepare("SELECT name FROM users WHERE id = ?").get(userId);
+  const hr = isHr(userId, req.user.roleName), lead = hr || req.user.roleName === "manager";
+  const t = todayIST(), month = t.slice(0, 7);
+  if (/birthday|born/.test(m)) {
+    if (!lead) return res.json({ reply: "Birthdays are shown to HR and the admin. You can ask them.", source: "data" });
+    const b = birthdays(30);
+    if (!b.length) return res.json({ reply: "No birthdays in the next 30 days (or no dates of birth are saved yet — add them in Staff → Edit).", source: "data" });
+    const today = b.filter((x) => x.inDays === 0);
+    return res.json({ reply: (today.length ? `🎂 Today: ${today.map((x) => x.name).join(", ")}\n\n` : "") + "Upcoming (30 days):\n" + list(b.filter((x) => x.inDays > 0), (x) => `${x.name} — ${dmy(x.next)} (${x.inDays === 1 ? "tomorrow" : "in " + x.inDays + " days"})`), source: "data" });
+  }
+  if (/leave|day off|holiday/.test(m) && /pending|waiting|approval|approve|request/.test(m) && lead) {
+    if (!hr) return res.json({ reply: "Leave approvals are handled by HR.", source: "data" });
+    const rows = db.prepare("SELECT l.from_date, l.to_date, l.days, l.reason_type, u.name FROM leave_requests l JOIN users u ON u.id = l.user_id WHERE l.status = 'pending' ORDER BY l.from_date").all();
+    return res.json({ reply: rows.length ? `${rows.length} leave request${rows.length === 1 ? " is" : "s are"} waiting for approval:\n` + list(rows, (r) => `${r.name}: ${dmy(r.from_date)}${r.to_date !== r.from_date ? " – " + dmy(r.to_date) : ""} (${r.days} day, ${r.reason_type})`) + "\n\nOpen Leave & HR to approve." : "No leave requests are waiting. 🎉", source: "data" });
+  }
+  if (/who.*(on leave|leave|absent|off)|on leave|leave today/.test(m) && lead) {
+    const rows = db.prepare("SELECT u.name, l.to_date FROM leave_requests l JOIN users u ON u.id = l.user_id WHERE l.status = 'approved' AND l.from_date <= ? AND l.to_date >= ?").all(t, t);
+    return res.json({ reply: rows.length ? "On approved leave today:\n" + list(rows, (r) => `${r.name} (until ${dmy(r.to_date)})`) : "Nobody is on approved leave today.", source: "data" });
+  }
+  if (/late/.test(m) && /who|everyone|staff|team|this month|list/.test(m) && lead) {
+    const s = hrSettings();
+    const rows = db.prepare("SELECT id, name FROM users WHERE active = 1").all().map((u) => ({ name: u.name, n: lateDays(u.id, month).length })).filter((r) => r.n).sort((a, b) => b.n - a.n);
+    return res.json({ reply: rows.length ? `Late arrivals this month (more than ${s.late_grace_min} min after shift start; every ${s.late_limit} lates = ₹${s.late_fine} fine):\n` + list(rows, (r) => `${r.name}: ${r.n}`) : "No late arrivals this month.", source: "data" });
+  }
+  if (/(my|how many).*(leave|leaves)|leave (balance|left|status)|leaves? (left|taken|do i)/.test(m)) {
+    const l = leaveSummary(userId, month), s = hrSettings();
+    const last = db.prepare("SELECT from_date, to_date, status FROM leave_requests WHERE user_id = ? ORDER BY created_at DESC LIMIT 1").get(userId);
+    return res.json({ reply: `This month you have ${l.allowed} free casual leave day${l.allowed === 1 ? "" : "s"}. Taken: ${l.taken}. Free days left: ${l.freeLeft}.${l.lopDays ? ` ${l.lopDays} extra day(s) will cut ${l.lopDays} day's salary.` : ` Each day beyond ${l.allowed} cuts one day's salary.`}${l.pending ? ` ${l.pending} day(s) waiting for approval.` : ""}${last ? ` Your latest request (${dmy(last.from_date)}) is ${last.status}.` : ""} Apply in Leave & HR.`, source: "data" });
+  }
+  if (/(who|how many|list).*(staff|employee|team|people)|staff list|clinic staff/.test(m)) {
+    if (!lead) return res.json({ reply: "The full staff list is shown to managers, HR and admin.", source: "data" });
+    const rows = db.prepare("SELECT d.name AS dept, COUNT(*) n FROM users u LEFT JOIN departments d ON d.id = u.department_id WHERE u.active = 1 GROUP BY d.name ORDER BY n DESC").all();
+    const total = rows.reduce((a, r) => a + r.n, 0);
+    return res.json({ reply: `${total} active staff:\n` + list(rows, (r) => `${r.dept || "No department"}: ${r.n}`), source: "data" });
+  }
+  if (/\bfine|grooming/.test(m)) {
+    const rows = db.prepare("SELECT fine_date, category, amount FROM fines WHERE user_id = ? AND substr(fine_date,1,7) = ? ORDER BY fine_date").all(userId, month);
+    return res.json({ reply: rows.length ? `Your fines this month (come off your payslip):\n` + list(rows, (r) => `${dmy(r.fine_date)} — ${r.category.replace("_", " ")} — ₹${r.amount}`) : "You have no fines this month. 👍", source: "data" });
+  }
 
   // 1) Fast, always-correct answers straight from this clinic's live data —
   // no AI involved, so these work even with no API key configured, and they

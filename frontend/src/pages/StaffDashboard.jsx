@@ -13,6 +13,8 @@ import TrackerPage from "./TrackerPage.jsx";
 import AssistantPage from "./AssistantPage.jsx";
 import ShiftChecklistPage from "./ShiftChecklistPage.jsx";
 import StaffProfilePage from "./StaffProfilePage.jsx";
+import LeavePage from "./LeavePage.jsx";
+import HrOverview from "../components/HrOverview.jsx";
 import ChangePinModal from "../components/ChangePinModal.jsx";
 import Icon from "../components/Icon.jsx";
 import { navItemsFor } from "../navItems.js";
@@ -49,8 +51,8 @@ export default function StaffDashboard({ user, onLogout }) {
 
   const shiftSummary = [...shiftToday].sort((x, y) => (y.status === "in_progress") - (x.status === "in_progress"))[0] || null;
   const NAV_ITEMS = navItemsFor(user);
-  const ACTIVE_LABEL = { checklist: "My checklist", shiftchecklist: "Shift Checklist", tracker: "Tracker", profile: "My Profile", workspace: "My Workspace", assistant: "Assistant", policies: "Policies", documents: "Documents", learning: "Learning", clinicassistant: "Clinic Assistant" };
-  const VIEW_FOR_LABEL = { "My checklist": "checklist", "Shift Checklist": "shiftchecklist", "Tracker": "tracker", "My Profile": "profile", "My Workspace": "workspace", "Assistant": "assistant", "Policies": "policies", "Documents": "documents", "Learning": "learning", "Clinic Assistant": "clinicassistant" };
+  const ACTIVE_LABEL = { checklist: "My checklist", shiftchecklist: "Shift Checklist", tracker: "Tracker", profile: "My Profile", leave: "Leave", workspace: "My Workspace", assistant: "Assistant", policies: "Policies", documents: "Documents", learning: "Learning", clinicassistant: "Clinic Assistant" };
+  const VIEW_FOR_LABEL = { "My checklist": "checklist", "Shift Checklist": "shiftchecklist", "Tracker": "tracker", "My Profile": "profile", "Leave": "leave", "My Workspace": "workspace", "Assistant": "assistant", "Policies": "policies", "Documents": "documents", "Learning": "learning", "Clinic Assistant": "clinicassistant" };
 
   return (
     <div className="app-shell">
@@ -69,6 +71,8 @@ export default function StaffDashboard({ user, onLogout }) {
           <PoliciesPage user={user} isStaffLayout />
         ) : view === "tracker" ? (
           <TrackerPage user={user} isStaffLayout />
+        ) : view === "leave" ? (
+          <LeavePage user={user} isStaffLayout />
         ) : view === "profile" ? (
           <StaffProfilePage user={user} staffId="me" isStaffLayout />
         ) : view === "shiftchecklist" ? (
@@ -100,6 +104,7 @@ export default function StaffDashboard({ user, onLogout }) {
         </div>
 
         <MyDayCard onNavigate={setView} />
+        <HrOverview user={user} onNavigate={(k) => setView(VIEW_FOR_LABEL[k] || "checklist")} />
 
         {loading && <div className="empty">Loading…</div>}
 

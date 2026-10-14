@@ -218,6 +218,17 @@ export const api = {
   runChecklistDigestNow: () => req("/api/jobs/run-checklist-digest", { method: "POST" }),
 
   // Staff Assistant chatbot + personal Tracker (available to every role)
+  leaveConfig: () => req("/api/leave/config"),
+  leaveOverview: () => req("/api/leave/overview"),
+  leaveSeen: () => req("/api/leave/seen", { method: "POST" }),
+  myLeave: () => req("/api/leave/mine"),
+  applyLeave: (body) => req("/api/leave/apply", { method: "POST", body }),
+  cancelLeave: (id) => req(`/api/leave/${id}`, { method: "DELETE" }),
+  leaveRequests: (status) => req(`/api/leave/requests${status ? `?status=${status}` : ""}`),
+  decideLeave: (id, body) => req(`/api/leave/${id}/decide`, { method: "POST", body }),
+  lateReport: (month) => req(`/api/leave/late?month=${month || ""}`),
+  birthdays: (days) => req(`/api/leave/birthdays?days=${days || 60}`),
+  saveLeaveRules: (body) => req("/api/leave/settings", { method: "PUT", body }),
   getAssistantFaqs: () => req("/api/assistant/faqs"),
   askAssistant: (message) => req("/api/assistant/ask", { method: "POST", body: { message } }),
   getMySummary: () => req("/api/reports/my-summary"),

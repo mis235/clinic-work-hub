@@ -2,6 +2,7 @@ import { runBackup } from "./backup.js";
 import cron from "node-cron";
 import db from "./db.js";
 import { withFines } from "./routes/fines.js";
+import { stampPayslip, syncLateFines } from "./routes/leave.js";
 import { sendEmail, isEmailConfigured } from "./email.js";
 import { syncChecklistSheet } from "./routes/shiftChecklist.js";
 import { generatePayslipPdf } from "./payslip-pdf.js";
@@ -41,6 +42,7 @@ export async function runMonthlyPayroll() {
       profile.basic_salary, profile.leave_bonus, profile.overtime, profile.other_allowances,
       profile.pf, profile.tds, profile.other_deductions, profile.retention, netPayable);
 
+    stampPayslip(id, profile);
     const payslip = db.prepare("SELECT * FROM payslips WHERE id = ?").get(id);
     const pdfPath = generatePayslipPdf({
       company,
@@ -113,6 +115,7 @@ export function startScheduledJobs() {
   setTimeout(() => runBackup().catch((e) => console.error("Backup failed:", e)), 15000).unref();
 
   // Pull the old Google sheet's checklist log into the app every 10 minutes (only does anything once a sheet link is saved).
+  cron.schedule("30 23 * * *", () => { try { syncLateFines(new Date(Date.now() + 19800000).toISOString().slice(0, 7)); } catch (e) { console.error("Late fines:", e.message); } }, { timezone: "Asia/Kolkata" });
   cron.schedule("*/10 * * * *", () => { syncChecklistSheet().catch((e) => console.error("Checklist sync failed:", e.message)); });
   setTimeout(() => syncChecklistSheet().catch(() => {}), 20000).unref();
 

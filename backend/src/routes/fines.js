@@ -3,13 +3,14 @@ import { randomUUID } from "node:crypto";
 import db from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { audit } from "../audit.js";
+import { payslipExtras } from "./leave.js";
 
 const router = Router();
 
 // The usual reasons a clinic fines staff. Amounts are only suggestions: the person adding the fine can change them.
 export const FINE_CATEGORIES = [
   { key: "late", label: "Late arrival", amount: 100 },
-  { key: "dress_code", label: "Dress code", amount: 200 },
+  { key: "dress_code", label: "Grooming / dress code", amount: 200 },
   { key: "misbehaviour", label: "Misbehaviour", amount: 500 },
   { key: "absent", label: "Absent without notice", amount: 500 },
   { key: "other", label: "Other", amount: 0 },
@@ -25,8 +26,9 @@ export function finesTotal(userId, period) {
 }
 /** A copy of the pay profile with this month's fines added to "other deductions". */
 export function withFines(profile, period) {
+  const { lop, lateCount } = payslipExtras(profile, period); // also brings the automatic late fines up to date
   const fines = finesTotal(profile.user_id, period);
-  return { ...profile, fines, other_deductions: (profile.other_deductions || 0) + fines };
+  return { ...profile, fines, lop, lateCount, other_deductions: (profile.other_deductions || 0) + fines + lop.amount };
 }
 
 router.get("/categories", requireAuth, (req, res) => res.json(FINE_CATEGORIES));

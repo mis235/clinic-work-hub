@@ -19,7 +19,8 @@ fs.mkdirSync(SNAP_DIR, { recursive: true });
 const MATCH_DISTANCE = Number(process.env.FACE_MATCH_DISTANCE || 0.5); // lower = stricter
 const UNIQUE_DISTANCE = Number(process.env.FACE_UNIQUE_DISTANCE || 0.45); // two people closer than this are treated as the same face
 const MIN_GAP_MIN = Number(process.env.MIN_STAY_MINUTES || 30);        // a second look within this many minutes is not a logout
-const LATE_AFTER = process.env.LATE_AFTER || "10:30";                   // IST, HH:MM — arrivals after this are marked Late
+import { isLateArrival, syncLateFines } from "./leave.js";
+// Late = more than the grace minutes (HR rule, default 15) after the start of the person's shift.                   // IST, HH:MM — arrivals after this are marked Late
 const secret = () => process.env.JWT_SECRET;
 const istNow = () => new Date(Date.now() + 19800000);
 const dist = (a, b) => Math.sqrt(a.reduce((s, v, i) => s + (v - b[i]) ** 2, 0));
@@ -132,7 +133,7 @@ router.post("/checkin", requireKiosk, (req, res) => {
   let kind, mark = row?.status, inTime = row?.in_time || null, outTime = row?.out_time || null, already = false;
   if (!row || !row.in_time) {
     kind = "in"; inTime = hhmm;
-    if (!row || !["P", "L", "H"].includes(row.status)) mark = hhmm > LATE_AFTER ? "L" : "P";
+    if (!row || !["P", "L", "H"].includes(row.status)) mark = isLateArrival(best.userId, date, hhmm) ? "L" : "P";
     db.prepare(`INSERT INTO attendance_marks (user_id, mark_date, status, in_time, note, marked_by) VALUES (?,?,?,?,?,NULL)
       ON CONFLICT(user_id, mark_date) DO UPDATE SET status = excluded.status, in_time = excluded.in_time, updated_at = datetime('now')`)
       .run(best.userId, date, mark, inTime, `Face check-in ${hhmm}`);
@@ -140,6 +141,7 @@ router.post("/checkin", requireKiosk, (req, res) => {
     kind = "out"; outTime = hhmm;
     db.prepare("UPDATE attendance_marks SET out_time = ?, updated_at = datetime('now') WHERE user_id = ? AND mark_date = ?").run(outTime, best.userId, date);
   } else { kind = outTime ? "out" : "in"; already = true; }
+  if (kind === "in" && !already) { try { syncLateFines(date.slice(0, 7)); } catch (e) { console.error("late fines:", e.message); } }
   const worked = inTime && outTime ? mins(outTime) - mins(inTime) : null;
   if (!already) {
     let snapPath = null;

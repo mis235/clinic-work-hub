@@ -8,6 +8,7 @@ import {
 } from "@simplewebauthn/server";
 import db from "../db.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
+import { syncLateFines } from "./leave.js";
 
 const router = Router();
 
@@ -282,6 +283,7 @@ router.put("/mark", requireAuth, (req, res) => {
     `INSERT INTO attendance_marks (user_id, mark_date, status, note, marked_by) VALUES (?,?,?,?,?)
      ON CONFLICT(user_id, mark_date) DO UPDATE SET status = excluded.status, note = excluded.note, marked_by = excluded.marked_by, updated_at = datetime('now')`
   ).run(userId, date, status, note ? String(note).slice(0, 200) : null, req.user.userId);
+  try { syncLateFines(date.slice(0, 7)); } catch {}
   res.json({ ok: true });
 });
 

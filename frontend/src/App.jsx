@@ -8,6 +8,7 @@ import ReportsPage from "./pages/ReportsPage.jsx";
 import AboutPage from "./pages/AboutPage.jsx";
 import LearningPage from "./pages/LearningPage.jsx";
 import EventsPage from "./pages/EventsPage.jsx";
+import LeavePage from "./pages/LeavePage.jsx";
 import OfferLettersPage from "./pages/OfferLettersPage.jsx";
 import PayrollPage from "./pages/PayrollPage.jsx";
 import StaffAdminPage from "./pages/StaffAdminPage.jsx";
@@ -29,7 +30,7 @@ import ChangePinModal from "./components/ChangePinModal.jsx";
 const VIEW_KEY = {
   "Dashboard": "dashboard", "AI Advisors": "assistant", "Policies": "policies", "Reports": "reports",
   "About": "about", "Learning": "learning", "Events": "events", "HR": "hr", "Payroll": "payroll", "Staff": "staff",
-  "Assistant": "assistant", "Tracker": "tracker", "Shift Checklist": "shiftchecklist", "Shift Logs": "shiftlogs", "Onboarding": "onboarding", "System": "system", "Attendance": "attendance", "Clinic Assistant": "clinicassistant", "Dashboards": "dashboards", "Documents": "documents", "Departments": "departments", "Roster": "roster", "Exits": "exits",
+  "Assistant": "assistant", "Tracker": "tracker", "Shift Checklist": "shiftchecklist", "Shift Logs": "shiftlogs", "Onboarding": "onboarding", "System": "system", "Attendance": "attendance", "Clinic Assistant": "clinicassistant", "Dashboards": "dashboards", "Documents": "documents", "Departments": "departments", "Roster": "roster", "Exits": "exits", "Leave": "leave",
 };
 
 export default function App() {
@@ -76,6 +77,7 @@ function MainApp() {
     if (view === "clinicassistant") return <ConnectedToolPage toolKey="assistant" active="Clinic Assistant" user={user} onLogout={logout} onBack={navigate} />;
     if (view === "dashboards") return <ClinicDashboardPage user={user} onLogout={logout} onBack={navigate} onNavigate={navigate} />;
     if (view === "exits" && user.role === "admin") return <ExitsPage user={user} onLogout={logout} onBack={navigate} />;
+    if (view === "leave") return <LeavePage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "attendance") return <AttendancePage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "departments") return <DepartmentsPage user={user} onLogout={logout} onBack={navigate} onOpenProfile={(id) => openProfile(id, "Departments")} />;
     if (view === "documents") return <DocumentsPage user={user} onLogout={logout} onBack={navigate} />;

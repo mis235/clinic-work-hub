@@ -12,6 +12,7 @@ export const NAV = {
   "Exits":            { label: "Staff Exits",         icon: "userplus" },
   "Staff":            { label: "Staff",               icon: "users" },
   "My Profile":       { label: "My Profile",          icon: "user" },
+  "Leave":            { label: "Leave & HR",          icon: "calendarCheck" },
   "Payroll":          { label: "Payroll",             icon: "wallet" },
   "HR":               { label: "Offer Letters",       icon: "file" },
   "Reports":          { label: "Reports",             icon: "chart" },
@@ -30,7 +31,7 @@ export const NAV = {
 export const NAV_GROUPS = [
   { title: "Home",         keys: ["Dashboard", "My checklist"] },
   { title: "Daily work",   keys: ["Shift Checklist", "Tracker", "Attendance", "Shift Logs"] },
-  { title: "People & pay", keys: ["Departments", "Staff", "Exits", "My Profile", "Payroll", "HR"] },
+  { title: "People & pay", keys: ["Departments", "Staff", "Exits", "My Profile", "Leave", "Payroll", "HR"] },
   { title: "Insights",     keys: ["Reports", "Dashboards"] },
   { title: "Knowledge",    keys: ["Documents", "Policies", "Learning", "Events"] },
   { title: "Assistants",   keys: ["Clinic Assistant", "Assistant"] },
@@ -39,7 +40,7 @@ export const NAV_GROUPS = [
 
 export function navItemsFor(user) {
   const common = ["Documents", "Policies", "Learning", "Events", "Clinic Assistant", "Assistant"];
-  if (user.role === "admin") return ["Dashboard", "Attendance", "Shift Logs", "Departments", "Staff", "Exits", "Payroll", "HR", "Reports", "Dashboards", ...common, "System"];
-  if (user.role === "manager") return ["Dashboard", "Shift Checklist", "Attendance", "Shift Logs", "Departments", "Reports", "Dashboards", ...common];
-  return ["My checklist", "Shift Checklist", "Tracker", "My Workspace", "My Profile", ...common.filter((k) => k !== "Events")];
+  if (user.role === "admin") return ["Dashboard", "Attendance", "Shift Logs", "Departments", "Staff", "Exits", "Leave", "Payroll", "HR", "Reports", "Dashboards", ...common, "System"];
+  if (user.role === "manager") return ["Dashboard", "Shift Checklist", "Attendance", "Shift Logs", "Departments", "Leave", "Reports", "Dashboards", ...common];
+  return ["My checklist", "Shift Checklist", "Tracker", "My Workspace", "My Profile", "Leave", ...common.filter((k) => k !== "Events")];
 }
