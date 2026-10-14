@@ -468,6 +468,8 @@ try {
   const copyDir = path.join(dir, "drive-copy");
   ok("extra backup folder can be set", (await call("PUT", "/api/admin/backup-copy", { dir: copyDir }, admin)).status === 200);
   ok("extra backup copy was written", fs.readdirSync(path.join(copyDir, "database")).some((f) => f.endsWith(".db")));
+  ok("backup time can be changed", (await call("PUT", "/api/admin/backup-copy", { dir: copyDir, time: "17:45" }, admin)).body?.time === "17:45");
+  ok("bad backup time refused", (await call("PUT", "/api/admin/backup-copy", { dir: copyDir, time: "25:99" }, admin)).status === 400);
   ok("relative folder is refused", (await call("PUT", "/api/admin/backup-copy", { dir: "backups2" }, admin)).status === 400);
   const stg = await call("GET", "/api/admin/storage", null, admin); ok("storage report works", stg.status === 200 && stg.body.parts.some((p) => p.name === "Database" && p.bytes > 0));
   ok("old snapshot clean-up works", (await call("POST", "/api/admin/cleanup-snapshots", { days: 90 }, admin)).status === 200);

@@ -47,12 +47,12 @@ function EmailCard({ onChanged }) {
 const mb = (b) => (b == null ? "—" : b > 1073741824 ? `${(b / 1073741824).toFixed(1)} GB` : b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
 
 function BackupCopyCard({ onChanged }) {
-  const [cur, setCur] = useState(null); const [dir, setDir] = useState(""); const [big, setBig] = useState(false); const [msg, setMsg] = useState(null); const [busy, setBusy] = useState(false);
-  const load = () => api.backupCopy().then((r) => { setCur(r); setDir(r.dir || ""); setBig(!!r.includeBig); }).catch(() => {});
+  const [cur, setCur] = useState(null); const [dir, setDir] = useState(""); const [big, setBig] = useState(false); const [time, setTime] = useState("18:30"); const [msg, setMsg] = useState(null); const [busy, setBusy] = useState(false);
+  const load = () => api.backupCopy().then((r) => { setCur(r); setDir(r.dir || ""); setBig(!!r.includeBig); setTime(r.time || "18:30"); }).catch(() => {});
   useEffect(() => { load(); }, []);
   async function save() {
     setBusy(true); setMsg(null);
-    try { const r = await api.saveBackupCopy(dir, big); setMsg({ ok: true, t: r.dir ? "Saved. A backup was copied there just now." : "Extra copy turned off." }); load(); onChanged?.(); } catch (e) { setMsg({ ok: false, t: e.message }); }
+    try { const r = await api.saveBackupCopy(dir, big, time); setMsg({ ok: true, t: r.dir ? "Saved. A backup was copied there just now." : "Extra copy turned off." }); load(); onChanged?.(); } catch (e) { setMsg({ ok: false, t: e.message }); }
     setBusy(false);
   }
   const st = cur?.status;
@@ -66,6 +66,9 @@ function BackupCopyCard({ onChanged }) {
         <li>Paste the full path below, e.g. <b>G:\My Drive\ClinicBackups</b>, and press Save. Drive uploads it to the cloud by itself.</li>
       </ol>
       <input className="field" value={dir} onChange={(e) => setDir(e.target.value)} placeholder="G:\My Drive\ClinicBackups" />
+      <label className="field-label" style={{ marginTop: 10 }}>Back up every day at (office time)</label>
+      <input className="field" type="time" style={{ maxWidth: 160 }} value={time} onChange={(e) => setTime(e.target.value)} />
+      <div className="meta">If the computer is off at that time, the backup runs as soon as the app is on again.</div>
       <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 10, fontSize: 13 }}><input type="checkbox" checked={big} onChange={(e) => setBig(e.target.checked)} style={{ marginTop: 3 }} /><span>Also copy training videos and face check-in photos <span className="meta">(they use a lot of space — leave this off unless you have plenty of Drive space)</span></span></label>
       {st && <div className="meta" style={{ marginTop: 8 }}>Last copy: {new Date(st.at).toLocaleString("en-IN")} — {st.ok ? `OK (${st.files} new files copied)` : <span style={{ color: "var(--red)" }}>{st.error}</span>}</div>}
       {msg && <div className={msg.ok ? "note" : "login-error"} style={{ marginTop: 10 }}>{msg.t}</div>}
@@ -209,7 +212,7 @@ export default function SystemPage({ user, onLogout, onBack }) {
               <div className="name">Backups</div>
               <button className="btn btn-primary btn-sm" disabled={busy} onClick={backupNow}>{busy ? "Working…" : "Back up now"}</button>
             </div>
-            <div className="meta" style={{ marginBottom: 10 }}>Automatic every night at 2 am. The last 14 are kept.</div>
+            <div className="meta" style={{ marginBottom: 10 }}>Automatic once a day, at the time you choose below (default 6:30 pm). The last 14 are kept.</div>
             {backups.length === 0 && <div className="empty">No backups yet.</div>}
             {backups.slice(0, 6).map((b) => (
               <div className="kv" key={b.name}><span className="k">{fmt(b.at)}</span><span className="v">{size(b.bytes)}</span></div>

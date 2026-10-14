@@ -1,4 +1,4 @@
-import { runBackup } from "./backup.js";
+import { runBackup, backupDue } from "./backup.js";
 import cron from "node-cron";
 import db from "./db.js";
 import { withFines } from "./routes/fines.js";
@@ -110,9 +110,11 @@ export async function runDailyChecklistDigest() {
 export function startScheduledJobs() {
   if (process.env.DISABLE_CRON === "true") return;
 
-  // Nightly database backup at 2am, plus one shortly after boot.
-  cron.schedule(process.env.BACKUP_CRON || "0 2 * * *", () => { runBackup().catch((e) => console.error("Backup failed:", e)); });
-  setTimeout(() => runBackup().catch((e) => console.error("Backup failed:", e)), 15000).unref();
+  // Daily backup at the time chosen in System & Backups (default 6:30 pm). Checked every 10 minutes and shortly after
+  // start-up, so if the computer was off at that time the backup runs as soon as it is on again.
+  const backupIfDue = () => { if (backupDue()) runBackup().catch((e) => console.error("Backup failed:", e)); };
+  cron.schedule("*/10 * * * *", backupIfDue);
+  setTimeout(backupIfDue, 15000).unref();
 
   // Pull the old Google sheet's checklist log into the app every 10 minutes (only does anything once a sheet link is saved).
   cron.schedule("30 23 * * *", () => { try { syncLateFines(new Date(Date.now() + 19800000).toISOString().slice(0, 7)); } catch (e) { console.error("Late fines:", e.message); } }, { timezone: "Asia/Kolkata" });

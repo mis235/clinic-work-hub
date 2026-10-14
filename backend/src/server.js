@@ -34,7 +34,7 @@ import db from "./db.js"; // ensures tables exist on boot
 import fs from "node:fs";
 import { securityHeaders, checkEnv } from "./security.js";
 import { auditMiddleware } from "./audit.js";
-import { runBackup, listBackups, backupDir, copyFolder, setCopyFolder, includeBig, setIncludeBig, copyStatus, storageReport, cleanSnapshots } from "./backup.js";
+import { runBackup, listBackups, backupDir, copyFolder, setCopyFolder, includeBig, setIncludeBig, backupTime, setBackupTime, copyStatus, storageReport, cleanSnapshots } from "./backup.js";
 
 const envProblems = checkEnv();
 if (envProblems.length) {
@@ -95,13 +95,14 @@ app.get("/api/admin/audit", ...adminOnly, (req, res) => {
   res.json(db.prepare("SELECT * FROM audit_log ORDER BY id DESC LIMIT ?").all(limit));
 });
 // Extra backup copy (e.g. a Google Drive folder) + storage report + clean-up of old check-in photos
-app.get("/api/admin/backup-copy", ...adminOnly, (req, res) => res.json({ dir: copyFolder(), includeBig: includeBig(), status: copyStatus() }));
+app.get("/api/admin/backup-copy", ...adminOnly, (req, res) => res.json({ dir: copyFolder(), includeBig: includeBig(), time: backupTime(), status: copyStatus() }));
 app.put("/api/admin/backup-copy", ...adminOnly, async (req, res) => {
   try {
     if (req.body?.includeBig !== undefined) setIncludeBig(!!req.body.includeBig);
+    if (req.body?.time) setBackupTime(req.body.time);
     const dir = setCopyFolder(req.body?.dir ?? copyFolder());
     if (dir) await runBackup();
-    res.json({ dir, includeBig: includeBig(), status: copyStatus() });
+    res.json({ dir, includeBig: includeBig(), time: backupTime(), status: copyStatus() });
   } catch (e) { res.status(400).json({ error: "That folder can't be used: " + e.message }); }
 });
 app.get("/api/admin/storage", ...adminOnly, (req, res) => res.json(storageReport()));

@@ -18,6 +18,18 @@ const get = (k) => db.prepare("SELECT value FROM app_settings WHERE key = ?").ge
 const put = (k, v) => db.prepare("INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(k, v);
 
 export const copyFolder = () => get("backup_copy_dir");
+// When the daily backup runs: at this India time (default 6:30 pm, inside office hours). If the computer was off at that
+// time, it runs as soon as the app is next on — so a backup is never skipped, and nothing depends on 2 am.
+export const backupTime = () => (/^\d{2}:\d{2}$/.test(get("backup_time")) ? get("backup_time") : "18:30");
+export const setBackupTime = (t) => { if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(t))) throw new Error("Choose a time like 18:30"); put("backup_time", t); };
+export function backupDue(now = Date.now()) {
+  const last = listBackups()[0];
+  const ist = new Date(now + 19800000), today = ist.toISOString().slice(0, 10), hhmm = ist.toISOString().slice(11, 16);
+  if (!last) return true;
+  if (now - new Date(last.at).getTime() > 36 * 3600e3) return true;           // missed a whole day: catch up straight away
+  const lastDay = new Date(new Date(last.at).getTime() + 19800000).toISOString().slice(0, 10);
+  return lastDay < today && hhmm >= backupTime();
+}
 export const includeBig = () => get("backup_include_big") === "1";
 export const setIncludeBig = (v) => put("backup_include_big", v ? "1" : "0");
 export function copyStatus() { try { return JSON.parse(get("backup_copy_status") || "null"); } catch { return null; } }
