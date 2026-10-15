@@ -229,6 +229,7 @@ export const api = {
   applyLeave: (body) => req("/api/leave/apply", { method: "POST", body }),
   cancelLeave: (id) => req(`/api/leave/${id}`, { method: "DELETE" }),
   leaveRequests: (status) => req(`/api/leave/requests${status ? `?status=${status}` : ""}`),
+  confirmLeave: (id, body) => req(`/api/leave/${id}/confirm`, { method: "POST", body }),
   decideLeave: (id, body) => req(`/api/leave/${id}/decide`, { method: "POST", body }),
   lateReport: (month) => req(`/api/leave/late?month=${month || ""}`),
   birthdays: (days) => req(`/api/leave/birthdays?days=${days || 60}`),

@@ -5,6 +5,7 @@ import db from "../db.js";
 import { signToken } from "../middleware/auth.js";
 import { loginThrottle } from "../security.js";
 import { audit } from "../audit.js";
+import { accessFor } from "../access.js";
 
 const router = Router();
 
@@ -20,6 +21,8 @@ function userWithRole(row) {
     department: dept?.name || null,
     phone: row.phone,
     mustChangePin: !!row.must_change_pin,
+    ...accessFor(row.id, role?.name),
+    designation: row.designation || null,
   };
 }
 

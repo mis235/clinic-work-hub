@@ -1,29 +1,30 @@
 /* =====================================================================
    Work Hub — Dr. Nishita's Clinic
-   Design system: light, airy, card-based. One teal brand colour, soft
+   Design system: light, airy, card-based. One violet brand colour with a warm yellow highlight, soft
    rounded surfaces, pill filters, icon navigation grouped by purpose.
    (Legacy variable names are kept as aliases so older inline styles
    still resolve to the new palette.)
    ===================================================================== */
 :root {
-  --bg: #F3F6F8;
+  --bg: #F1EDFF;
   --surface: #FFFFFF;
-  --surface-sunk: #F1F4F7;
-  --ink: #0B1B2B;
-  --ink-soft: #5F6B7A;
-  --ink-faint: #94A0AE;
-  --line: #E6EBF0;
+  --surface-sunk: #F6F3FF;
+  --ink: #1A1633;
+  --ink-soft: #655F82;
+  --ink-faint: #A19CBD;
+  --line: #E8E3F7;
 
-  --primary: #0F766E;
-  --primary-dark: #0B5E58;
-  --primary-soft: #E2F3F0;
-  --primary-ring: rgba(15, 118, 110, 0.18);
+  --primary: #6D4AFF;
+  --primary-dark: #5333D6;
+  --primary-soft: #ECE6FF;
+  --primary-ring: rgba(109, 74, 255, 0.20);
 
   --blue: #2563EB;   --blue-soft: #E8F0FE;
   --amber: #B45309;  --amber-soft: #FEF1D6;
   --green: #15803D;  --green-soft: #E3F5E9;
   --red: #C62828;    --red-soft: #FCE8E8;
   --violet: #6D28D9; --violet-soft: #EEE7FD;
+  --accent: #FFD25E; --accent-soft: #FFF4D2; /* warm yellow highlight */
 
   /* legacy aliases */
   --navy: var(--primary);
@@ -33,11 +34,11 @@
   --gold: var(--amber);
   --gold-soft: var(--amber-soft);
   --brass: var(--primary);
-  --brass-soft: #8AD3C9;
+  --brass-soft: #CDBFFF;
   --clay: var(--primary);
   --espresso: #0B1B2B;
   --espresso-deep: #06121D;
-  --cream-warm: #EAF6F4;
+  --cream-warm: #F4F0FF;
 
   --radius-sm: 10px;
   --radius-md: 14px;
@@ -110,7 +111,7 @@ button, input, select, textarea { font-family: inherit; }
 /* ------------------------------------------------------------ Hero card */
 .hero {
   position: relative; overflow: hidden; border-radius: var(--radius-lg); padding: 26px 28px; color: #fff;
-  background: linear-gradient(135deg, #0F766E 0%, #0B5E58 55%, #0A4A5A 100%);
+  background: linear-gradient(135deg, #8F72FF 0%, #6D4AFF 55%, #5333D6 100%);
   box-shadow: var(--shadow); margin-bottom: 20px;
 }
 .hero::before, .hero::after { content: ""; position: absolute; border-radius: 50%; background: rgba(255,255,255,0.08); pointer-events: none; }
@@ -467,3 +468,17 @@ input.field:focus, select.field:focus, textarea.field:focus { border-color: var(
 .task-photo { display: flex; align-items: center; gap: 2px; flex: none; }
 .task-photo img { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; display: block; }
 .cam-btn { flex: none; cursor: pointer; padding: 6px 10px; }
+
+
+/* ---- Lilac theme touches (matches the phone-app mockup): rounder cards, yellow highlight, pill navigation ---- */
+.card, .kpi, .dept-card { border-radius: 22px; border: 1px solid var(--line); box-shadow: 0 6px 22px rgba(109, 74, 255, 0.07); }
+.sidebar { background: #FFFFFF; border-right: 1px solid var(--line); }
+.sidebar-nav button { border-radius: 14px; }
+.sidebar-nav button.active { background: var(--primary); color: #fff; box-shadow: 0 6px 16px rgba(109, 74, 255, 0.30); }
+.sidebar-nav button.active svg { color: #fff; }
+.btn-primary { background: var(--primary); border-radius: 999px; }
+.btn-primary:hover { background: var(--primary-dark); }
+.pill.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+.hero .btn-light { background: var(--accent); color: var(--ink); }
+.nav-count { background: var(--accent); color: var(--ink); }
+.badge.in_progress { background: var(--accent-soft); color: #8A5A00; }

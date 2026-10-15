@@ -9,6 +9,7 @@ import db from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { audit } from "../audit.js";
 import { shiftFor, getTypes } from "./roster.js";
+import { accessFor } from "../access.js";
 
 const router = Router();
 db.exec("CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT)");
@@ -21,7 +22,7 @@ db.exec(`CREATE TABLE IF NOT EXISTS leave_requests (
 );
 CREATE INDEX IF NOT EXISTS idx_leave_user ON leave_requests(user_id, from_date);`);
 for (const sql of [
-  "ALTER TABLE fines ADD COLUMN auto_key TEXT",
+  "ALTER TABLE fines ADD COLUMN auto_key TEXT", "ALTER TABLE leave_requests ADD COLUMN hr_confirmed_at TEXT", "ALTER TABLE leave_requests ADD COLUMN hr_confirmed_by TEXT",
   "ALTER TABLE payslips ADD COLUMN leave_taken REAL", "ALTER TABLE payslips ADD COLUMN leave_allowed REAL",
   "ALTER TABLE payslips ADD COLUMN lop_days REAL", "ALTER TABLE payslips ADD COLUMN lop_amount REAL",
   "ALTER TABLE payslips ADD COLUMN late_count INTEGER", "ALTER TABLE payslips ADD COLUMN fine_amount REAL",
@@ -43,11 +44,7 @@ const addDays = (d, n) => new Date(new Date(d + "T00:00:00Z").getTime() + n * 86
 const mins = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
 
 /** HR = the admin, or anyone whose job title says HR (e.g. "HR Executive"). */
-export function isHr(userId, roleName) {
-  if (roleName === "admin") return true;
-  const u = db.prepare("SELECT designation FROM users WHERE id = ? AND active = 1").get(userId);
-  return /\bhr\b|human resource/i.test(u?.designation || "");
-}
+export function isHr(userId, roleName) { return accessFor(userId, roleName).isHr; }
 const isLead = (u) => u.roleName === "admin" || u.roleName === "manager";
 const needHr = (req, res) => (isHr(req.user.userId, req.user.roleName) ? true : (res.status(403).json({ error: "Only HR or admin can do this" }), false));
 
@@ -63,7 +60,7 @@ export function leaveSummary(userId, month) {
   const s = settings();
   const rows = db.prepare("SELECT * FROM leave_requests WHERE user_id = ? AND status = 'approved' AND substr(from_date,1,7) <= ? AND substr(to_date,1,7) >= ?").all(userId, month, month);
   const taken = rows.reduce((t, r) => t + daysInMonth(r, month), 0);
-  const pendRows = db.prepare("SELECT * FROM leave_requests WHERE user_id = ? AND status = 'pending' AND substr(from_date,1,7) <= ? AND substr(to_date,1,7) >= ?").all(userId, month, month);
+  const pendRows = db.prepare("SELECT * FROM leave_requests WHERE user_id = ? AND status IN ('pending','with_management') AND substr(from_date,1,7) <= ? AND substr(to_date,1,7) >= ?").all(userId, month, month);
   const pending = pendRows.reduce((t, r) => t + daysInMonth(r, month), 0);
   const allowed = s.casual_per_month;
   return { month, allowed, taken, pending, freeLeft: Math.max(0, allowed - taken), lopDays: Math.max(0, taken - allowed) };
@@ -165,7 +162,7 @@ router.post("/apply", requireAuth, (req, res) => {
   if (reasonType === "other" && !String(reason || "").trim()) return res.status(400).json({ error: "Please write the reason" });
   const days = halfDay && fromDate === to ? 0.5 : Math.round((new Date(to) - new Date(fromDate)) / 86400000) + 1;
   if (days > 31) return res.status(400).json({ error: "Too many days in one request" });
-  const clash = db.prepare("SELECT 1 FROM leave_requests WHERE user_id = ? AND status IN ('pending','approved') AND from_date <= ? AND to_date >= ?").get(req.user.userId, to, fromDate);
+  const clash = db.prepare("SELECT 1 FROM leave_requests WHERE user_id = ? AND status IN ('pending','with_management','approved') AND from_date <= ? AND to_date >= ?").get(req.user.userId, to, fromDate);
   if (clash) return res.status(409).json({ error: "You already have a leave request on these days" });
   const id = randomUUID();
   db.prepare("INSERT INTO leave_requests (id, user_id, from_date, to_date, days, reason_type, reason) VALUES (?,?,?,?,?,?,?)")
@@ -187,19 +184,33 @@ router.delete("/:id", requireAuth, (req, res) => {
 router.get("/requests", requireAuth, (req, res) => {
   if (!needHr(req, res)) return;
   const q = []; const a = [];
-  if (["pending", "approved", "rejected", "cancelled"].includes(req.query.status)) { q.push("l.status = ?"); a.push(req.query.status); }
+  if (req.query.status === "open") q.push("l.status IN ('pending','with_management')");
+  else if (["pending", "with_management", "approved", "rejected", "cancelled"].includes(req.query.status)) { q.push("l.status = ?"); a.push(req.query.status); }
   if (/^\d{4}-\d{2}$/.test(req.query.month || "")) { q.push("substr(l.from_date,1,7) <= ? AND substr(l.to_date,1,7) >= ?"); a.push(req.query.month, req.query.month); }
-  const rows = db.prepare(withName + (q.length ? " WHERE " + q.join(" AND ") : "") + " ORDER BY (l.status='pending') DESC, l.from_date DESC LIMIT 300").all(...a);
+  const rows = db.prepare(withName + (q.length ? " WHERE " + q.join(" AND ") : "") + " ORDER BY (l.status IN ('pending','with_management')) DESC, l.from_date DESC LIMIT 300").all(...a);
   for (const r of rows) r.summary = leaveSummary(r.user_id, r.from_date.slice(0, 7));
   res.json(rows);
 });
 
-// HR decides after taking Sir's / Mam's approval (who gave it is recorded).
+// Step 2 (HR): the leave letter has been received and checked; it now goes to Sir / Mam for their signature.
+router.post("/:id/confirm", requireAuth, (req, res) => {
+  if (!needHr(req, res)) return;
+  const r = db.prepare("SELECT * FROM leave_requests WHERE id = ?").get(req.params.id);
+  if (!r) return res.status(404).json({ error: "Not found" });
+  if (r.status !== "pending") return res.status(400).json({ error: "This request is not waiting for HR any more" });
+  db.prepare("UPDATE leave_requests SET status = 'with_management', hr_confirmed_at = datetime('now'), hr_confirmed_by = ?, hr_note = COALESCE(?, hr_note) WHERE id = ?")
+    .run(req.user.userId, req.body?.note ? String(req.body.note).slice(0, 300) : null, r.id);
+  audit({ userId: req.user.userId, action: "LEAVE_CONFIRMED_BY_HR", detail: `${r.user_id} ${r.from_date}..${r.to_date}` });
+  res.json({ ok: true });
+});
+
+// Step 3 (HR): after Sir's / Mam's signature HR records the result (who signed is saved) and the staff member is told.
 router.post("/:id/decide", requireAuth, (req, res) => {
   if (!needHr(req, res)) return;
   const { decision, mgmtOk, note } = req.body || {};
   const r = db.prepare("SELECT * FROM leave_requests WHERE id = ?").get(req.params.id);
   if (!r) return res.status(404).json({ error: "Not found" });
+  if (r.status === "cancelled") return res.status(400).json({ error: "The staff member cancelled this request" });
   if (!["approved", "rejected"].includes(decision)) return res.status(400).json({ error: "Choose approve or reject" });
   if (decision === "approved" && !["Sir", "Mam", "Sir & Mam"].includes(mgmtOk)) return res.status(400).json({ error: "Tick who approved this: Sir, Mam, or both" });
   db.prepare("UPDATE leave_requests SET status=?, decided_by=?, decided_at=datetime('now'), mgmt_ok=?, hr_note=?, seen_at=NULL WHERE id=?")
@@ -243,12 +254,12 @@ router.get("/overview", requireAuth, (req, res) => {
   const t = today(), month = t.slice(0, 7), hr = isHr(req.user.userId, req.user.roleName), lead = isLead(req.user);
   const mine = {
     summary: leaveSummary(req.user.userId, month),
-    waiting: db.prepare("SELECT COUNT(*) n FROM leave_requests WHERE user_id = ? AND status = 'pending'").get(req.user.userId).n,
+    waiting: db.prepare("SELECT COUNT(*) n FROM leave_requests WHERE user_id = ? AND status IN ('pending','with_management')").get(req.user.userId).n,
     news: db.prepare(withName + " WHERE l.user_id = ? AND l.status IN ('approved','rejected') AND l.seen_at IS NULL ORDER BY l.decided_at DESC").all(req.user.userId),
   };
   const out = { isHr: hr, mine };
   if (hr || lead) {
-    out.pending = hr ? db.prepare(withName + " WHERE l.status = 'pending' ORDER BY l.from_date").all() : [];
+    out.pending = hr ? db.prepare(withName + " WHERE l.status IN ('pending','with_management') ORDER BY l.from_date").all() : [];
     out.recent = db.prepare(withName + " WHERE l.status IN ('approved','rejected') AND date(l.decided_at) >= ? ORDER BY l.decided_at DESC LIMIT 20").all(addDays(t, -7));
     out.onLeaveToday = db.prepare(withName + " WHERE l.status = 'approved' AND l.from_date <= ? AND l.to_date >= ?").all(t, t);
     out.upcoming = db.prepare(withName + " WHERE l.status = 'approved' AND l.from_date > ? AND l.from_date <= ? ORDER BY l.from_date").all(t, addDays(t, 14));

@@ -357,7 +357,7 @@ router.get("/export", requireAuth, requirePermission("attendance:view_all"), asy
     }
     sm.addRow([u.name, u.department || "", c.P, c.L, c.H, c.LV, c.A, c.W, c.none, Math.round(hrs * 10) / 10, fines.get(u.id) || 0]);
   }
-  for (const sh of [ws, sm]) { sh.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } }; sh.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F766E" } }; sh.views = [{ state: "frozen", ySplit: 1 }]; }
+  for (const sh of [ws, sm]) { sh.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } }; sh.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF6D4AFF" } }; sh.views = [{ state: "frozen", ySplit: 1 }]; }
   ws.autoFilter = { from: "A1", to: "J1" };
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", `attachment; filename="attendance-${month}.xlsx"`);

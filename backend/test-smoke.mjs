@@ -405,6 +405,9 @@ try {
     const pend = await call("GET", "/api/leave/overview", null, hrTok);
     ok("HR overview lists the waiting request", pend.body.pending?.some((r) => r.id === ap1.body.id));
     ok("approval needs Sir/Mam to be recorded", (await call("POST", `/api/leave/${ap1.body.id}/decide`, { decision: "approved" }, hrTok)).status === 400);
+    ok("HR confirms receipt and sends to Sir/Mam", (await call("POST", `/api/leave/${ap1.body.id}/confirm`, { note: "letter received" }, hrTok)).status === 200);
+    ok("waiting-for-Sir/Mam request still shows for HR", (await call("GET", "/api/leave/requests?status=with_management", null, hrTok)).body.some((r) => r.id === ap1.body.id));
+    ok("staff cannot confirm", (await call("POST", `/api/leave/${ap1.body.id}/confirm`, {}, lvTok)).status === 403);
     ok("HR approves with Sir & Mam", (await call("POST", `/api/leave/${ap1.body.id}/decide`, { decision: "approved", mgmtOk: "Sir & Mam" }, hrTok)).status === 200);
     const ap2 = await call("POST", "/api/leave/apply", { fromDate: dB, toDate: dB, reasonType: "family" }, lvTok);
     ok("second day warns about salary cut", ap2.status === 201 && /salary/i.test(ap2.body.warning || ""), JSON.stringify(ap2.body));
@@ -449,12 +452,22 @@ try {
     await call("PATCH", `/api/users/${lvTarget.id}`, { birthday: ymd(t0).slice(5) }, admin);
     const bd = await call("GET", "/api/leave/overview", null, admin);
     ok("today's birthday pops up for admin", bd.body.birthdaysToday?.some((b) => b.id === lvTarget.id));
+    ok("staff cannot open reports (leadership only)", (await call("GET", "/api/reports/summary", null, lvTok)).status === 403);
+    ok("login carries the access flags", (await call("POST", "/api/auth/login", { userId: lvTarget.id, pin: "1234" })).body.user.leadership === false);
+    ok("only admin can grant leadership", (await call("PATCH", `/api/users/${lvTarget.id}`, { leadership: true }, hrTok)).status === 403);
+    ok("admin can grant HR access", (await call("PATCH", `/api/users/${lvTarget.id}`, { isHr: true }, admin)).status === 200 && (await call("GET", "/api/leave/config", null, lvTok)).body.isHr === true);
+    await call("PATCH", `/api/users/${lvTarget.id}`, { isHr: false }, admin);
     ok("staff cannot see birthdays", (await call("GET", "/api/leave/birthdays", null, lvTok)).status === 403);
     const ask = async (q, tok) => (await call("POST", "/api/assistant/ask", { message: q }, tok)).body?.reply || "";
     ok("assistant: HR sees today's birthday", (await ask("upcoming birthdays", hrTok)).includes("Today"));
     ok("assistant: staff are told birthdays are HR-only", /HR/.test(await ask("any birthdays?", lvTok)));
     ok("assistant: my leave balance", /free casual leave/.test(await ask("how many leaves do I have left?", lvTok)));
     ok("assistant: late list for HR", (await ask("who was late this month?", hrTok)).includes(lateU.name));
+    ok("assistant: staff get no clinic-wide data", !/staff\): present/.test(await ask("attendance today for everyone", lvTok)));
+    ok("assistant: staff get no policy dump", /own tasks/.test(await ask("tell me the grievance process", lvTok)));
+    ok("assistant: staff see their leave status", /free casual leave/.test(await ask("was my leave approved?", lvTok)));
+    ok("assistant: leadership gets clinic attendance", /Attendance today/.test(await ask("attendance today", admin)));
+    ok("assistant: staff suggestions are short", (await call("GET", "/api/assistant/faqs", null, lvTok)).body.suggestions.length === 5);
     ok("assistant: staff cannot list staff", /managers, HR/.test(await ask("how many staff are there", lvTok)));
     ok("assistant: HR gets the staff count", /active staff/.test(await ask("how many staff are there", hrTok)));
   }

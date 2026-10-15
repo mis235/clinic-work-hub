@@ -44,7 +44,17 @@ function MainApp() {
   });
   const [view, setView] = useState("dashboard");
   // Check the saved sign-in as soon as the app opens, so an old login is cleared right away instead of failing mid-task.
-  useEffect(() => { if (localStorage.getItem("token")) api.portalMe().catch(() => {}); }, []);
+  useEffect(() => {
+    if (!localStorage.getItem("token")) return;
+    api.portalMe().then((m) => {   // pick up access changes the admin made since this person last signed in
+      const a = m?.access; if (!a) return;
+      setUser((u) => {
+        if (!u || (u.role === a.role && !!u.isHr === !!a.isHr && !!u.leadership === !!a.leadership)) return u;
+        const next = { ...u, role: a.role, isHr: a.isHr, leadership: a.leadership };
+        localStorage.setItem("user", JSON.stringify(next)); return next;
+      });
+    }).catch(() => {});
+  }, []);
   const [profile, setProfile] = useState(null); // { id, from } while viewing a staff profile
 
   function logout() {

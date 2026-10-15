@@ -2,6 +2,7 @@ import { Router } from "express";
 import db from "../db.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
 import { isHr, leaveSummary, settings as hrSettings, birthdays, lateDays } from "./leave.js";
+import { isLeadership } from "../access.js";
 
 const router = Router();
 
@@ -33,8 +34,12 @@ const SUGGESTED_QUESTIONS = [
   "What policies haven't I acknowledged yet?",
 ];
 
+const STAFF_QUESTIONS = ["How many leaves do I have left?", "Was my leave approved?", "How many tasks do I have open?", "Did I check in today?", "Do I have any fines this month?"];
 router.get("/faqs", requireAuth, requirePermission("assistant:use"), (req, res) => {
-  res.json({ suggestions: SUGGESTED_QUESTIONS });
+  const hr = isHr(req.user.userId, req.user.roleName), top = isLeadership(req.user.userId, req.user.roleName);
+  if (!hr && !top) return res.json({ suggestions: STAFF_QUESTIONS });
+  const more = top ? ["Attendance today", "Shift checklist status today", "Fines this month", "Payroll status", "Overdue tasks"] : [];
+  res.json({ suggestions: [...SUGGESTED_QUESTIONS.slice(0, 5), ...more] });
 });
 
 function myTaskLine(userId) {
@@ -83,6 +88,36 @@ function policyBodyFor(keyword) {
   return `**${policy.title}**\n\n${policy.body}`;
 }
 
+// Whole-clinic answers: only for the leadership team (MIS, COS, COE, chosen doctors, admin).
+function clinicAnswer(m, t, month) {
+  if (/attendance|present|absent/.test(m) && /today|now|who|how many|clinic|everyone|staff/.test(m) && !/my\b/.test(m)) {
+    const rows = db.prepare("SELECT status, COUNT(*) n FROM attendance_marks WHERE mark_date = ? GROUP BY status").all(t);
+    const total = db.prepare("SELECT COUNT(*) n FROM users WHERE active = 1").get().n;
+    const c = Object.fromEntries(rows.map((r) => [r.status, r.n])); const marked = rows.reduce((a, r) => a + r.n, 0);
+    return `Attendance today (${total} staff): present ${(c.P || 0) + (c.L || 0)} (late ${c.L || 0}), half day ${c.H || 0}, leave ${c.LV || 0}, absent ${c.A || 0}, week off ${c.W || 0}, not marked ${total - marked}.`;
+  }
+  if (/shift checklist|checklist/.test(m) && /today|submitted|status|who|clinic|pending|not/.test(m) && !/my\b/.test(m)) {
+    const s = db.prepare("SELECT status, COUNT(*) n, ROUND(AVG(completion_pct)) a FROM (SELECT status, CASE WHEN total > 0 THEN completed * 100.0 / total ELSE 0 END AS completion_pct FROM shift_checklist_submissions WHERE work_date = ?) GROUP BY status").all(t);
+    const done = s.find((x) => x.status === "submitted")?.n || 0, prog = s.find((x) => x.status === "in_progress")?.n || 0;
+    return `Shift checklists today: ${done} submitted, ${prog} in progress. Open Dashboards → Checklist dashboard for names, photos and the old-form entries together.`;
+  }
+  if (/overdue|open task|pending task|tasks.*(clinic|team|everyone)/.test(m) && !/\bmy\b/.test(m)) {
+    const o = db.prepare("SELECT COUNT(*) n FROM tasks WHERE status != 'done' AND due_date IS NOT NULL AND due_date < datetime('now')").get().n;
+    const open = db.prepare("SELECT COUNT(*) n FROM tasks WHERE status != 'done'").get().n;
+    return `${open} task${open === 1 ? "" : "s"} open across the clinic, ${o} overdue.`;
+  }
+  if (/\bfines?\b/.test(m) && /clinic|total|everyone|staff|team|this month|who/.test(m) && !/\bmy\b/.test(m)) {
+    const rows = db.prepare("SELECT u.name, SUM(f.amount) t FROM fines f JOIN users u ON u.id = f.user_id WHERE substr(f.fine_date,1,7) = ? GROUP BY u.id ORDER BY t DESC LIMIT 8").all(month);
+    return rows.length ? `Fines this month (they go to the payslips):\n` + list(rows, (r) => `${r.name}: ₹${r.t}`) : "No fines this month.";
+  }
+  if (/payroll|payslip/.test(m) && /status|generated|done|sent|how many|clinic|all/.test(m) && !/\bmy\b/.test(m)) {
+    const r = db.prepare("SELECT COUNT(*) n, SUM(emailed_at IS NOT NULL) e FROM payslips WHERE pay_period = ?").get(month);
+    const profiles = db.prepare("SELECT COUNT(*) n FROM pay_profiles").get().n;
+    return `Payslips for ${month}: ${r.n} of ${profiles} generated, ${r.e || 0} emailed.`;
+  }
+  return null;
+}
+
 // POST /api/assistant/ask  { message }
 router.post("/ask", requireAuth, requirePermission("assistant:use"), async (req, res) => {
   const { message } = req.body || {};
@@ -93,8 +128,12 @@ router.post("/ask", requireAuth, requirePermission("assistant:use"), async (req,
 
   // 0) HR answers: leave, birthdays, late arrivals, staff list — straight from the live data.
   const me = db.prepare("SELECT name FROM users WHERE id = ?").get(userId);
-  const hr = isHr(userId, req.user.roleName), lead = hr || req.user.roleName === "manager";
+  const hr = isHr(userId, req.user.roleName), top = isLeadership(userId, req.user.roleName), lead = hr || top;
   const t = todayIST(), month = t.slice(0, 7);
+  if (top) {
+    const clinic = clinicAnswer(m, t, month);
+    if (clinic) return res.json({ reply: clinic, source: "data" });
+  }
   if (/birthday|born/.test(m)) {
     if (!lead) return res.json({ reply: "Birthdays are shown to HR and the admin. You can ask them.", source: "data" });
     const b = birthdays(30);
@@ -116,10 +155,11 @@ router.post("/ask", requireAuth, requirePermission("assistant:use"), async (req,
     const rows = db.prepare("SELECT id, name FROM users WHERE active = 1").all().map((u) => ({ name: u.name, n: lateDays(u.id, month).length })).filter((r) => r.n).sort((a, b) => b.n - a.n);
     return res.json({ reply: rows.length ? `Late arrivals this month (more than ${s.late_grace_min} min after shift start; every ${s.late_limit} lates = ₹${s.late_fine} fine):\n` + list(rows, (r) => `${r.name}: ${r.n}`) : "No late arrivals this month.", source: "data" });
   }
-  if (/(my|how many).*(leave|leaves)|leave (balance|left|status)|leaves? (left|taken|do i)/.test(m)) {
-    const l = leaveSummary(userId, month), s = hrSettings();
-    const last = db.prepare("SELECT from_date, to_date, status FROM leave_requests WHERE user_id = ? ORDER BY created_at DESC LIMIT 1").get(userId);
-    return res.json({ reply: `This month you have ${l.allowed} free casual leave day${l.allowed === 1 ? "" : "s"}. Taken: ${l.taken}. Free days left: ${l.freeLeft}.${l.lopDays ? ` ${l.lopDays} extra day(s) will cut ${l.lopDays} day's salary.` : ` Each day beyond ${l.allowed} cuts one day's salary.`}${l.pending ? ` ${l.pending} day(s) waiting for approval.` : ""}${last ? ` Your latest request (${dmy(last.from_date)}) is ${last.status}.` : ""} Apply in Leave & HR.`, source: "data" });
+  if (/(my|how many).*(leave|leaves)|leave (balance|left|status|approved|approval)|leaves? (left|taken|do i)|(is|was|did).*(leave|approved)/.test(m) || (!lead && /leave|vacation|day off|approv/.test(m))) {
+    const l = leaveSummary(userId, month);
+    const last = db.prepare("SELECT from_date, to_date, status, mgmt_ok, hr_note FROM leave_requests WHERE user_id = ? ORDER BY created_at DESC LIMIT 1").get(userId);
+    const st = { pending: "waiting for HR to check", with_management: "with HR, waiting for Sir/Mam's signature", approved: "approved", rejected: "not approved", cancelled: "cancelled" };
+    return res.json({ reply: `This month you have ${l.allowed} free casual leave day${l.allowed === 1 ? "" : "s"}. Taken: ${l.taken}. Free days left: ${l.freeLeft}.${l.lopDays ? ` ${l.lopDays} extra day(s) will cut ${l.lopDays} day's salary.` : ` Each day beyond ${l.allowed} cuts one day's salary.`}${l.pending ? ` ${l.pending} day(s) are waiting for approval.` : ""}${last ? ` Your latest request (${dmy(last.from_date)}${last.to_date !== last.from_date ? " – " + dmy(last.to_date) : ""}) is ${st[last.status] || last.status}${last.status === "approved" && last.mgmt_ok ? ` (signed by ${last.mgmt_ok})` : ""}.${last.hr_note ? ` HR note: ${last.hr_note}` : ""}` : " You have not applied for leave yet."} Apply in Leave & HR.`, source: "data" });
   }
   if (/(who|how many|list).*(staff|employee|team|people)|staff list|clinic staff/.test(m)) {
     if (!lead) return res.json({ reply: "The full staff list is shown to managers, HR and admin.", source: "data" });
@@ -141,10 +181,10 @@ router.post("/ask", requireAuth, requirePermission("assistant:use"), async (req,
   if (/attend|check.?in|check.?out|late|punctual/.test(m)) {
     return res.json({ reply: myAttendanceLine(userId), source: "data" });
   }
-  if (/acknowledg|haven'?t read|not read|pending polic/.test(m)) {
+  if (lead && /acknowledg|haven'?t read|not read|pending polic/.test(m)) {
     return res.json({ reply: policyGapLine(userId), source: "data" });
   }
-  if (/leave|vacation|day off/.test(m)) {
+  if (lead && /leave|vacation|day off/.test(m)) {
     const body = policyBodyFor("Leave");
     return res.json({ reply: body || "I couldn't find a Leave policy yet — ask your manager.", source: "policy" });
   }
@@ -154,13 +194,21 @@ router.post("/ask", requireAuth, requirePermission("assistant:use"), async (req,
       source: "data",
     });
   }
-  if (/grievance|complain|escalat/.test(m)) {
+  if (lead && /grievance|complain|escalat/.test(m)) {
     const body = policyBodyFor("Grievance");
     return res.json({ reply: body || "Ask your manager, or an admin, directly.", source: "policy" });
   }
-  if (/conduct|dress code|behav/.test(m)) {
+  if (lead && /conduct|dress code|behav/.test(m)) {
     const body = policyBodyFor("Conduct");
     return res.json({ reply: body || "Check the Policies tab for the Code of Conduct.", source: "policy" });
+  }
+
+  // Staff (not leadership, not HR): only their own tasks, attendance, leave, fines and payslip — never the wider process.
+  if (!lead) {
+    return res.json({
+      reply: "I can help you with your own tasks, attendance, leave (balance and whether your request was approved), fines and payslip. For anything else please ask HR or your manager.",
+      source: "scoped",
+    });
   }
 
   // 2) Anything else: use Claude if configured, grounded in this clinic's own

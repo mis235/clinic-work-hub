@@ -7,7 +7,7 @@ import exitRoutes from "./routes/exits.js";
 import workspaceRoutes from "./routes/workspace.js";
 import kioskRoutes from "./routes/kiosk.js";
 import leaveRoutes from "./routes/leave.js";
-import { ensureSingleAdmin } from "./access.js";
+import { ensureSingleAdmin, requireLeadership, seedAccess } from "./access.js";
 import { startHttps } from "./https.js";
 import { isEmailConfigured, mailSettings, saveMailSettings, clearMailSettings, sendEmail, friendlyMailError } from "./email.js";
 import express from "express";
@@ -126,9 +126,9 @@ app.use("/api/users", userRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/templates", templateRoutes);
-app.use("/api/advisors", advisorRoutes);
+app.use("/api/advisors", requireAuth, requireLeadership, advisorRoutes);
 app.use("/api/policies", policyRoutes);
-app.use("/api/reports", reportRoutes);
+app.use("/api/reports", requireAuth, (req, res, next) => (req.path === "/my-summary" ? next() : requireLeadership(req, res, next)), reportRoutes);   // /my-summary is each person's own numbers
 app.use("/api/hr", hrRoutes);
 app.use("/api/companies", companyRoutes);
 app.use("/api/documents", documentsRouter);
@@ -202,6 +202,7 @@ if (db.prepare("SELECT COUNT(*) AS c FROM users").get().c === 0) {
 }
 
 // Only the ADMIN_EMAIL account is admin; everyone else is staff.
+seedAccess();
 ensureSingleAdmin();
 
 const port = process.env.PORT || 4000;

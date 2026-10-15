@@ -105,8 +105,8 @@ export default function ChecklistDashboard({ user }) {
       {isAdmin && (
         <div className="card">
           <div className="title">Keep the old Google form in step (optional)</div>
-          <p className="meta" style={{ margin: "6px 0" }}>If staff still fill the old form too, paste the checklist log sheet's <b>published CSV link</b> here and the app reads it every 10 minutes. In Google Sheets: open the log sheet → <b>File → Share → Publish to web</b> → choose the log tab and “Comma-separated values (.csv)” → Publish → copy the link.</p>
-          <input className="field" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/e/…/pub?output=csv" />
+          <p className="meta" style={{ margin: "6px 0" }}>If staff still fill the old Google form, paste the log sheet's link here and the app reads it every 10 minutes. Easiest way: open the sheet → press <b>Share</b> → General access → <b>Anyone with the link → Viewer</b> → copy the normal link and paste it here. (Or File → Share → Publish to web → CSV.) A private sheet cannot be read.</p>
+          <input className="field" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/…/edit" />
           <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
             <button className="btn btn-primary btn-sm" disabled={busy} onClick={saveSheet}>Save link</button>
             <button className="btn btn-outline btn-sm" disabled={busy || !sheet?.url} onClick={syncNow}>{busy ? "Working…" : "Sync now"}</button>

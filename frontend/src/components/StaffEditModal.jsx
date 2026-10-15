@@ -9,7 +9,8 @@ export const inputToMmdd = (v) => (v ? v.slice(5) : null);
 const BLOOD = ["", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 const TYPES = ["", "Full-time", "Part-time", "Contract", "Intern"];
 
-export default function StaffEditModal({ staff, shiftRoles, managers = [], departments = [], onClose, onSave, onPhoto }) {
+export default function StaffEditModal({ staff, shiftRoles, managers = [], departments = [], onClose, onSave, onPhoto, showAccess = false }) {
+  const [isHr, setIsHr] = useState(!!staff.is_hr); const [leadership, setLeadership] = useState(!!staff.leadership);
   const [pv, setPv] = useState(0);
   const [hasPhoto, setHasPhoto] = useState(!!staff.has_photo);
   const [pErr, setPErr] = useState("");
@@ -37,6 +38,7 @@ export default function StaffEditModal({ staff, shiftRoles, managers = [], depar
       phone: f.phone || null, altPhone: f.altPhone || null, email: f.email || null, birthday: inputToMmdd(f.birthday), gender: f.gender || null,
       bloodGroup: f.bloodGroup || null, address: f.address || null,
       emergencyContactName: f.emergencyContactName || null, emergencyContactPhone: f.emergencyContactPhone || null,
+      ...(showAccess ? { isHr, leadership } : {}),
     });
     onClose();
   }
@@ -66,6 +68,13 @@ export default function StaffEditModal({ staff, shiftRoles, managers = [], depar
             <select className="field" value={f.roleName} onChange={set("roleName")}>
               <option value="staff">Staff</option><option value="manager">Manager (sees all, assigns tasks)</option>{(canAdmin || staff.role === "admin") && <option value="admin">Admin (full control)</option>}</select></div>
         </div>
+
+        {showAccess && (
+          <div className="note" style={{ marginTop: 14 }}>
+            <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 8 }}><input type="checkbox" checked={isHr} onChange={(e) => setIsHr(e.target.checked)} style={{ marginTop: 3 }} /><span><b>HR — leave approver</b><br /><span className="meta">Receives leave requests, confirms them, records Sir/Mam's approval, sees late arrivals and birthdays, sets the HR rules.</span></span></label>
+            <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}><input type="checkbox" checked={leadership} onChange={(e) => setLeadership(e.target.checked)} style={{ marginTop: 3 }} /><span><b>Leadership access (MIS, COS, COE, doctors)</b><br /><span className="meta">Sees Reports, Dashboards, Knowledge and the full-clinic assistant. Everyone else only sees their own work.</span></span></label>
+          </div>
+        )}
 
         <div className="step-label" style={{ marginTop: 20 }}>Employment</div>
         <div className="form-grid">

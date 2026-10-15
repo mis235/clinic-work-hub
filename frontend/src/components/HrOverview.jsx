@@ -37,7 +37,7 @@ export default function HrOverview({ user, onNavigate }) {
         <div className="grid-2" style={{ marginBottom: 16 }}>
           <div className="card" style={{ marginBottom: 0 }}>
             <div className="card-head"><div className="name">Leave</div><button className="btn btn-ghost btn-sm" onClick={() => onNavigate?.("Leave")}>Open</button></div>
-            {d.isHr && <Section title={`Waiting for approval (${d.pending.length})`} empty="Nothing waiting.">{d.pending.slice(0, 5).map((r) => <Line key={r.id} a={r.staff_name} b={range(r)} badge="Waiting" cls="in_progress" />)}</Section>}
+            {d.isHr && <Section title={`Waiting for approval (${d.pending.length})`} empty="Nothing waiting.">{d.pending.slice(0, 5).map((r) => <Line key={r.id} a={r.staff_name} b={range(r)} badge={r.status === "with_management" ? "With Sir/Mam" : "Waiting"} cls="in_progress" />)}</Section>}
             <Section title="Recently decided" empty="No decisions in the last 7 days.">{d.recent.slice(0, 6).map((r) => <Line key={r.id} a={r.staff_name} b={range(r)} badge={r.status === "approved" ? "Approved" : "Not approved"} cls={r.status === "approved" ? "done" : "overdue"} />)}</Section>
             <Section title={`On leave today (${d.onLeaveToday.length})`} empty="Everyone is in.">{d.onLeaveToday.map((r) => <Line key={r.id} a={r.staff_name} b={`until ${dmy(r.to_date)}`} />)}</Section>
             {d.upcoming.length > 0 && <Section title="Coming up (14 days)">{d.upcoming.map((r) => <Line key={r.id} a={r.staff_name} b={range(r)} />)}</Section>}

@@ -116,7 +116,7 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
         {adding && <AddStaffModal departments={allDepts} shiftRoles={shiftRoles} onClose={() => setAdding(false)}
           onDone={(m) => { setAdding(false); flash(m); refresh(); }} />}
         {editing && (
-          <StaffEditModal staff={editing} shiftRoles={shiftRoles} managers={managers} departments={allDepts} onClose={() => setEditing(null)} onPhoto={() => { setPhotoVer(Date.now()); refresh(); }}
+          <StaffEditModal showAccess staff={editing} shiftRoles={shiftRoles} managers={managers} departments={allDepts} onClose={() => setEditing(null)} onPhoto={() => { setPhotoVer(Date.now()); refresh(); }}
             onSave={async (payload) => {
               try { await api.updateUser(editing.id, payload); flash(`Updated ${editing.name}.`); setEditing(null); } catch (e) { flash(e.message); }
               refresh();

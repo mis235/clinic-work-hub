@@ -4,8 +4,26 @@ import PageShell from "../components/PageShell.jsx";
 
 const todayIST = () => new Date(Date.now() + 19800000).toISOString().slice(0, 10);
 const dmy = (d) => new Date(d + "T00:00:00Z").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+// A printable leave letter with signature boxes (applicant, HR, Sir, Mam) — the signed paper stays with HR.
+function printLetter(r, reasons) {
+  const w = window.open("", "_blank"); if (!w) return alert("Allow pop-ups to print the letter");
+  const reason = reasons.find((x) => x.key === r.reason_type)?.label || "";
+  const esc = (s) => String(s || "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  w.document.write(`<!doctype html><title>Leave letter - ${esc(r.staff_name)}</title><style>body{font:15px/1.6 Georgia,serif;max-width:680px;margin:40px auto;padding:0 24px;color:#111}h2{margin:0}small{color:#555}.sig{display:flex;gap:16px;margin-top:70px}.sig div{flex:1;border-top:1px solid #111;padding-top:6px;text-align:center;font-size:13px}table{border-collapse:collapse;margin:14px 0}td{padding:4px 14px 4px 0}@media print{button{display:none}}</style>
+  <h2>Dr. Nishita's Clinic</h2><small>Leave application (casual leave)</small><hr>
+  <p>Date: ${new Date().toLocaleDateString("en-IN")}</p>
+  <p>To,<br>The HR Department / Management</p>
+  <p>Subject: Application for leave</p>
+  <p>Respected Sir / Madam, I request you to kindly grant me leave as below.</p>
+  <table><tr><td>Name</td><td><b>${esc(r.staff_name)}</b></td></tr><tr><td>Department</td><td>${esc(r.department || r.designation)}</td></tr>
+  <tr><td>From</td><td>${dmy(r.from_date)}</td></tr><tr><td>To</td><td>${dmy(r.to_date)}</td></tr><tr><td>Days</td><td>${r.days}</td></tr>
+  <tr><td>Reason</td><td>${esc(reason)}${r.reason ? " — " + esc(r.reason) : ""}</td></tr></table>
+  <p>Thank you.</p><div class="sig"><div>Applicant</div><div>HR</div><div>Sir</div><div>Mam</div></div>
+  <p style="margin-top:40px"><button onclick="print()">Print</button></p>`);
+  w.document.close();
+}
 const range = (r) => (r.from_date === r.to_date ? dmy(r.from_date) : `${dmy(r.from_date)} – ${dmy(r.to_date)}`);
-const STATUS = { pending: ["Waiting for HR", "in_progress"], approved: ["Approved", "done"], rejected: ["Not approved", "overdue"], cancelled: ["Cancelled", ""] };
+const STATUS = { pending: ["Waiting for HR", "in_progress"], with_management: ["With Sir / Mam for signature", "accepted"], approved: ["Approved", "done"], rejected: ["Not approved", "overdue"], cancelled: ["Cancelled", ""] };
 
 export default function LeavePage({ user, onLogout, onBack, isStaffLayout }) {
   const [cfg, setCfg] = useState(null);
@@ -18,7 +36,7 @@ export default function LeavePage({ user, onLogout, onBack, isStaffLayout }) {
       <div className="page-head"><div className="eyebrow">People</div><h1>Leave &amp; HR</h1><p>Apply for leave, see your balance, and (for HR) approve requests, late arrivals and birthdays.</p></div>
       {tabs.length > 1 && <div className="pills" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>{tabs.map(([k, l]) => <button key={k} className={`pill ${tab === k ? "active" : ""}`} onClick={() => setTab(k)}>{l}</button>)}</div>}
       {tab === "mine" && <Mine cfg={cfg} />}
-      {tab === "approve" && <Requests cfg={cfg} status="pending" />}
+      {tab === "approve" && <Requests cfg={cfg} status="open" />}
       {tab === "all" && <Requests cfg={cfg} />}
       {tab === "late" && <Late />}
       {tab === "bday" && <Birthdays />}
@@ -78,6 +96,7 @@ function Mine({ cfg }) {
               <div className="meta">{cfg.reasons.find((x) => x.key === r.reason_type)?.label}{r.reason ? ` — ${r.reason}` : ""}{r.hr_note ? ` · HR: ${r.hr_note}` : ""}{r.mgmt_ok ? ` · approved by ${r.mgmt_ok}` : ""}</div></div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <span className={`badge ${STATUS[r.status][1]}`}>{STATUS[r.status][0]}</span>
+              <button className="btn btn-ghost btn-sm" onClick={() => printLetter(r, cfg.reasons)}>Print letter</button>
               {r.status === "pending" && <button className="btn btn-ghost btn-sm" onClick={() => cancel(r.id)}>Cancel</button>}
             </div>
           </div>
@@ -93,25 +112,29 @@ function Requests({ cfg, status }) {
   const [ok, setOk] = useState("Sir & Mam"); const [note, setNote] = useState("");
   const load = () => api.leaveRequests(status).then(setRows).catch((e) => setMsg(e.message));
   useEffect(() => { load(); }, [status]);
+  async function confirm(id) { try { await api.confirmLeave(id, {}); load(); } catch (e) { setMsg(e.message); } }
   async function decide() {
     try { await api.decideLeave(ask.id, { decision: ask.decision, mgmtOk: ok, note }); setAsk(null); setNote(""); load(); } catch (e) { setMsg(e.message); }
   }
   return (
     <>
       {msg && <div className="login-error">{msg}</div>}
-      {status === "pending" && <div className="meta" style={{ marginBottom: 10 }}>Take Sir's / Mam's OK first, then press Approve and record who agreed. Approved days appear in the attendance register and payslip automatically.</div>}
-      {rows?.length === 0 && <div className="empty">{status === "pending" ? "No requests are waiting. 🎉" : "No requests."}</div>}
+      {status === "open" && <div className="meta" style={{ marginBottom: 10 }}>1) Receive the leave letter and press <b>Letter received</b>. 2) Take Sir's / Mam's signature. 3) Press <b>Approve</b> (record who signed) or <b>Reject</b> — the staff member is told straight away. Approved days appear in the attendance register and on the payslip.</div>}
+      {rows?.length === 0 && <div className="empty">{status === "open" ? "No requests are waiting. 🎉" : "No requests."}</div>}
       {rows?.map((r) => (
         <div key={r.id} className="card">
-          <div className="card-head"><div><span className="name">{r.staff_name}</span><span className="dept">{r.department || r.designation}</span></div><span className={`badge ${STATUS[r.status][1]}`}>{STATUS[r.status][0]}</span></div>
+          <div className="card-head"><div><span className="name">{r.staff_name}</span><span className="dept">{r.department || r.designation}{r.hr_confirmed_at ? " · HR received the letter" : ""}</span></div><span className={`badge ${STATUS[r.status][1]}`}>{STATUS[r.status][0]}</span></div>
           <div className="title">{range(r)} · {r.days} day{r.days === 1 ? "" : "s"}</div>
           <div className="meta">{cfg.reasons.find((x) => x.key === r.reason_type)?.label}{r.reason ? ` — ${r.reason}` : ""}</div>
-          <div className="meta" style={{ marginTop: 4 }}>This month: {r.summary.taken} taken, {r.summary.pending} waiting, {r.summary.freeLeft} free left{r.summary.lopDays ? ` · ${r.summary.lopDays} unpaid` : ""}{r.status === "pending" && r.summary.taken + r.days > r.summary.allowed ? " · ⚠ approving this cuts salary for the extra day(s)" : ""}</div>
-          {r.status !== "pending" && <div className="meta">{r.status === "approved" ? `Approved by ${r.mgmt_ok} (recorded by ${r.decided_by_name})` : `Not approved (${r.decided_by_name})`}{r.hr_note ? ` · ${r.hr_note}` : ""}</div>}
-          {r.status === "pending" && <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          <div className="meta" style={{ marginTop: 4 }}>This month: {r.summary.taken} taken, {r.summary.pending} waiting, {r.summary.freeLeft} free left{r.summary.lopDays ? ` · ${r.summary.lopDays} unpaid` : ""}{["pending", "with_management"].includes(r.status) && r.summary.taken + r.days > r.summary.allowed ? " · ⚠ approving this cuts salary for the extra day(s)" : ""}</div>
+          {!["pending", "with_management"].includes(r.status) && <div className="meta">{r.status === "approved" ? `Approved by ${r.mgmt_ok} (recorded by ${r.decided_by_name})` : `Not approved (${r.decided_by_name})`}{r.hr_note ? ` · ${r.hr_note}` : ""}</div>}
+          {(r.status === "pending" || r.status === "with_management") && <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+            {r.status === "pending" && <button className="btn btn-outline btn-sm" onClick={() => confirm(r.id)}>Letter received → send to Sir/Mam</button>}
             <button className="btn btn-primary btn-sm" onClick={() => setAsk({ id: r.id, decision: "approved", name: r.staff_name })}>Approve</button>
             <button className="btn btn-danger btn-sm" onClick={() => setAsk({ id: r.id, decision: "rejected", name: r.staff_name })}>Reject</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => printLetter(r, cfg.reasons)}>Print letter</button>
           </div>}
+          {(r.status === "approved" || r.status === "rejected") && <div style={{ marginTop: 8 }}><button className="btn btn-ghost btn-sm" onClick={() => printLetter(r, cfg.reasons)}>Print letter</button></div>}
         </div>
       ))}
       {ask && (

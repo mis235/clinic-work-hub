@@ -22,7 +22,7 @@ export const NAV = {
   "Learning":         { label: "Training Library",    icon: "cap" },
   "Events":           { label: "Events & Culture",    icon: "party" },
   "Clinic Assistant": { label: "Clinic Chatbot",      icon: "bot" },
-  "Assistant":        { label: "AI Assistant",        icon: "sparkles" },
+  "Assistant":        { label: "Ask Work Hub",        icon: "sparkles" },
   "System":           { label: "System & Backups",    icon: "shield" },
   "Onboarding":       { label: "Staff Onboarding",    icon: "userplus" }, // opened from the Staff page, not the menu
 };
@@ -39,8 +39,9 @@ export const NAV_GROUPS = [
 ];
 
 export function navItemsFor(user) {
-  const common = ["Documents", "Policies", "Learning", "Events", "Clinic Assistant", "Assistant"];
-  if (user.role === "admin") return ["Dashboard", "Attendance", "Shift Logs", "Departments", "Staff", "Exits", "Leave", "Payroll", "HR", "Reports", "Dashboards", ...common, "System"];
-  if (user.role === "manager") return ["Dashboard", "Shift Checklist", "Attendance", "Shift Logs", "Departments", "Leave", "Reports", "Dashboards", ...common];
-  return ["My checklist", "Shift Checklist", "Tracker", "My Workspace", "My Profile", "Leave", ...common.filter((k) => k !== "Events")];
+  // Insights, Knowledge and the Clinic Chatbot are for the leadership team only (admin + people the admin ticks: MIS, COS, COE, doctors).
+  const lead = user.role === "admin" || !!user.leadership;
+  if (user.role === "admin") return ["Dashboard", "Attendance", "Shift Logs", "Departments", "Staff", "Exits", "Leave", "Payroll", "HR", "Reports", "Dashboards", "Documents", "Policies", "Learning", "Events", "Clinic Assistant", "Assistant", "System"];
+  if (user.role === "manager") return ["Dashboard", "Shift Checklist", "Attendance", "Shift Logs", "Departments", "Leave", ...(lead ? ["Reports", "Dashboards", "Documents", "Policies", "Learning", "Events", "Clinic Assistant"] : []), "Assistant"];
+  return ["My checklist", "Shift Checklist", "Tracker", "My Workspace", "My Profile", "Leave", ...(lead ? ["Documents", "Policies", "Learning", "Clinic Assistant"] : []), "Assistant"];
 }

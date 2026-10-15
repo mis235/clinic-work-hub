@@ -362,15 +362,24 @@ router.post("/import", requireAuth, importUpload.single("file"), (req, res) => {
 // Live link to the old Google Sheet: the app reads the sheet's "published CSV" address every 10 minutes (and on demand),
 // so checklists filled through the old form and checklists filled in the app show together in ONE dashboard.
 // ---------------------------------------------------------------------------
+// Accepts the ordinary Google Sheets link people copy from the address bar (…/spreadsheets/d/ID/edit#gid=123)
+// as well as a "Publish to web" CSV link, and turns it into the CSV download address.
+export function normalizeSheetUrl(u) {
+  const url = String(u || "").trim();
+  const m = /^https?:\/\/docs\.google\.com\/spreadsheets\/d\/([A-Za-z0-9_-]+)(?!\/e\/)/.exec(url);
+  if (!m || /\/d\/e\//.test(url) || /output=csv|format=csv/.test(url)) return url;
+  const gid = /[#?&]gid=(\d+)/.exec(url)?.[1] || "0";
+  return `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=csv&gid=${gid}`;
+}
 export async function syncChecklistSheet() {
-  const url = getSetting("checklist_sheet_csv");
+  const url = normalizeSheetUrl(getSetting("checklist_sheet_csv"));
   if (!url) return { skipped: "No sheet link saved yet" };
   const set = (o) => putSetting("checklist_sync_status", JSON.stringify({ at: new Date().toISOString(), ...o }));
   try {
     const r = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(30000) });
     const text = await r.text();
-    if (!r.ok) throw new Error(`The sheet link answered with an error (${r.status}). Check that the sheet is published to the web.`);
-    if (/<html/i.test(text.slice(0, 500))) throw new Error("The link opened a web page, not the CSV. Use File → Share → Publish to web → choose the log tab and “Comma-separated values (.csv)”.");
+    if (!r.ok) throw new Error(`The sheet link answered with an error (${r.status}). The sheet is probably private: in Google Sheets press Share → General access → “Anyone with the link” → Viewer (or use File → Share → Publish to web).`);
+    if (/<html/i.test(text.slice(0, 500))) throw new Error("Google asked for a sign-in, so the sheet is private. In Google Sheets press Share → General access → “Anyone with the link” → Viewer, then press Sync again. (Or use File → Share → Publish to web → CSV.)");
     const out = importChecklistCsv(text, { mapping: JSON.parse(getSetting("checklist_name_map") || "{}") });
     set({ ok: true, imported: out.imported, unmatched: out.unmatched.length, rows: out.rowsInFile });
     return { ok: true, ...out };
@@ -384,7 +393,7 @@ router.put("/sheet", requireAuth, (req, res) => {
   if (req.user.roleName !== "admin") return res.status(403).json({ error: "Admin only" });
   const url = String(req.body?.url || "").trim();
   if (url && !/^https?:\/\//i.test(url)) return res.status(400).json({ error: "The link must start with https://" });
-  putSetting("checklist_sheet_csv", url); res.json({ ok: true });
+  putSetting("checklist_sheet_csv", url); res.json({ ok: true, csv: normalizeSheetUrl(url) });
 });
 router.post("/sheet/sync", requireAuth, async (req, res) => {
   if (req.user.roleName !== "admin") return res.status(403).json({ error: "Admin only" });

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import db from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { accessFor } from "../access.js";
 import { monthCounts, markFor, MARKS } from "./attendance.js";
 
 const router = Router();
@@ -61,6 +62,7 @@ router.get("/me", requireAuth, (req, res) => {
   const fines = db.prepare("SELECT COALESCE(SUM(amount),0) n, COUNT(*) c FROM fines WHERE user_id = ? AND substr(fine_date,1,7) = ?").get(id, month);
   const mc = monthCounts(id, month), mark = markFor(id, today());
   res.json({
+    access: { role: req.user.roleName, ...accessFor(id, req.user.roleName) },
     today_mark: mark, today_label: mark ? MARKS[mark] : null, late_days: mc.L, absent_days: mc.A, leave_days: mc.LV,
     tasks_open: tk.o, completion_pct: pct(sc.d + tk.d, sc.t + tk.t), my_documents: myDocs,
     fines_month: fines.n, fines_count: fines.c, days_present: mc.present, month,
