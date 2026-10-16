@@ -503,6 +503,27 @@ try {
   ok("clinic AI: answer comes back from n8n", ai.body.reply === "42 new patients" && got.chatInput === "new patients?" && got.action === "sendMessage");
   ok("clinic AI: staff blocked from patient data", (await call("POST", "/api/clinic-ai/ask", { message: "x" }, stoken)).status === 403);
   fake.close();
+  // ---- auto leave for unmarked days ----
+  {
+    const ymd = (d) => d.toISOString().slice(0, 10), now = new Date(Date.now() + 19800000);
+    let y = null; for (let n = 1; n <= 4; n++) { const d = new Date(now.getTime() - n * 86400000); if (d.getUTCDay() !== 0) { y = ymd(d); break; } }
+    await call("POST", "/api/attendance/mark-day", { date: y, status: "P" }, admin);
+    await call("PUT", "/api/attendance/mark", { userId: staff.id, date: y, status: "" }, admin);
+    ok("auto leave: staff cannot run it", (await call("POST", "/api/attendance/auto-leave", { date: y, force: true }, stoken)).status === 403);
+    const first = await call("POST", "/api/attendance/auto-leave", { date: y }, admin);
+    ok("auto leave never touches days before it was switched on", first.body.marked === 0, JSON.stringify(first.body));
+    const forced = await call("POST", "/api/attendance/auto-leave", { date: y, force: true }, admin);
+    ok("auto leave marks the unmarked person as Leave", forced.body.marked >= 1, JSON.stringify(forced.body));
+    const bd = await call("GET", `/api/attendance/board?date=${y}`, null, admin);
+    ok("that person shows as Leave on the board", bd.body.rows.find((r) => r.id === staff.id)?.mark === "LV");
+    ok("people already marked stay as they were", bd.body.rows.filter((r) => r.mark === "P").length >= 3);
+    if (y.slice(0, 7) === ymd(now).slice(0, 7)) {
+      const mine = await call("GET", "/api/leave/mine", null, stoken);
+      ok("auto leave counts as casual leave", mine.body.summary.taken >= 1, JSON.stringify(mine.body.summary));
+    }
+    const ex = await fetch(base + `/api/attendance/export?from=${y.slice(0, 7)}&to=${y.slice(0, 7)}`, { headers: { Authorization: `Bearer ${admin}` } });
+    ok("Excel export works for a range of months", ex.status === 200 && (await ex.arrayBuffer()).byteLength > 1000);
+  }
   ok("unknown API route returns 404 JSON", (await call("GET", "/api/nope", null, admin)).status === 404);
 } catch (e) {
   fail++; console.log("  FAIL  unexpected error:", e.message);

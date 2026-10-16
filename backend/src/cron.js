@@ -3,6 +3,7 @@ import cron from "node-cron";
 import db from "./db.js";
 import { withFines } from "./routes/fines.js";
 import { stampPayslip, syncLateFines } from "./routes/leave.js";
+import { autoMarkLeave } from "./routes/attendance.js";
 import { sendEmail, isEmailConfigured } from "./email.js";
 import { syncChecklistSheet } from "./routes/shiftChecklist.js";
 import { generatePayslipPdf } from "./payslip-pdf.js";
@@ -118,6 +119,12 @@ export function startScheduledJobs() {
 
   // Pull the old Google sheet's checklist log into the app every 10 minutes (only does anything once a sheet link is saved).
   cron.schedule("30 23 * * *", () => { try { syncLateFines(new Date(Date.now() + 19800000).toISOString().slice(0, 7)); } catch (e) { console.error("Late fines:", e.message); } }, { timezone: "Asia/Kolkata" });
+  // Every night at 11:45 pm: people nobody marked (and who never checked in) become "Leave" for that day. Catch-up for the last
+  // 7 days shortly after start-up, in case the computer was off. See autoMarkLeave() for the safeguards.
+  const ist = (n = 0) => new Date(Date.now() + 19800000 - n * 86400000).toISOString().slice(0, 10);
+  const nightlyLeave = () => { try { autoMarkLeave(ist(), { allowToday: true }); syncLateFines(ist().slice(0, 7)); } catch (e) { console.error("Auto leave:", e.message); } };
+  cron.schedule("45 23 * * *", nightlyLeave, { timezone: "Asia/Kolkata" });
+  setTimeout(() => { try { for (let n = 1; n <= 7; n++) autoMarkLeave(ist(n)); } catch (e) { console.error("Auto leave catch-up:", e.message); } }, 25000).unref();
   cron.schedule("*/10 * * * *", () => { syncChecklistSheet().catch((e) => console.error("Checklist sync failed:", e.message)); });
   setTimeout(() => syncChecklistSheet().catch(() => {}), 20000).unref();
 

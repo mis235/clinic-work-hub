@@ -142,7 +142,7 @@ export const api = {
   removePhoto: (id) => req(`/api/users/${id}/photo`, { method: "DELETE" }),
   checkFaceDuplicate: (descriptors, exceptUserId) => req("/api/kiosk/check-duplicate", { method: "POST", body: { descriptors, exceptUserId } }),
   kioskLan: () => req("/api/kiosk/lan"),
-  downloadAttendanceXlsx: (month) => downloadFile(`/api/attendance/export?month=${month}`, `attendance-${month}.xlsx`),
+  downloadAttendanceXlsx: (from, to) => downloadFile(`/api/attendance/export?from=${from}&to=${to || from}`, `attendance-${from === (to || from) ? from : from + "_to_" + to}.xlsx`),
   enrolledFaces: () => req("/api/kiosk/enrolled"),
   enrollFace: (id, descriptors) => req(`/api/kiosk/enroll/${id}`, { method: "POST", body: { descriptors } }),
   removeFace: (id) => req(`/api/kiosk/enroll/${id}`, { method: "DELETE" }),

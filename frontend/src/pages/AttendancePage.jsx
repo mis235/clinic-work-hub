@@ -33,7 +33,9 @@ export default function AttendancePage({ user, onLogout, onBack }) {
     try { const r = await api.markAttendanceDay(date, status); flash(`${r.marked} people marked.`); load(); } catch (e) { flash(e.message); }
   }
   const [dlBusy, setDlBusy] = useState(false);
-  async function download() { setDlBusy(true); try { await api.downloadAttendanceXlsx(month); } catch (e) { flash(e.message); } setDlBusy(false); }
+  const monthsAgo = (n) => { const d = new Date(Date.now() + 19800000); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() - n); return d.toISOString().slice(0, 7); };
+  const [expFrom, setExpFrom] = useState(""), [expTo, setExpTo] = useState("");
+  async function download(from, to) { setDlBusy(true); try { await api.downloadAttendanceXlsx(from || month, to || from || month); } catch (e) { flash(e.message); } setDlBusy(false); }
   const c = board?.counts || {};
 
   return (
@@ -81,7 +83,15 @@ export default function AttendancePage({ user, onLogout, onBack }) {
         <div className="card" style={{ overflowX: "auto" }}>
           <div className="row" style={{ justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
             <div className="meta">Click a box to change it: P present · L late · A absent · H half day · LV leave · W off. Month: {reg.month}</div>
-            <button className="btn btn-outline btn-sm" disabled={dlBusy} onClick={download}>{dlBusy ? "Preparing…" : "⬇ Download attendance sheet (Excel)"}</button>
+            <div className="row" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+              <button className="btn btn-outline btn-sm" disabled={dlBusy} onClick={() => download(month, month)}>{dlBusy ? "Preparing…" : "⬇ This month (Excel)"}</button>
+              <button className="btn btn-outline btn-sm" disabled={dlBusy} onClick={() => download(monthsAgo(2), monthsAgo(0))}>⬇ Last 3 months</button>
+              <span className="meta">or from</span>
+              <input className="field" type="month" style={{ width: 150 }} value={expFrom} onChange={(e) => setExpFrom(e.target.value)} />
+              <span className="meta">to</span>
+              <input className="field" type="month" style={{ width: 150 }} value={expTo} onChange={(e) => setExpTo(e.target.value)} />
+              <button className="btn btn-primary btn-sm" disabled={dlBusy || !expFrom} onClick={() => download(expFrom, expTo || expFrom)}>⬇ Download</button>
+            </div>
           </div>
           <table className="reg-table">
             <thead><tr><th>Staff</th>{Array.from({ length: reg.daysInMonth }, (_, i) => <th key={i}>{i + 1}</th>)}<th>Pres</th><th>Late</th><th>Abs</th><th>Leave</th><th>Fines</th></tr></thead>

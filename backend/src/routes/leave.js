@@ -59,7 +59,9 @@ function daysInMonth(r, month) {
 export function leaveSummary(userId, month) {
   const s = settings();
   const rows = db.prepare("SELECT * FROM leave_requests WHERE user_id = ? AND status = 'approved' AND substr(from_date,1,7) <= ? AND substr(to_date,1,7) >= ?").all(userId, month, month);
-  const taken = rows.reduce((t, r) => t + daysInMonth(r, month), 0);
+  // Days nobody marked (auto-marked as leave at night) count as casual leave too: 1 free per month, the rest cut from salary.
+  const autoDays = db.prepare("SELECT COUNT(*) n FROM attendance_marks WHERE user_id = ? AND substr(mark_date,1,7) = ? AND status = 'LV' AND note = 'Auto: no attendance'").get(userId, month)?.n || 0;
+  const taken = rows.reduce((t, r) => t + daysInMonth(r, month), 0) + autoDays;
   const pendRows = db.prepare("SELECT * FROM leave_requests WHERE user_id = ? AND status IN ('pending','with_management') AND substr(from_date,1,7) <= ? AND substr(to_date,1,7) >= ?").all(userId, month, month);
   const pending = pendRows.reduce((t, r) => t + daysInMonth(r, month), 0);
   const allowed = s.casual_per_month;

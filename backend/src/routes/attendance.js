@@ -259,6 +259,39 @@ export function monthCounts(userId, month) {
 }
 export const markFor = (userId, date) => db.prepare("SELECT status FROM attendance_marks WHERE user_id = ? AND mark_date = ?").get(userId, date)?.status || null;
 
+// ---- Auto leave: a working day nobody marked and who never checked in becomes Leave ----------------------------------
+// Safeguards: weekly-off days (default Sunday; app setting att_weekoff, e.g. "0,6") are skipped; a day on which NOBODY has
+// any mark at all is skipped (the clinic was closed or the app was off); admins and people who joined later are skipped.
+// A later check-in or a manual change simply replaces the auto mark.
+db.exec("CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT)");
+export const AUTO_NOTE = "Auto: no attendance";
+export function autoMarkLeave(date, { allowToday = false, force = false } = {}) {
+  if (!DATE_RE.test(date) || date > istToday() || (date === istToday() && !allowToday)) return { marked: 0, skipped: "not a finished day" };
+  // Never touches the past: it only starts from the day this feature was first switched on.
+  let since = db.prepare("SELECT value FROM app_settings WHERE key = 'att_autoleave_since'").get()?.value;
+  if (!since) { since = istToday(); db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('att_autoleave_since', ?)").run(since); }
+  if (date < since && !force) return { marked: 0, skipped: "before auto-leave started" };
+  const off = String(db.prepare("SELECT value FROM app_settings WHERE key = 'att_weekoff'").get()?.value ?? "0").split(",").map((x) => x.trim());
+  if (off.includes(String(new Date(date + "T00:00:00Z").getUTCDay()))) return { marked: 0, skipped: "weekly off" };
+  // A real working day has marks for a good part of the staff; a day with only a couple of marks means the clinic was closed or the app was off.
+  const total = db.prepare("SELECT COUNT(*) n FROM users WHERE active = 1").get().n;
+  const markedN = db.prepare("SELECT COUNT(DISTINCT user_id) n FROM attendance_marks WHERE mark_date = ? AND status IN ('P','L','H')").get(date).n;
+  if (markedN < 3 || markedN < total * 0.3) return { marked: 0, skipped: "too few people were marked that day" };
+  const users = db.prepare(
+    `SELECT u.id FROM users u LEFT JOIN roles r ON r.id = u.role_id
+     WHERE u.active = 1 AND COALESCE(r.name, '') != 'admin' AND (COALESCE(u.joined_at, '') = '' OR u.joined_at <= ?)
+     AND NOT EXISTS (SELECT 1 FROM attendance_marks m WHERE m.user_id = u.id AND m.mark_date = ?)`).all(date, date);
+  const ins = db.prepare("INSERT OR IGNORE INTO attendance_marks (user_id, mark_date, status, note, marked_by) VALUES (?,?,'LV',?,NULL)");
+  db.transaction(() => users.forEach((u) => ins.run(u.id, date, AUTO_NOTE)))();
+  return { marked: users.length };
+}
+router.post("/auto-leave", requireAuth, (req, res) => {
+  if (req.user.roleName !== "admin") return res.status(403).json({ error: "Only the admin can run this" });
+  const { date } = req.body || {};
+  const r = autoMarkLeave(date, { force: !!req.body?.force }); // force = the admin deliberately backfills one earlier day
+  res.json({ ok: true, ...r });
+});
+
 router.get("/board", requireAuth, requirePermission("attendance:view_all"), (req, res) => {
   const date = DATE_RE.test(req.query.date || "") ? req.query.date : istToday();
   const rows = db.prepare(
@@ -333,34 +366,40 @@ router.get("/register", requireAuth, requirePermission("attendance:view_all"), (
 const hoursBetween = (a, b) => { if (!a || !b) return null; const [h1, m1] = a.split(":").map(Number), [h2, m2] = b.split(":").map(Number); const x = (h2 * 60 + m2) - (h1 * 60 + m1); return x > 0 ? Math.round(x / 6) / 10 : null; };
 router.get("/export", requireAuth, requirePermission("attendance:view_all"), async (req, res) => {
   const now = istToday();
-  const month = /^\d{4}-\d{2}$/.test(req.query.month || "") ? req.query.month : now.slice(0, 7);
-  const [y, m] = month.split("-").map(Number);
-  const last = Math.min(new Date(y, m, 0).getDate(), month === now.slice(0, 7) ? Number(now.slice(8)) : 31);
+  const okMonth = (v) => /^\d{4}-\d{2}$/.test(v || "");
+  const from = okMonth(req.query.from) ? req.query.from : okMonth(req.query.month) ? req.query.month : now.slice(0, 7);
+  let to = okMonth(req.query.to) ? req.query.to : okMonth(req.query.month) ? req.query.month : from;
+  if (to < from) to = from;
+  const months = []; for (let c = from; c <= to && months.length < 24; ) { months.push(c); const [yy, mm] = c.split("-").map(Number); c = mm === 12 ? `${yy + 1}-01` : `${yy}-${String(mm + 1).padStart(2, "0")}`; }
   const staff = db.prepare(`SELECT u.id, u.name, u.employee_code, u.designation, d.name AS department FROM users u LEFT JOIN departments d ON d.id = u.department_id WHERE u.active = 1 ORDER BY d.name, u.name`).all();
-  const marks = new Map(db.prepare("SELECT * FROM attendance_marks WHERE substr(mark_date,1,7) = ?").all(month).map((r) => [r.user_id + "|" + r.mark_date, r]));
-  const fines = new Map(db.prepare("SELECT user_id, COALESCE(SUM(amount),0) t FROM fines WHERE substr(fine_date,1,7) = ? GROUP BY user_id").all(month).map((f) => [f.user_id, f.t]));
   const { default: ExcelJS } = await import("exceljs");
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Daily log");
   ws.columns = [["Date", 12], ["Employee code", 14], ["Name", 24], ["Department", 18], ["Designation", 24], ["Status", 16], ["Login time", 11], ["Logout time", 11], ["Hours", 8], ["Note", 28]].map(([header, width]) => ({ header, width }));
   const sm = wb.addWorksheet("Month summary");
-  sm.columns = [["Name", 24], ["Department", 18], ["Present", 9], ["Late", 7], ["Half day", 9], ["Leave", 8], ["Absent", 8], ["Week off", 9], ["Not marked", 11], ["Total hours", 11], ["Fines (Rs)", 11]].map(([header, width]) => ({ header, width }));
-  for (const u of staff) {
-    const c = { P: 0, L: 0, H: 0, LV: 0, A: 0, W: 0, none: 0 }; let hrs = 0;
-    for (let d = 1; d <= last; d++) {
-      const date = `${month}-${String(d).padStart(2, "0")}`;
-      const r = marks.get(u.id + "|" + date);
-      const h = hoursBetween(r?.in_time, r?.out_time);
-      if (h) hrs += h;
-      c[r?.status || "none"]++;
-      ws.addRow([date, u.employee_code || "", u.name, u.department || "", u.designation || "", r ? MARKS[r.status] : "Not marked", r?.in_time || "", r?.out_time || "", h ?? "", r?.note || ""]);
+  sm.columns = [["Month", 10], ["Name", 24], ["Department", 18], ["Present", 9], ["Late", 7], ["Half day", 9], ["Leave", 8], ["Absent", 8], ["Week off", 9], ["Not marked", 11], ["Total hours", 11], ["Fines (Rs)", 11]].map(([header, width]) => ({ header, width }));
+  for (const month of months) {
+    const [y, m] = month.split("-").map(Number);
+    const last = month > now.slice(0, 7) ? 0 : Math.min(new Date(y, m, 0).getDate(), month === now.slice(0, 7) ? Number(now.slice(8)) : 31);
+    const marks = new Map(db.prepare("SELECT * FROM attendance_marks WHERE substr(mark_date,1,7) = ?").all(month).map((r) => [r.user_id + "|" + r.mark_date, r]));
+    const fines = new Map(db.prepare("SELECT user_id, COALESCE(SUM(amount),0) t FROM fines WHERE substr(fine_date,1,7) = ? GROUP BY user_id").all(month).map((f) => [f.user_id, f.t]));
+    for (const u of staff) {
+      const c = { P: 0, L: 0, H: 0, LV: 0, A: 0, W: 0, none: 0 }; let hrs = 0;
+      for (let d = 1; d <= last; d++) {
+        const date = `${month}-${String(d).padStart(2, "0")}`;
+        const r = marks.get(u.id + "|" + date);
+        const h = hoursBetween(r?.in_time, r?.out_time);
+        if (h) hrs += h;
+        c[r?.status || "none"]++;
+        ws.addRow([date, u.employee_code || "", u.name, u.department || "", u.designation || "", r ? MARKS[r.status] : "Not marked", r?.in_time || "", r?.out_time || "", h ?? "", r?.note || ""]);
+      }
+      sm.addRow([month, u.name, u.department || "", c.P, c.L, c.H, c.LV, c.A, c.W, c.none, Math.round(hrs * 10) / 10, fines.get(u.id) || 0]);
     }
-    sm.addRow([u.name, u.department || "", c.P, c.L, c.H, c.LV, c.A, c.W, c.none, Math.round(hrs * 10) / 10, fines.get(u.id) || 0]);
   }
   for (const sh of [ws, sm]) { sh.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } }; sh.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF6D4AFF" } }; sh.views = [{ state: "frozen", ySplit: 1 }]; }
   ws.autoFilter = { from: "A1", to: "J1" };
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-  res.setHeader("Content-Disposition", `attachment; filename="attendance-${month}.xlsx"`);
+  res.setHeader("Content-Disposition", `attachment; filename="attendance-${from === to ? from : from + "_to_" + to}.xlsx"`);
   await wb.xlsx.write(res); res.end();
 });
 
