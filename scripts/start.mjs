@@ -14,7 +14,7 @@ const PORT = process.env.PORT || "4000";
 const say = (m) => console.log(`\n▶ ${m}`);
 
 const major = Number(process.versions.node.split(".")[0]);
-if (major < 18) {
+if (major < 20) {
   console.error(`\nNode.js ${process.versions.node} is too old. Install the LTS version from https://nodejs.org and try again.\n`);
   process.exit(1);
 }
