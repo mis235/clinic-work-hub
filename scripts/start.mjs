@@ -24,8 +24,34 @@ function run(cmd, args, cwd) {
   if (r.status !== 0) { console.error(`\nStep failed: ${cmd} ${args.join(" ")}\n`); process.exit(r.status || 1); }
 }
 
+// 0. Permanent data home. Your clinic's data (database, photos, payslips, backups, passwords file) lives in ONE folder
+// outside the app folder, so downloading a newer version from GitHub never starts you from a blank app again.
+const dataHome = process.env.CLINIC_DATA || path.join(os.homedir(), "ClinicWorkHubData");
+const KEEP_ITEMS = [".env", "clinic.db", "clinic.db-wal", "clinic.db-shm", "uploads", "payslips", "private", "backups"];
+const hasData = (d) => fs.existsSync(path.join(d, ".env")) || fs.existsSync(path.join(d, "clinic.db"));
+if (!hasData(dataHome)) {
+  // First time with this feature: find the folder you have been using (this one, or an older downloaded copy beside it).
+  const here = path.join(root, "backend");
+  const parent = path.dirname(root);
+  const candidates = [here];
+  try {
+    for (const e of fs.readdirSync(parent, { withFileTypes: true })) if (e.isDirectory()) candidates.push(path.join(parent, e.name, "backend"));
+    const dl = path.join(os.homedir(), "Downloads");
+    if (fs.existsSync(dl)) for (const e of fs.readdirSync(dl, { withFileTypes: true })) if (e.isDirectory()) { candidates.push(path.join(dl, e.name, "backend")); try { for (const e2 of fs.readdirSync(path.join(dl, e.name), { withFileTypes: true })) if (e2.isDirectory()) candidates.push(path.join(dl, e.name, e2.name, "backend")); } catch {} }
+  } catch {}
+  const size = (f) => { try { return fs.statSync(f).size; } catch { return 0; } };
+  const mtime = (f) => { try { return fs.statSync(f).mtimeMs; } catch { return 0; } };
+  const best = [...new Set(candidates)].filter((d) => fs.existsSync(path.join(d, "clinic.db"))).sort((a, b) => (size(path.join(b, "clinic.db")) - size(path.join(a, "clinic.db"))) || (mtime(path.join(b, "clinic.db")) - mtime(path.join(a, "clinic.db"))))[0]; // the fullest database = the one you really used, not a fresh empty copy
+  fs.mkdirSync(dataHome, { recursive: true });
+  if (best) {
+    say(`Moving your existing clinic data (from ${best}) into a permanent folder: ${dataHome}`);
+    for (const it of KEEP_ITEMS) { const from = path.join(best, it); if (fs.existsSync(from)) fs.cpSync(from, path.join(dataHome, it), { recursive: true }); }
+  }
+}
+fs.mkdirSync(dataHome, { recursive: true });
+
 // 1. Settings file (never uploaded to GitHub). Created once with a private random login secret.
-const envFile = path.join(backend, ".env");
+const envFile = path.join(dataHome, ".env");
 let freshPassword = null;
 if (!fs.existsSync(envFile)) {
   say("First run: creating your settings");
@@ -70,8 +96,8 @@ fs.writeFileSync(stampFile, JSON.stringify({ dep: depSig, src: srcSig }));
 // 3. Tell people where to open it
 const lan = Object.values(os.networkInterfaces()).flat().filter((i) => i && i.family === "IPv4" && !i.internal).map((i) => i.address);
 const adminLine = freshPassword
-  ? `  Admin sign-in:  admin@drnishitaranka.com  /  ${freshPassword}   (saved in backend/.env)`
-  : `  Admin sign-in:  admin@drnishitaranka.com  /  the ADMIN_PASSWORD in backend/.env`;
+  ? `  Admin sign-in:  admin@drnishitaranka.com  /  ${freshPassword}   (saved in ${envFile})`
+  : `  Admin sign-in:  admin@drnishitaranka.com  /  the ADMIN_PASSWORD in ${envFile}`;
 console.log(`
 ==============================================================
   Dr. Nishita's Clinic - Work Hub is starting
@@ -80,11 +106,12 @@ console.log(`
   Phone cannot open it?  Double-click open-phone-access-windows.bat once (Windows only), and keep phone on the clinic Wi-Fi.
 ${adminLine}
   Staff sign-in:  pick your name + PIN 1234 (you must then choose a new PIN)
+  Your data is kept in: ${dataHome}   (safe when you download a newer version)
   Stop the app:   press Ctrl+C
 ==============================================================
 `);
 
 // 4. Run (from backend/ so it finds backend/.env)
-const child = spawn(process.execPath, ["src/server.js"], { cwd: backend, stdio: "inherit", env: { ...process.env, PORT } });
+const child = spawn(process.execPath, ["src/server.js"], { cwd: backend, stdio: "inherit", env: { ...process.env, PORT, DATA_DIR: dataHome, DOTENV_CONFIG_PATH: envFile } });
 child.on("exit", (code) => process.exit(code ?? 0));
 for (const s of ["SIGINT", "SIGTERM"]) process.on(s, () => child.kill(s));
