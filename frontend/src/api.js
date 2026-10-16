@@ -235,6 +235,9 @@ export const api = {
   birthdays: (days) => req(`/api/leave/birthdays?days=${days || 60}`),
   saveLeaveRules: (body) => req("/api/leave/settings", { method: "PUT", body }),
   getAssistantFaqs: () => req("/api/assistant/faqs"),
+  clinicAiConfig: () => req("/api/clinic-ai/config"),
+  setClinicAiUrl: (url) => req("/api/clinic-ai/config", { method: "PUT", body: { url } }),
+  askClinicAi: (message) => req("/api/clinic-ai/ask", { method: "POST", body: { message } }),
   askAssistant: (message) => req("/api/assistant/ask", { method: "POST", body: { message } }),
   getMySummary: () => req("/api/reports/my-summary"),
 

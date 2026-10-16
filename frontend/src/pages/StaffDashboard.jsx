@@ -8,6 +8,7 @@ import MyDayCard from "../components/MyDayCard.jsx";
 import DocumentsPage from "./DocumentsPage.jsx";
 import LearningPage from "./LearningPage.jsx";
 import ConnectedToolPage from "./ConnectedToolPage.jsx";
+import ClinicAIPage from "./ClinicAIPage.jsx";
 import PoliciesPage from "./PoliciesPage.jsx";
 import TrackerPage from "./TrackerPage.jsx";
 import AssistantPage from "./AssistantPage.jsx";
@@ -80,7 +81,7 @@ export default function StaffDashboard({ user, onLogout }) {
         ) : view === "documents" ? (
           <DocumentsPage user={user} isStaffLayout />
         ) : view === "clinicassistant" ? (
-          <ConnectedToolPage toolKey="assistant" user={user} isStaffLayout />
+          <ClinicAIPage user={user} isStaffLayout />
         ) : view === "learning" ? (
           <LearningPage user={user} isStaffLayout />
         ) : view === "workspace" ? (

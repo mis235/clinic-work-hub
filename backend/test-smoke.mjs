@@ -489,6 +489,20 @@ try {
   ok("staff cannot touch backup settings", (await call("PUT", "/api/admin/backup-copy", { dir: copyDir }, stoken)).status === 403);
   const bk = await call("POST", "/api/admin/backups", null, admin); ok("backup can be created", bk.status === 201);
   const bl = await call("GET", "/api/admin/backups", null, admin); ok("backup is listed and not empty", bl.body?.[0]?.bytes > 10000);
+  // Clinic AI (n8n) — fake n8n server
+  const http = await import("node:http");
+  let got = null;
+  const fake = http.createServer((rq, rs) => { let b = ""; rq.on("data", (c) => (b += c)); rq.on("end", () => { got = JSON.parse(b); rs.setHeader("Content-Type", "application/json"); rs.end(JSON.stringify({ output: "42 new patients" })); }); });
+  await new Promise((r) => fake.listen(0, "127.0.0.1", r));
+  const fakeUrl = `http://127.0.0.1:${fake.address().port}/webhook/7d822c56-8e39-44dc-8977-85febc659bc5/chat`;
+  { const b = await call("PUT", "/api/clinic-ai/config", { url: "https://x.com/hello" }, admin); ok("clinic AI: bad link refused", b.status === 400, JSON.stringify(b)); }
+  ok("clinic AI: staff cannot set link", (await call("PUT", "/api/clinic-ai/config", { url: fakeUrl }, stoken)).status === 403);
+  ok("clinic AI: ask before setup says not connected", (await call("POST", "/api/clinic-ai/ask", { message: "hi" }, admin)).status === 400);
+  ok("clinic AI: admin saves link", (await call("PUT", "/api/clinic-ai/config", { url: fakeUrl }, admin)).status === 200);
+  const ai = await call("POST", "/api/clinic-ai/ask", { message: "new patients?" }, admin);
+  ok("clinic AI: answer comes back from n8n", ai.body.reply === "42 new patients" && got.chatInput === "new patients?" && got.action === "sendMessage");
+  ok("clinic AI: staff blocked from patient data", (await call("POST", "/api/clinic-ai/ask", { message: "x" }, stoken)).status === 403);
+  fake.close();
   ok("unknown API route returns 404 JSON", (await call("GET", "/api/nope", null, admin)).status === 404);
 } catch (e) {
   fail++; console.log("  FAIL  unexpected error:", e.message);

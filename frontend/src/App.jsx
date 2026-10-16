@@ -19,6 +19,7 @@ import ShiftLogsPage from "./pages/ShiftLogsPage.jsx";
 import StaffProfilePage from "./pages/StaffProfilePage.jsx";
 import SystemPage from "./pages/SystemPage.jsx";
 import ConnectedToolPage from "./pages/ConnectedToolPage.jsx";
+import ClinicAIPage from "./pages/ClinicAIPage.jsx";
 import AttendancePage from "./pages/AttendancePage.jsx";
 import ExitsPage from "./pages/ExitsPage.jsx";
 import ClinicDashboardPage from "./pages/ClinicDashboardPage.jsx";
@@ -84,7 +85,7 @@ function MainApp() {
   function renderApp() {
   if (user.role === "admin" || user.role === "manager") {
     if (view === "system" && user.role === "admin") return <SystemPage user={user} onLogout={logout} onBack={navigate} />;
-    if (view === "clinicassistant") return <ConnectedToolPage toolKey="assistant" active="Clinic Assistant" user={user} onLogout={logout} onBack={navigate} />;
+    if (view === "clinicassistant") return <ClinicAIPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "dashboards") return <ClinicDashboardPage user={user} onLogout={logout} onBack={navigate} onNavigate={navigate} />;
     if (view === "exits" && user.role === "admin") return <ExitsPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "leave") return <LeavePage user={user} onLogout={logout} onBack={navigate} />;
