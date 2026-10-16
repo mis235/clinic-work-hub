@@ -94,7 +94,7 @@ if (depsChanged || stamp.src !== srcSig || !fs.existsSync(path.join(frontend, "d
 fs.writeFileSync(stampFile, JSON.stringify({ dep: depSig, src: srcSig }));
 
 // 3. Tell people where to open it
-const lan = Object.values(os.networkInterfaces()).flat().filter((i) => i && i.family === "IPv4" && !i.internal).map((i) => i.address);
+const lan = Object.entries(os.networkInterfaces()).flatMap(([n, l]) => (l || []).filter((i) => i.family === "IPv4" && !i.internal && !/vethernet|wsl|hyper-v|virtualbox|vmware|vmnet|docker|bluetooth/i.test(n)).map((i) => i.address)).sort((a, b) => (/^192\.168\./.test(b) ? 1 : 0) - (/^192\.168\./.test(a) ? 1 : 0));
 const adminLine = freshPassword
   ? `  Admin sign-in:  admin@drnishitaranka.com  /  ${freshPassword}   (saved in ${envFile})`
   : `  Admin sign-in:  admin@drnishitaranka.com  /  the ADMIN_PASSWORD in ${envFile}`;

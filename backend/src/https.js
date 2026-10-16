@@ -8,7 +8,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const HTTPS_PORT = Number(process.env.HTTPS_PORT || 4443);
-export const lanAddresses = () => Object.values(os.networkInterfaces()).flat().filter((i) => i && i.family === "IPv4" && !i.internal).map((i) => i.address);
+// Real Wi-Fi/LAN addresses first. Windows also has "virtual" adapters (WSL, Hyper-V, VirtualBox, VMware, Docker) whose
+// addresses (often 172.x) phones can never reach, so they are skipped / put last.
+const VIRTUAL = /vethernet|wsl|hyper-v|virtualbox|vmware|vmnet|docker|loopback|tailscale|zerotier|bluetooth/i;
+const rank = (ip) => (/^192\.168\./.test(ip) ? 0 : /^10\./.test(ip) ? 1 : /^172\.(1[6-9]|2\d|3[01])\./.test(ip) ? 3 : 2);
+export const lanAddresses = () => {
+  const all = Object.entries(os.networkInterfaces()).flatMap(([name, list]) => (list || []).filter((i) => i.family === "IPv4" && !i.internal).map((i) => ({ ip: i.address, virtual: VIRTUAL.test(name) })));
+  const real = all.filter((a) => !a.virtual), use = real.length ? real : all;
+  return [...new Set(use.sort((a, b) => rank(a.ip) - rank(b.ip)).map((a) => a.ip))];
+};
 export let httpsRunning = false;
 
 export async function startHttps(app) {
