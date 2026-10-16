@@ -383,3 +383,6 @@ Admin > **Staff Exits**. Steps: Resignation received -> Serving notice -> Handov
 - **Checklist dashboard**: app checklists and the old Google form appear together; paste the published CSV link in the dashboard to auto-sync every 10 minutes. Each task can carry a photo.
 - Updates: `npm start` now reinstalls and rebuilds by itself when files changed.
 - **Leave & HR** (menu → Leave & HR): staff apply (casual leave, with a reason), HR approves after Sir/Mam's OK (recorded), approved days show in the attendance register. 1 free day a month (HR can change); each extra day cuts one day's salary on the payslip. Late = more than 15 min after shift start; every 3rd late adds an automatic fine (HR sets amount). Birthdays, leave decisions and late counts pop up on the Overview. The AI Assistant answers leave, birthday, late and staff questions.
+
+## Link that works from anywhere (free)
+Double-click `start-with-anywhere-link-windows.bat` instead of `start-windows.bat`. After a minute the black window prints a link like `https://something.trycloudflare.com` — open it on any phone (any Wi-Fi or mobile data), no certificate warning, camera works. It changes each time and works only while this computer and window stay on. Everyone must use a private PIN, because anyone with the link can see the sign-in page.

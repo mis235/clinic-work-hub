@@ -122,7 +122,8 @@ function FacePanel({ date, people, isAdmin, flash }) {
       const phoneReachable = host !== "localhost" && host !== "127.0.0.1";
       const ip = lan?.addresses?.[0];
       let origin = window.location.origin;
-      if (!phoneReachable && ip) origin = lan.httpsPort ? `https://${ip}:${lan.httpsPort}` : `http://${ip}:${lan.httpPort}`;
+      if (!phoneReachable && lan?.tunnelUrl) origin = lan.tunnelUrl;
+      else if (!phoneReachable && ip) origin = lan.httpsPort ? `https://${ip}:${lan.httpsPort}` : `http://${ip}:${lan.httpPort}`;
       setLink(`${origin}/kiosk#key=${encodeURIComponent(d.key)}`); load(); } catch (e) { flash(e.message); }
   }
   const secure = window.isSecureContext;
@@ -137,7 +138,7 @@ function FacePanel({ date, people, isAdmin, flash }) {
         <div className="card">
           <div className="title">Setting up the clinic phone</div>
           <ol className="meta" style={{ lineHeight: 1.8, paddingLeft: 18 }}>
-            <li>The clinic phone and this computer must be on the <b>same Wi-Fi</b>, and the app must be running on this computer.</li>
+            <li>{lan?.tunnelUrl ? <>The <b>anywhere link</b> is on, so the phone can be on any Wi-Fi or mobile data. Keep this computer on with the app running.</> : <>The clinic phone and this computer must be on the <b>same Wi-Fi</b> — or start the app with <b>start-with-anywhere-link-windows.bat</b> to use it from any network.</>}</li>
             <li>Press <b>Create phone link</b>, then send that link to the phone (WhatsApp it to yourself) and open it in Chrome.</li>
             <li>The first time, Chrome says <b>“Your connection isn't private”</b> — tap <b>Advanced → Proceed</b>. This is normal (the app makes its own security certificate). Then allow the <b>camera</b>.</li>
             <li>Keep the phone propped up with the screen on. If Windows asks about network access the first time, choose <b>Allow</b>.</li>

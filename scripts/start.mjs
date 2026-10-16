@@ -113,5 +113,40 @@ ${adminLine}
 
 // 4. Run (from backend/ so it finds backend/.env)
 const child = spawn(process.execPath, ["src/server.js"], { cwd: backend, stdio: "inherit", env: { ...process.env, PORT, DATA_DIR: dataHome, DOTENV_CONFIG_PATH: envFile } });
-child.on("exit", (code) => process.exit(code ?? 0));
+const tunnelFile = path.join(dataHome, "tunnel-url.txt");
+try { fs.rmSync(tunnelFile, { force: true }); } catch {}
+let tunnelChild = null;
+child.on("exit", (code) => { try { tunnelChild?.kill(); fs.rmSync(tunnelFile, { force: true }); } catch {} process.exit(code ?? 0); });
+
+// 5. Optional "link that works from anywhere" (free Cloudflare quick tunnel). Started by start-with-anywhere-link-windows.bat.
+// The link changes each time. Anyone with it can reach the sign-in page, so everyone must use a private PIN.
+async function startTunnel() {
+  const exe = path.join(dataHome, "tools", process.platform === "win32" ? "cloudflared.exe" : "cloudflared");
+  if (!fs.existsSync(exe)) {
+    const asset = process.platform === "win32" ? "cloudflared-windows-amd64.exe" : process.platform === "darwin" ? null : "cloudflared-linux-amd64";
+    if (!asset) { console.log("\nThe anywhere link needs cloudflared. On Mac run:  brew install cloudflared  then start again with TUNNEL=1 npm start\n"); return; }
+    say("Downloading the free secure-link tool (one time, ~30 MB)");
+    try {
+      const r = await fetch(`https://github.com/cloudflare/cloudflared/releases/latest/download/${asset}`);
+      if (!r.ok) throw new Error(`download failed (${r.status})`);
+      fs.mkdirSync(path.dirname(exe), { recursive: true });
+      fs.writeFileSync(exe, Buffer.from(await r.arrayBuffer())); fs.chmodSync(exe, 0o755);
+    } catch (e) { console.log(`\nCould not download the secure-link tool: ${e.message}. Check the internet and start again.\n`); return; }
+  }
+  const launch = () => {
+    tunnelChild = spawn(exe, ["tunnel", "--url", `http://localhost:${PORT}`, "--no-autoupdate"], { stdio: ["ignore", "pipe", "pipe"] });
+    let found = false;
+    const onData = (b) => {
+      const m = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/.exec(String(b));
+      if (m && !found) {
+        found = true; fs.writeFileSync(tunnelFile, m[0]);
+        console.log(`\n==============================================================\n  LINK THAT WORKS FROM ANYWHERE (phones, any Wi-Fi or mobile data):\n  ${m[0]}\n  It changes every time you start the app. Keep this window open.\n  Everyone must use a private PIN (not 1234).\n==============================================================\n`);
+      }
+    };
+    tunnelChild.stdout.on("data", onData); tunnelChild.stderr.on("data", onData);
+    tunnelChild.on("exit", () => { try { fs.rmSync(tunnelFile, { force: true }); } catch {} if (!child.killed && child.exitCode === null) setTimeout(launch, 5000); });
+  };
+  launch();
+}
+if (process.env.TUNNEL === "1") setTimeout(() => startTunnel().catch((e) => console.log("Anywhere link failed:", e.message)), 4000);
 for (const s of ["SIGINT", "SIGTERM"]) process.on(s, () => child.kill(s));

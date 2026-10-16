@@ -80,7 +80,9 @@ router.delete("/enroll/:userId", requireAuth, requirePermission("staff:manage"),
 // Addresses a phone on the clinic Wi-Fi can use to reach this computer (a phone's "localhost" is the phone itself).
 router.get("/lan", requireAuth, requirePermission("staff:manage"), (req, res) => {
   const port = process.env.PORT || 4000;
-  res.json({ addresses: lanAddresses(), httpPort: Number(port), httpsPort: httpsRunning ? HTTPS_PORT : null });
+  let tunnelUrl = null;
+  try { tunnelUrl = fs.readFileSync(path.join(DATA, "tunnel-url.txt"), "utf8").trim() || null; } catch {}
+  res.json({ addresses: lanAddresses(), httpPort: Number(port), httpsPort: httpsRunning ? HTTPS_PORT : null, tunnelUrl });
 });
 router.get("/devices", requireAuth, requirePermission("staff:manage"), (req, res) => {
   res.json(db.prepare("SELECT id, label, created_at, last_seen, revoked_at FROM kiosk_devices ORDER BY created_at DESC").all());
