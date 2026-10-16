@@ -77,6 +77,7 @@ console.log(`
   Dr. Nishita's Clinic - Work Hub is starting
   On this computer:      http://localhost:${PORT}
   Phones on same Wi-Fi:  ${lan.length ? lan.map((a) => `https://${a}:4443`).join("   ") : "(no network found)"}   (accept the certificate warning once)
+  Phone cannot open it?  Double-click open-phone-access-windows.bat once (Windows only), and keep phone on the clinic Wi-Fi.
 ${adminLine}
   Staff sign-in:  pick your name + PIN 1234 (you must then choose a new PIN)
   Stop the app:   press Ctrl+C

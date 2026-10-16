@@ -378,7 +378,7 @@ Admin > **Staff Exits**. Steps: Resignation received -> Serving notice -> Handov
 ## Latest features (quick notes)
 - **One admin only**: the account in `ADMIN_EMAIL` (admin@drnishitaranka.com). Everyone else is staff or manager.
 - **Face attendance**: one face per person (duplicates are refused); check-in and check-out times are saved; download the register from Attendance → Excel.
-- **Phone camera**: phones need `https://<PC-address>:4443` (accept the certificate warning once, same Wi-Fi, allow Windows firewall).
+- **Phone camera**: phones need `https://<PC-address>:4443` (accept the certificate warning once, same Wi-Fi, allow Windows firewall). If the page will not open, double-click `open-phone-access-windows.bat` once (click Yes) — it opens the firewall for ports 4000 and 4443.
 - **Email**: System & Backups → Email settings (Gmail + app password) → Send test; then Documents → payslips → Email.
 - **Checklist dashboard**: app checklists and the old Google form appear together; paste the published CSV link in the dashboard to auto-sync every 10 minutes. Each task can carry a photo.
 - Updates: `npm start` now reinstalls and rebuilds by itself when files changed.
