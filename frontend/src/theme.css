@@ -482,3 +482,11 @@ input.field:focus, select.field:focus, textarea.field:focus { border-color: var(
 .hero .btn-light { background: var(--accent); color: var(--ink); }
 .nav-count { background: var(--accent); color: var(--ink); }
 .badge.in_progress { background: var(--accent-soft); color: #8A5A00; }
+
+/* leave approval chain + small screens */
+.leave-chain { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.leave-step { font-size: 12px; padding: 3px 10px; border-radius: 999px; background: #f3f4f6; color: #6b7280; }
+.leave-step.ok { background: #dcfce7; color: #166534; }
+.leave-step.no { background: #fee2e2; color: #991b1b; }
+.leave-step.now { background: #fef3c7; color: #92400e; font-weight: 600; }
+@media (max-width: 640px) { .leave-tabs .pill { flex: 1 1 auto; } .task-row { flex-wrap: wrap; gap: 8px; } }

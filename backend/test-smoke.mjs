@@ -421,6 +421,61 @@ try {
     const dF = ymd(new Date(t0.getTime() + 5 * 86400000)); const ap3 = await call("POST", "/api/leave/apply", { fromDate: dF, reasonType: "travel" }, lvTok); await call("POST", `/api/leave/${ap3.body.id}/decide`, { decision: "approved", mgmtOk: "Sir" }, hrTok);
     const brd = await call("GET", `/api/attendance/board?date=${dF}`, null, admin); ok("approved leave shows in attendance register", brd.body.rows?.find((r) => r.id === lvTarget.id)?.mark === "LV");
     await call("POST", `/api/leave/${ap3.body.id}/decide`, { decision: "rejected" }, hrTok);
+
+    // ---- approval chain: HR -> COS (Naga) -> Director (Shreyas) -> Dr. Nishita, signatures, cover, privacy ----
+    {
+      const naga = users.find((u) => /^Naga/i.test(u.name)), shreyas = users.find((u) => /^Shreyas/i.test(u.name));
+      const nagaTok = (await call("POST", "/api/auth/login", { userId: naga.id, pin: "1234" })).body?.token;
+      const shrTok = (await call("POST", "/api/auth/login", { userId: shreyas.id, pin: "1234" })).body?.token;
+      const coverUser = users.find((u) => u.role === "staff" && u.id !== lvTarget.id && u.id !== staff.id && u.id !== hrUser.id);
+      const coverTok = (await call("POST", "/api/auth/login", { userId: coverUser.id, pin: "1234" })).body?.token;
+      const dC = ymd(new Date(t0.getTime() + 45 * 86400000));
+      const ch = await call("POST", "/api/leave/apply", { fromDate: dC, toDate: dC, reasonType: "family", coverUserId: coverUser.id, coverNote: "keys at desk" }, lvTok);
+      ok("apply with a covering colleague", ch.status === 201, JSON.stringify(ch.body));
+      ok("cannot cover yourself", (await call("POST", "/api/leave/apply", { fromDate: ymd(new Date(t0.getTime() + 60 * 86400000)), reasonType: "travel", coverUserId: lvTarget.id }, lvTok)).status === 400);
+      ok("other staff cannot see someone else's leave letter", (await call("GET", `/api/leave/${ch.body.id}/letter.pdf`, null, coverTok)).status === 404);
+      ok("other staff leave list does not include it", !(await call("GET", "/api/leave/mine", null, coverTok)).body.requests.some((r) => r.id === ch.body.id));
+      ok("other staff overview hides other people's leave", !(await call("GET", "/api/leave/overview", null, coverTok)).body.pending);
+      ok("cover person sees nothing before approval", (await call("GET", "/api/leave/covering", null, coverTok)).body.length === 0);
+      ok("HR sends it on", (await call("POST", `/api/leave/${ch.body.id}/confirm`, {}, hrTok)).status === 200);
+      ok("Director cannot sign before COS", (await call("POST", `/api/leave/${ch.body.id}/approve`, { decision: "approved" }, shrTok)).status === 403);
+      ok("COS sees it waiting", (await call("GET", "/api/leave/approvals", null, nagaTok)).body.waiting.some((r) => r.id === ch.body.id));
+      ok("COS needs a signature first", (await call("POST", `/api/leave/${ch.body.id}/approve`, { decision: "approved" }, nagaTok)).body?.needSignature === true);
+      const crcT = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+      const crc = (buf) => { let c = 0xffffffff; for (const x of buf) c = crcT[(c ^ x) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+      const chunk = (type, data) => { const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const td = Buffer.concat([Buffer.from(type), data]); const cr = Buffer.alloc(4); cr.writeUInt32BE(crc(td)); return Buffer.concat([len, td, cr]); };
+      const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(40, 0); ihdr.writeUInt32BE(20, 4); ihdr[8] = 8; ihdr[9] = 0;
+      const raw = Buffer.alloc(20 * 41); for (let i = 0; i < raw.length; i++) raw[i] = i % 41 === 0 ? 0 : (i * 37) & 255;
+      const pngBuf = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", ihdr), chunk("IDAT", (await import("node:zlib")).deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]);
+      const sigUrl = "data:image/png;base64," + pngBuf.toString("base64");
+      for (const tk of [nagaTok, shrTok, admin]) ok("an approver can save a signature", (await call("PUT", "/api/leave/signature", { dataUrl: sigUrl }, tk)).status === 200);
+      ok("saved signature can be read back", (await call("GET", "/api/leave/signature", null, nagaTok)).body.has === true);
+      ok("COS signs (step 1)", (await call("POST", `/api/leave/${ch.body.id}/approve`, { decision: "approved" }, nagaTok)).body?.final === false);
+      ok("COS cannot sign twice", (await call("POST", `/api/leave/${ch.body.id}/approve`, { decision: "approved" }, nagaTok)).status === 403);
+      ok("still not approved after step 1", (await call("GET", "/api/leave/requests?status=with_management", null, hrTok)).body.some((r) => r.id === ch.body.id));
+      ok("Director signs (step 2)", (await call("POST", `/api/leave/${ch.body.id}/approve`, { decision: "approved" }, shrTok)).body?.final === false);
+      ok("cover person still sees nothing before the final signature", (await call("GET", "/api/leave/covering", null, coverTok)).body.length === 0);
+      ok("Dr. Nishita signs (final)", (await call("POST", `/api/leave/${ch.body.id}/approve`, { decision: "approved" }, admin)).body?.final === true);
+      const after = (await call("GET", "/api/leave/mine", null, lvTok)).body.requests.find((r) => r.id === ch.body.id);
+      ok("leave approved after the last signature", after.status === "approved" && after.chain.length === 3 && after.chain.every((c) => c.status === "approved"), JSON.stringify(after));
+      const brd2 = await call("GET", `/api/attendance/board?date=${dC}`, null, admin);
+      ok("approved leave is in the attendance register", brd2.body.rows?.find((r) => r.id === lvTarget.id)?.mark === "LV");
+      const cov = await call("GET", "/api/leave/covering", null, coverTok);
+      ok("cover person now sees the absent person's work", cov.body.length === 1 && cov.body[0].staffName === lvTarget.name && cov.body[0].note === "keys at desk", JSON.stringify(cov.body));
+      ok("covering banner in overview", (await call("GET", "/api/leave/overview", null, coverTok)).body.mine.covering.length === 1);
+      const pdfRes = await fetch(base + `/api/leave/${ch.body.id}/letter.pdf`, { headers: { Authorization: `Bearer ${lvTok}` } });
+      const pdfBuf = Buffer.from(await pdfRes.arrayBuffer());
+      ok("applicant can open the letter PDF", pdfRes.status === 200 && pdfBuf.subarray(0, 4).toString() === "%PDF", String(pdfRes.status));
+      ok("the cover person cannot open the letter", (await fetch(base + `/api/leave/${ch.body.id}/letter.pdf`, { headers: { Authorization: `Bearer ${coverTok}` } })).status === 404);
+      // rejection stops the chain
+      const dD = ymd(new Date(t0.getTime() + 52 * 86400000));
+      const rj = await call("POST", "/api/leave/apply", { fromDate: dD, reasonType: "personal" }, lvTok);
+      await call("POST", `/api/leave/${rj.body.id}/confirm`, {}, hrTok);
+      await call("POST", `/api/leave/${rj.body.id}/approve`, { decision: "rejected", note: "busy week" }, nagaTok);
+      ok("a rejection ends the chain", (await call("GET", "/api/leave/mine", null, lvTok)).body.requests.find((r) => r.id === rj.body.id).status === "rejected");
+      const sigR = await call("PUT", "/api/leave/signature", { dataUrl: "data:image/png;base64,AAAA" }, nagaTok);
+      ok("junk signature refused", sigR.status === 400);
+    }
     ok("rejecting later removes it from the register", (await call("GET", `/api/attendance/board?date=${dF}`, null, admin)).body.rows?.find((r) => r.id === lvTarget.id)?.mark == null);
     ok("HR can change the rules", (await call("PUT", "/api/leave/settings", { late_fine: 150 }, hrTok)).body?.late_fine === 150);
     ok("staff cannot change the rules", (await call("PUT", "/api/leave/settings", { late_fine: 1 }, lvTok)).status === 403);

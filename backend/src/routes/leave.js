@@ -10,6 +10,15 @@ import { requireAuth } from "../middleware/auth.js";
 import { audit } from "../audit.js";
 import { shiftFor, getTypes } from "./roster.js";
 import { accessFor } from "../access.js";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { buildLeaveLetter } from "../leave-letter.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const SIG_DIR = path.join(process.env.DATA_DIR || path.join(__dirname, ".."), "signatures");
+fs.mkdirSync(SIG_DIR, { recursive: true });
+const sigFile = (userId) => path.join(SIG_DIR, `user-${String(userId).replace(/[^\w-]/g, "")}.png`);
 
 const router = Router();
 db.exec("CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT)");
@@ -21,7 +30,13 @@ db.exec(`CREATE TABLE IF NOT EXISTS leave_requests (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_leave_user ON leave_requests(user_id, from_date);`);
+db.exec(`CREATE TABLE IF NOT EXISTS leave_approvals (
+  id TEXT PRIMARY KEY, leave_id TEXT NOT NULL REFERENCES leave_requests(id), step INTEGER NOT NULL, label TEXT NOT NULL,
+  user_id TEXT NOT NULL REFERENCES users(id), status TEXT NOT NULL DEFAULT 'waiting', decided_at TEXT, note TEXT, signature_file TEXT,
+  UNIQUE(leave_id, step)
+);`);
 for (const sql of [
+  "ALTER TABLE leave_requests ADD COLUMN cover_user_id TEXT", "ALTER TABLE leave_requests ADD COLUMN cover_note TEXT", "ALTER TABLE leave_requests ADD COLUMN step INTEGER NOT NULL DEFAULT 0", "ALTER TABLE leave_requests ADD COLUMN applicant_signature TEXT",
   "ALTER TABLE fines ADD COLUMN auto_key TEXT", "ALTER TABLE leave_requests ADD COLUMN hr_confirmed_at TEXT", "ALTER TABLE leave_requests ADD COLUMN hr_confirmed_by TEXT",
   "ALTER TABLE payslips ADD COLUMN leave_taken REAL", "ALTER TABLE payslips ADD COLUMN leave_allowed REAL",
   "ALTER TABLE payslips ADD COLUMN lop_days REAL", "ALTER TABLE payslips ADD COLUMN lop_amount REAL",
@@ -146,16 +161,42 @@ router.put("/settings", requireAuth, (req, res) => {
   res.json(settings());
 });
 
-const withName = `SELECT l.*, u.name AS staff_name, u.designation, d.name AS department, h.name AS decided_by_name
-  FROM leave_requests l JOIN users u ON u.id = l.user_id LEFT JOIN departments d ON d.id = u.department_id LEFT JOIN users h ON h.id = l.decided_by`;
+const withName = `SELECT l.*, u.name AS staff_name, u.designation, d.name AS department, h.name AS decided_by_name, c.name AS cover_name
+  FROM leave_requests l JOIN users u ON u.id = l.user_id LEFT JOIN departments d ON d.id = u.department_id LEFT JOIN users h ON h.id = l.decided_by LEFT JOIN users c ON c.id = l.cover_user_id`;
+
+// ---- approval chain: HR -> COS -> Director -> Owner (Dr. Nishita) --------------------------------------------------
+const setting = (k) => db.prepare("SELECT value FROM app_settings WHERE key = ?").get(k)?.value;
+/** Who signs, in order. Finds them by job title / name; the admin can pin a person with the app_settings keys leave_cos, leave_director, leave_owner. */
+export function approverChain() {
+  const pick = (key, sql) => {
+    const pinned = setting(key);
+    if (pinned) { const u = db.prepare("SELECT id, name FROM users WHERE id = ? AND active = 1").get(pinned); if (u) return u; }
+    return db.prepare(sql).get();
+  };
+  const chain = [
+    ["COS", pick("leave_cos", "SELECT id, name FROM users WHERE active = 1 AND (designation LIKE 'COS%' OR designation LIKE '%Chief of Staff%' OR name LIKE 'Naga%') ORDER BY (designation LIKE 'COS%') DESC LIMIT 1")],
+    ["Director", pick("leave_director", "SELECT id, name FROM users WHERE active = 1 AND name LIKE 'Shreyas%' LIMIT 1")],
+    ["Owner", pick("leave_owner", "SELECT u.id, u.name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.active = 1 AND r.name = 'admin' ORDER BY (u.name LIKE '%Nishita%') DESC LIMIT 1")],
+  ];
+  const seen = new Set();
+  return chain.filter(([, u]) => u && !seen.has(u.id) && seen.add(u.id)).map(([label, u]) => ({ label, userId: u.id, name: u.name }));
+}
+const LABEL_TEXT = { COS: "COS", Director: "Director", Owner: "Dr. Nishita" };
+function chainOf(leaveId) {
+  return db.prepare("SELECT a.step, a.label, a.user_id, a.status, a.decided_at, a.note, u.name FROM leave_approvals a JOIN users u ON u.id = a.user_id WHERE a.leave_id = ? ORDER BY a.step").all(leaveId);
+}
+function attachChain(rows) { for (const r of rows) r.chain = chainOf(r.id); return rows; }
+/** HR, admin and the people who sign leave may see everyone's leave; nobody else. */
+export function canSeeAllLeave(userId, roleName) { return roleName === "admin" || isHr(userId, roleName) || approverChain().some((a) => a.userId === userId); }
+const canSee = (r, userId, roleName) => r.user_id === userId || isHr(userId, roleName) || !!db.prepare("SELECT 1 FROM leave_approvals WHERE leave_id = ? AND user_id = ?").get(r.id, userId);
 
 router.get("/mine", requireAuth, (req, res) => {
   const month = today().slice(0, 7);
-  res.json({ summary: leaveSummary(req.user.userId, month), rules: settings(), requests: db.prepare(withName + " WHERE l.user_id = ? ORDER BY l.created_at DESC LIMIT 60").all(req.user.userId) });
+  res.json({ summary: leaveSummary(req.user.userId, month), rules: settings(), requests: attachChain(db.prepare(withName + " WHERE l.user_id = ? ORDER BY l.created_at DESC LIMIT 60").all(req.user.userId)) });
 });
 
 router.post("/apply", requireAuth, (req, res) => {
-  const { fromDate, toDate, halfDay, reasonType, reason } = req.body || {};
+  const { fromDate, toDate, halfDay, reasonType, reason, coverUserId, coverNote } = req.body || {};
   if (!DATE.test(fromDate || "")) return res.status(400).json({ error: "Choose the first day of leave" });
   const to = DATE.test(toDate || "") ? toDate : fromDate;
   if (to < fromDate) return res.status(400).json({ error: "The last day cannot be before the first day" });
@@ -166,9 +207,16 @@ router.post("/apply", requireAuth, (req, res) => {
   if (days > 31) return res.status(400).json({ error: "Too many days in one request" });
   const clash = db.prepare("SELECT 1 FROM leave_requests WHERE user_id = ? AND status IN ('pending','with_management','approved') AND from_date <= ? AND to_date >= ?").get(req.user.userId, to, fromDate);
   if (clash) return res.status(409).json({ error: "You already have a leave request on these days" });
+  let cover = null;
+  if (coverUserId) {
+    cover = db.prepare("SELECT id FROM users WHERE id = ? AND active = 1").get(coverUserId);
+    if (!cover || cover.id === req.user.userId) return res.status(400).json({ error: "Choose a colleague (not yourself) to cover your work" });
+  }
   const id = randomUUID();
-  db.prepare("INSERT INTO leave_requests (id, user_id, from_date, to_date, days, reason_type, reason) VALUES (?,?,?,?,?,?,?)")
-    .run(id, req.user.userId, fromDate, to, days, reasonType, reason ? String(reason).slice(0, 500) : null);
+  let appSig = null;
+  if (fs.existsSync(sigFile(req.user.userId))) { appSig = path.join(SIG_DIR, `leave-${id}-0.png`); fs.copyFileSync(sigFile(req.user.userId), appSig); }
+  db.prepare("INSERT INTO leave_requests (id, user_id, from_date, to_date, days, reason_type, reason, cover_user_id, cover_note, applicant_signature) VALUES (?,?,?,?,?,?,?,?,?,?)")
+    .run(id, req.user.userId, fromDate, to, days, reasonType, reason ? String(reason).slice(0, 500) : null, cover?.id || null, coverNote ? String(coverNote).slice(0, 300) : null, appSig);
   audit({ userId: req.user.userId, action: "LEAVE_APPLIED", detail: `${fromDate}..${to} ${reasonType}` });
   const ls = leaveSummary(req.user.userId, fromDate.slice(0, 7));
   res.status(201).json({ id, summary: ls, warning: ls.pending + ls.taken > ls.allowed ? `Only ${ls.allowed} day(s) a month are free. Each extra day cuts one day's salary.` : null });
@@ -191,7 +239,7 @@ router.get("/requests", requireAuth, (req, res) => {
   if (/^\d{4}-\d{2}$/.test(req.query.month || "")) { q.push("substr(l.from_date,1,7) <= ? AND substr(l.to_date,1,7) >= ?"); a.push(req.query.month, req.query.month); }
   const rows = db.prepare(withName + (q.length ? " WHERE " + q.join(" AND ") : "") + " ORDER BY (l.status IN ('pending','with_management')) DESC, l.from_date DESC LIMIT 300").all(...a);
   for (const r of rows) r.summary = leaveSummary(r.user_id, r.from_date.slice(0, 7));
-  res.json(rows);
+  res.json(attachChain(rows));
 });
 
 // Step 2 (HR): the leave letter has been received and checked; it now goes to Sir / Mam for their signature.
@@ -200,8 +248,11 @@ router.post("/:id/confirm", requireAuth, (req, res) => {
   const r = db.prepare("SELECT * FROM leave_requests WHERE id = ?").get(req.params.id);
   if (!r) return res.status(404).json({ error: "Not found" });
   if (r.status !== "pending") return res.status(400).json({ error: "This request is not waiting for HR any more" });
-  db.prepare("UPDATE leave_requests SET status = 'with_management', hr_confirmed_at = datetime('now'), hr_confirmed_by = ?, hr_note = COALESCE(?, hr_note) WHERE id = ?")
-    .run(req.user.userId, req.body?.note ? String(req.body.note).slice(0, 300) : null, r.id);
+  const chain = approverChain().filter((a) => a.userId !== r.user_id);   // you never sign your own leave
+  db.prepare("UPDATE leave_requests SET status = 'with_management', step = ?, hr_confirmed_at = datetime('now'), hr_confirmed_by = ?, hr_note = COALESCE(?, hr_note) WHERE id = ?")
+    .run(chain.length ? 1 : 0, req.user.userId, req.body?.note ? String(req.body.note).slice(0, 300) : null, r.id);
+  db.prepare("DELETE FROM leave_approvals WHERE leave_id = ?").run(r.id);
+  chain.forEach((a, i) => db.prepare("INSERT INTO leave_approvals (id, leave_id, step, label, user_id) VALUES (?,?,?,?,?)").run(randomUUID(), r.id, i + 1, a.label, a.userId));
   audit({ userId: req.user.userId, action: "LEAVE_CONFIRMED_BY_HR", detail: `${r.user_id} ${r.from_date}..${r.to_date}` });
   res.json({ ok: true });
 });
@@ -215,17 +266,95 @@ router.post("/:id/decide", requireAuth, (req, res) => {
   if (r.status === "cancelled") return res.status(400).json({ error: "The staff member cancelled this request" });
   if (!["approved", "rejected"].includes(decision)) return res.status(400).json({ error: "Choose approve or reject" });
   if (decision === "approved" && !["Sir", "Mam", "Sir & Mam"].includes(mgmtOk)) return res.status(400).json({ error: "Tick who approved this: Sir, Mam, or both" });
-  db.prepare("UPDATE leave_requests SET status=?, decided_by=?, decided_at=datetime('now'), mgmt_ok=?, hr_note=?, seen_at=NULL WHERE id=?")
-    .run(decision, req.user.userId, decision === "approved" ? mgmtOk : null, note ? String(note).slice(0, 300) : null, r.id);
+  finalize(r, decision, decision === "approved" ? mgmtOk : null, note, req.user.userId);
+  audit({ userId: req.user.userId, action: "LEAVE_" + decision.toUpperCase(), detail: `${r.user_id} ${r.from_date}..${r.to_date}` });
+  res.json({ ok: true, summary: leaveSummary(r.user_id, r.from_date.slice(0, 7)) });
+});
+
+/** Records the final answer, writes the attendance marks and tells the staff member. */
+function finalize(r, decision, mgmtOk, note, byUserId) {
+  db.prepare("UPDATE leave_requests SET status=?, decided_by=?, decided_at=datetime('now'), mgmt_ok=?, hr_note=COALESCE(?, hr_note), seen_at=NULL WHERE id=?")
+    .run(decision, byUserId, mgmtOk, note ? String(note).slice(0, 300) : null, r.id);
   if (decision === "approved") {   // show it in the attendance register as leave
     for (let d = r.from_date; d <= r.to_date; d = addDays(d, 1)) {
       db.prepare(`INSERT INTO attendance_marks (user_id, mark_date, status, note, marked_by) VALUES (?,?,'LV',?,?)
         ON CONFLICT(user_id, mark_date) DO UPDATE SET status = 'LV', note = excluded.note WHERE attendance_marks.status NOT IN ('P','L','H')`)
-        .run(r.user_id, d, "Approved leave", req.user.userId);
+        .run(r.user_id, d, "Approved leave", byUserId);
     }
   } else db.prepare("DELETE FROM attendance_marks WHERE user_id = ? AND mark_date BETWEEN ? AND ? AND status = 'LV' AND note = 'Approved leave'").run(r.user_id, r.from_date, r.to_date);
-  audit({ userId: req.user.userId, action: "LEAVE_" + decision.toUpperCase(), detail: `${r.user_id} ${r.from_date}..${r.to_date}` });
-  res.json({ ok: true, summary: leaveSummary(r.user_id, r.from_date.slice(0, 7)) });
+}
+
+// ---- signatures (each approver draws or uploads theirs once) ----------------------------------------------------------
+router.get("/signature", requireAuth, (req, res) => {
+  const f = sigFile(req.user.userId);
+  res.json({ has: fs.existsSync(f), dataUrl: fs.existsSync(f) ? "data:image/png;base64," + fs.readFileSync(f).toString("base64") : null });
+});
+router.put("/signature", requireAuth, (req, res) => {
+  const m = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(req.body?.dataUrl || "");
+  if (!m) return res.status(400).json({ error: "Please draw your signature (PNG)" });
+  const buf = Buffer.from(m[1], "base64");
+  if (buf.length > 400 * 1024 || buf.length < 100 || buf.subarray(1, 4).toString() !== "PNG") return res.status(400).json({ error: "The signature picture is not valid or too big" });
+  fs.writeFileSync(sigFile(req.user.userId), buf);
+  res.json({ ok: true });
+});
+router.delete("/signature", requireAuth, (req, res) => { try { fs.unlinkSync(sigFile(req.user.userId)); } catch {} res.json({ ok: true }); });
+
+// ---- approvers: COS -> Director -> Dr. Nishita --------------------------------------------------------------------------
+router.get("/chain", requireAuth, (req, res) => res.json(approverChain().map((a) => ({ label: a.label, name: a.name }))));
+router.get("/approvals", requireAuth, (req, res) => {
+  const waiting = db.prepare(withName + " JOIN leave_approvals a ON a.leave_id = l.id AND a.user_id = ? AND a.status = 'waiting' AND a.step = l.step WHERE l.status = 'with_management' ORDER BY l.from_date").all(req.user.userId);
+  const done = db.prepare(withName + " JOIN leave_approvals a ON a.leave_id = l.id AND a.user_id = ? AND a.status <> 'waiting' ORDER BY a.decided_at DESC LIMIT 20").all(req.user.userId);
+  for (const r of [...waiting, ...done]) r.summary = leaveSummary(r.user_id, r.from_date.slice(0, 7));
+  res.json({ waiting: attachChain(waiting), done: attachChain(done), hasSignature: fs.existsSync(sigFile(req.user.userId)) });
+});
+router.post("/:id/approve", requireAuth, (req, res) => {
+  const { decision, note } = req.body || {};
+  if (!["approved", "rejected"].includes(decision)) return res.status(400).json({ error: "Choose approve or reject" });
+  const r = db.prepare("SELECT * FROM leave_requests WHERE id = ?").get(req.params.id);
+  if (!r) return res.status(404).json({ error: "Not found" });
+  if (r.status !== "with_management") return res.status(400).json({ error: "This request is not waiting for a signature" });
+  const a = db.prepare("SELECT * FROM leave_approvals WHERE leave_id = ? AND step = ?").get(r.id, r.step);
+  if (!a || a.user_id !== req.user.userId) return res.status(403).json({ error: "It is not your turn to sign this leave" });
+  let snap = null;
+  if (decision === "approved") {
+    if (!fs.existsSync(sigFile(req.user.userId))) return res.status(400).json({ error: "Please add your signature first (Leave → My signature)", needSignature: true });
+    snap = path.join(SIG_DIR, `leave-${r.id}-${a.step}.png`);
+    fs.copyFileSync(sigFile(req.user.userId), snap);
+  }
+  db.prepare("UPDATE leave_approvals SET status = ?, decided_at = datetime('now'), note = ?, signature_file = ? WHERE id = ?").run(decision, note ? String(note).slice(0, 300) : null, snap, a.id);
+  const last = !db.prepare("SELECT 1 FROM leave_approvals WHERE leave_id = ? AND step > ?").get(r.id, a.step);
+  if (decision === "rejected") finalize(r, "rejected", null, note, req.user.userId);
+  else if (last) finalize(r, "approved", chainOf(r.id).map((c) => LABEL_TEXT[c.label] || c.label).join(" + "), note, req.user.userId);
+  else db.prepare("UPDATE leave_requests SET step = step + 1 WHERE id = ?").run(r.id);
+  audit({ userId: req.user.userId, action: "LEAVE_SIGN_" + decision.toUpperCase(), detail: `${r.user_id} ${r.from_date}..${r.to_date} step ${a.step}` });
+  res.json({ ok: true, final: decision === "rejected" || last });
+});
+
+// ---- colleagues who can cover, and the work I am covering --------------------------------------------------------------
+router.get("/colleagues", requireAuth, (req, res) => res.json(db.prepare("SELECT id, name, designation FROM users WHERE active = 1 AND id <> ? ORDER BY name").all(req.user.userId)));
+router.get("/covering", requireAuth, (req, res) => {
+  const t = today();
+  const rows = db.prepare(withName + " WHERE l.cover_user_id = ? AND l.status = 'approved' AND l.to_date >= ? ORDER BY l.from_date").all(req.user.userId, t);
+  const out = rows.map((r) => {
+    const tasks = db.prepare("SELECT id, title, category, due_date, status, notes FROM tasks WHERE user_id = ? AND status <> 'done' ORDER BY due_date IS NULL, due_date LIMIT 40").all(r.user_id);
+    const role = db.prepare("SELECT shift_role FROM users WHERE id = ?").get(r.user_id)?.shift_role;
+    const items = role ? db.prepare("SELECT section, item_text FROM shift_checklist_templates WHERE role_name = ? ORDER BY sort_order").all(role) : [];
+    const sections = []; for (const i of items) { let sec = sections.find((x) => x.section === i.section); if (!sec) sections.push(sec = { section: i.section, items: [] }); sec.items.push(i.item_text); }
+    return { id: r.id, staffName: r.staff_name, fromDate: r.from_date, toDate: r.to_date, active: r.from_date <= t && r.to_date >= t, note: r.cover_note, roleName: role || null, tasks, sections };
+  });
+  res.json(out);
+});
+
+// ---- the leave letter (PDF) -------------------------------------------------------------------------------------------
+router.get("/:id/letter.pdf", requireAuth, async (req, res) => {
+  const r = db.prepare(withName + " WHERE l.id = ?").get(req.params.id);
+  if (!r || !canSee(r, req.user.userId, req.user.roleName)) return res.status(404).json({ error: "Not found" });
+  const chain = chainOf(r.id).map((c) => ({ ...c, label: LABEL_TEXT[c.label] || c.label, file: db.prepare("SELECT signature_file FROM leave_approvals WHERE leave_id = ? AND step = ?").get(r.id, c.step)?.signature_file }));
+  const hrName = r.hr_confirmed_by ? db.prepare("SELECT name FROM users WHERE id = ?").get(r.hr_confirmed_by)?.name : null;
+  const reason = REASONS.find((x) => x.key === r.reason_type)?.label || "";
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `inline; filename="leave-letter-${r.staff_name.replace(/[^\w]+/g, "-")}-${r.from_date}.pdf"`);
+  buildLeaveLetter({ r, reason, chain, hrName, applicantSig: r.applicant_signature && fs.existsSync(r.applicant_signature) ? r.applicant_signature : null }).pipe(res);
 });
 
 router.post("/seen", requireAuth, (req, res) => {
@@ -259,8 +388,12 @@ router.get("/overview", requireAuth, (req, res) => {
     waiting: db.prepare("SELECT COUNT(*) n FROM leave_requests WHERE user_id = ? AND status IN ('pending','with_management')").get(req.user.userId).n,
     news: db.prepare(withName + " WHERE l.user_id = ? AND l.status IN ('approved','rejected') AND l.seen_at IS NULL ORDER BY l.decided_at DESC").all(req.user.userId),
   };
+  mine.covering = db.prepare(withName + " WHERE l.cover_user_id = ? AND l.status = 'approved' AND l.to_date >= ? ORDER BY l.from_date").all(req.user.userId, t).map((r) => ({ id: r.id, staffName: r.staff_name, from_date: r.from_date, to_date: r.to_date, active: r.from_date <= t }));
   const out = { isHr: hr, mine };
-  if (hr || lead) {
+  const approver = !!db.prepare("SELECT 1 FROM leave_approvals WHERE user_id = ? AND status = 'waiting'").get(req.user.userId);
+  out.toSign = approver ? db.prepare(withName + " JOIN leave_approvals a ON a.leave_id = l.id AND a.user_id = ? AND a.status = 'waiting' AND a.step = l.step WHERE l.status = 'with_management'").all(req.user.userId) : [];
+  // Other people's leave is private: only HR and the people who sign leave (COS, Director, Dr. Nishita) can see it.
+  if (canSeeAllLeave(req.user.userId, req.user.roleName)) {
     out.pending = hr ? db.prepare(withName + " WHERE l.status IN ('pending','with_management') ORDER BY l.from_date").all() : [];
     out.recent = db.prepare(withName + " WHERE l.status IN ('approved','rejected') AND date(l.decided_at) >= ? ORDER BY l.decided_at DESC LIMIT 20").all(addDays(t, -7));
     out.onLeaveToday = db.prepare(withName + " WHERE l.status = 'approved' AND l.from_date <= ? AND l.to_date >= ?").all(t, t);

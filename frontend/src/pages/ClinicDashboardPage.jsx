@@ -13,8 +13,13 @@ export default function ClinicDashboardPage({ user, onLogout, onBack, onNavigate
   const [rep, setRep] = useState(null);
   const [tab, setTab] = useState("checklist");
   useEffect(() => {
-    api.portalDepartments().then((d) => setDepts(d.rows)).catch(() => setDepts([]));
-    api.getReports(30).then(setRep).catch(() => setRep({}));
+    const load = () => {
+      api.portalDepartments().then((d) => setDepts(d.rows)).catch(() => setDepts((x) => x || []));
+      api.getReports(30).then(setRep).catch(() => setRep((x) => x || {}));
+    };
+    load();
+    const t = setInterval(load, 30000);   // numbers refresh by themselves
+    return () => clearInterval(t);
   }, []);
   const sum = (k) => (depts || []).reduce((a, d) => a + (d[k] || 0), 0);
   const trend = rep?.completionTrend || [];

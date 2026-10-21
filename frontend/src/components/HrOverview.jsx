@@ -22,8 +22,16 @@ export default function HrOverview({ user, onNavigate }) {
   const close = () => { setPop(null); if (pop?.news.length) api.leaveSeen().then(load).catch(() => {}); };
   const go = () => { close(); onNavigate?.("Leave"); };
 
+  const cov = d.mine?.covering || [], sign = d.toSign || [];
+  const banner = (cov.length > 0 || sign.length > 0) && (
+    <div className="card" style={{ borderLeft: "4px solid var(--primary)" }}>
+      {sign.length > 0 && <div className="row" style={{ justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}><div><b>{sign.length} leave request{sign.length === 1 ? "" : "s"} waiting for your signature</b><div className="meta">{sign.map((r) => r.staff_name).join(", ")}</div></div><button className="btn btn-primary btn-sm" onClick={() => onNavigate?.("Leave")}>Open</button></div>}
+      {cov.map((c) => <div key={c.id} className="row" style={{ justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginTop: sign.length ? 10 : 0 }}><div><b>{c.active ? "You are covering for" : "You will cover for"} {c.staffName}</b><div className="meta">{range(c)} — their tasks and checklist are in Leave → Covering for others</div></div><button className="btn btn-outline btn-sm" onClick={() => onNavigate?.("Leave")}>See their work</button></div>)}
+    </div>
+  );
   return (
     <>
+      {banner}
       {pop && (
         <div className="modal-backdrop" onClick={close}><div className="modal" onClick={(e) => e.stopPropagation()}>
           {pop.bd.length > 0 && <><h3>🎂 Birthday today</h3><p className="lead">{pop.bd.map((b) => b.name).join(", ")} — don't forget to wish {pop.bd.length > 1 ? "them" : "them"}!</p></>}

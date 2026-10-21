@@ -421,18 +421,18 @@ router.get("/dashboard", requireAuth, requirePermission("shiftchecklist:view_all
   const trend = [];
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date(new Date(date).getTime() - i * 86400000).toISOString().slice(0, 10);
-    const rs = rows.filter((r) => r.work_date === d && r.status === "submitted");
-    trend.push({ date: d, submitted: rs.length, avgPct: avg(rs.map((r) => r.completion_pct)) });
+    const rs = rows.filter((r) => r.work_date === d);   // submitted AND still-being-filled, so the chart moves as staff tick items
+    trend.push({ date: d, submitted: rs.filter((r) => r.status === "submitted").length, started: rs.length, avgPct: avg(rs.map((r) => r.completion_pct)) });
   }
   const byRole = {};
-  for (const r of rows.filter((x) => x.status === "submitted")) (byRole[r.role_name] ||= []).push(r.completion_pct);
+  for (const r of rows) (byRole[r.role_name] ||= []).push(r.completion_pct);
   const missedCount = new Map();
-  for (const r of rows.filter((x) => x.status === "submitted")) for (const i of JSON.parse(r.items_json)) if (!i.done) { const k = `${r.role_name}|||${i.text}`; missedCount.set(k, (missedCount.get(k) || 0) + 1); }
+  for (const r of rows.filter((x) => x.status === "submitted" || x.work_date < date)) for (const i of JSON.parse(r.items_json)) if (!i.done) { const k = `${r.role_name}|||${i.text}`; missedCount.set(k, (missedCount.get(k) || 0) + 1); }
   res.json({
     date, today,
     summary: {
       expected: expected.length, submitted: dayRows.filter((r) => r.status === "submitted").length, inProgress: dayRows.filter((r) => r.status === "in_progress").length,
-      notStarted: expected.filter((u) => !started.has(u.id)).length, avgPct: avg(dayRows.filter((r) => r.status === "submitted").map((r) => r.completion_pct)),
+      notStarted: expected.filter((u) => !started.has(u.id)).length, avgPct: avg(dayRows.map((r) => r.completion_pct)),
       photos: dayRows.reduce((n, r) => n + photosIn(r), 0), fromSheet: dayRows.filter((r) => r.source === "sheet").length, fromApp: dayRows.filter((r) => r.source !== "sheet").length,
     },
     trend,

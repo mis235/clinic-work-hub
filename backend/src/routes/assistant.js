@@ -1,7 +1,7 @@
 import { Router } from "express";
 import db from "../db.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
-import { isHr, leaveSummary, settings as hrSettings, birthdays, lateDays } from "./leave.js";
+import { isHr, canSeeAllLeave, leaveSummary, settings as hrSettings, birthdays, lateDays } from "./leave.js";
 import { isLeadership } from "../access.js";
 
 const router = Router();
@@ -147,6 +147,7 @@ router.post("/ask", requireAuth, requirePermission("assistant:use"), async (req,
     return res.json({ reply: rows.length ? `${rows.length} leave request${rows.length === 1 ? " is" : "s are"} waiting for approval:\n` + list(rows, (r) => `${r.name}: ${dmy(r.from_date)}${r.to_date !== r.from_date ? " – " + dmy(r.to_date) : ""} (${r.days} day, ${r.reason_type})`) + "\n\nOpen Leave & HR to approve." : "No leave requests are waiting. 🎉", source: "data" });
   }
   if (/who.*(on leave|leave|absent|off)|on leave|leave today/.test(m) && lead) {
+    if (!canSeeAllLeave(userId, req.user.roleName)) return res.json({ reply: "Leave details are private. Only HR and the people who sign leave can see who is on leave.", source: "data" });
     const rows = db.prepare("SELECT u.name, l.to_date FROM leave_requests l JOIN users u ON u.id = l.user_id WHERE l.status = 'approved' AND l.from_date <= ? AND l.to_date >= ?").all(t, t);
     return res.json({ reply: rows.length ? "On approved leave today:\n" + list(rows, (r) => `${r.name} (until ${dmy(r.to_date)})`) : "Nobody is on approved leave today.", source: "data" });
   }

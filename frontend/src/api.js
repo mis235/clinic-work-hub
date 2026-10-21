@@ -231,6 +231,24 @@ export const api = {
   leaveRequests: (status) => req(`/api/leave/requests${status ? `?status=${status}` : ""}`),
   confirmLeave: (id, body) => req(`/api/leave/${id}/confirm`, { method: "POST", body }),
   decideLeave: (id, body) => req(`/api/leave/${id}/decide`, { method: "POST", body }),
+  leaveSignature: () => req("/api/leave/signature"),
+  saveLeaveSignature: (dataUrl) => req("/api/leave/signature", { method: "PUT", body: { dataUrl } }),
+  deleteLeaveSignature: () => req("/api/leave/signature", { method: "DELETE" }),
+  leaveColleagues: () => req("/api/leave/colleagues"),
+  leaveApprovals: () => req("/api/leave/approvals"),
+  approveLeave: (id, body) => req(`/api/leave/${id}/approve`, { method: "POST", body }),
+  leaveCovering: () => req("/api/leave/covering"),
+  leaveChain: () => req("/api/leave/chain"),
+  // The letter is a PDF behind sign-in, so fetch it with the token and open it in a new tab.
+  async openLeaveLetter(id) {
+    const w = window.open("", "_blank");
+    try {
+      const res = await fetch(`${BASE}/api/leave/${id}/letter.pdf`, { headers: authHeaders() });
+      if (!res.ok) throw new Error("Could not open the letter");
+      const url = URL.createObjectURL(await res.blob());
+      if (w) w.location.href = url; else window.location.href = url;
+    } catch (e) { if (w) w.close(); alert(e.message); }
+  },
   lateReport: (month) => req(`/api/leave/late?month=${month || ""}`),
   birthdays: (days) => req(`/api/leave/birthdays?days=${days || 60}`),
   saveLeaveRules: (body) => req("/api/leave/settings", { method: "PUT", body }),
