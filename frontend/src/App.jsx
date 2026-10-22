@@ -15,7 +15,6 @@ import StaffAdminPage from "./pages/StaffAdminPage.jsx";
 import AssistantPage from "./pages/AssistantPage.jsx";
 import TrackerPage from "./pages/TrackerPage.jsx";
 import ShiftChecklistPage from "./pages/ShiftChecklistPage.jsx";
-import ShiftLogsPage from "./pages/ShiftLogsPage.jsx";
 import StaffProfilePage from "./pages/StaffProfilePage.jsx";
 import SystemPage from "./pages/SystemPage.jsx";
 import ConnectedToolPage from "./pages/ConnectedToolPage.jsx";
@@ -31,7 +30,7 @@ import ChangePinModal from "./components/ChangePinModal.jsx";
 const VIEW_KEY = {
   "Dashboard": "dashboard", "AI Advisors": "assistant", "Policies": "policies", "Reports": "reports",
   "About": "about", "Learning": "learning", "Events": "events", "HR": "hr", "Payroll": "payroll", "Staff": "staff",
-  "Assistant": "assistant", "Tracker": "tracker", "Shift Checklist": "shiftchecklist", "Shift Logs": "shiftlogs", "Onboarding": "onboarding", "System": "system", "Attendance": "attendance", "Clinic Assistant": "clinicassistant", "Dashboards": "dashboards", "Documents": "documents", "Departments": "departments", "Roster": "roster", "Exits": "exits", "Leave": "leave",
+  "Assistant": "assistant", "Tracker": "tracker", "Shift Checklist": "shiftchecklist", "Shift Logs": "dashboards", "Onboarding": "onboarding", "System": "system", "Attendance": "attendance", "Clinic Assistant": "clinicassistant", "Dashboards": "dashboards", "Documents": "documents", "Departments": "departments", "Roster": "roster", "Exits": "exits", "Leave": "leave",
 };
 
 export default function App() {
@@ -95,7 +94,6 @@ function MainApp() {
     if (view === "assistant") return <AssistantPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "tracker") return <TrackerPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "shiftchecklist") return <ShiftChecklistPage user={user} onLogout={logout} onBack={navigate} />;
-    if (view === "shiftlogs") return <ShiftLogsPage user={user} onLogout={logout} onBack={navigate} onOpenProfile={(id) => openProfile(id, "Shift Logs")} />;
     if (view === "staffprofile" && profile) return <StaffProfilePage user={user} staffId={profile.id} backLabel={profile.from} onLogout={logout} onBack={navigate} />;
     if (view === "policies") return <PoliciesPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "reports") return <ReportsPage user={user} onLogout={logout} onBack={navigate} />;

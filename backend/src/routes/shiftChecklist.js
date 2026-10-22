@@ -40,6 +40,13 @@ function todayISO() {
   return new Date(Date.now() + 19800000).toISOString().slice(0, 10); // India date
 }
 
+
+/** People who are in today and have a checklist but have not started it. Anyone on leave, weekly off, absent or not yet checked in is NOT counted. */
+function notStarted(date, startedIds) {
+  const here = new Set(db.prepare("SELECT user_id FROM attendance_marks WHERE mark_date = ? AND status IN ('P','L','H')").all(date).map((r) => r.user_id));
+  return db.prepare("SELECT id, name, shift_role FROM users WHERE shift_role IS NOT NULL AND active = 1").all().filter((u) => here.has(u.id) && !startedIds.has(u.id));
+}
+
 function templateFor(roleName) {
   const rows = db
     .prepare(`SELECT section, item_text, sort_order FROM shift_checklist_templates WHERE role_name = ? ORDER BY sort_order`)
@@ -242,9 +249,8 @@ router.get("/submissions", requireAuth, requirePermission("shiftchecklist:view_a
   `).all(...params);
 
   // Also report who HASN'T submitted yet today, so admins see gaps, not just what came in.
-  const expected = db.prepare(`SELECT id, name, shift_role FROM users WHERE shift_role IS NOT NULL AND active = 1`).all();
   const startedUserIds = new Set(rows.map((r) => r.user_id));
-  const missing = expected.filter((u) => !startedUserIds.has(u.id)).map((u) => ({ userId: u.id, name: u.name, roleName: u.shift_role }));
+  const missing = notStarted(date, startedUserIds).map((u) => ({ userId: u.id, name: u.name, roleName: u.shift_role }));
 
   res.json({ date, submissions: rows.map(serializeSubmission), missing });
 });
@@ -432,15 +438,35 @@ router.get("/dashboard", requireAuth, requirePermission("shiftchecklist:view_all
     date, today,
     summary: {
       expected: expected.length, submitted: dayRows.filter((r) => r.status === "submitted").length, inProgress: dayRows.filter((r) => r.status === "in_progress").length,
-      notStarted: expected.filter((u) => !started.has(u.id)).length, avgPct: avg(dayRows.map((r) => r.completion_pct)),
+      notStarted: notStarted(date, started).length, avgPct: avg(dayRows.map((r) => r.completion_pct)),
       photos: dayRows.reduce((n, r) => n + photosIn(r), 0), fromSheet: dayRows.filter((r) => r.source === "sheet").length, fromApp: dayRows.filter((r) => r.source !== "sheet").length,
     },
     trend,
     byRole: Object.entries(byRole).map(([role, v]) => ({ role, avgPct: avg(v), submissions: v.length })).sort((a, b) => a.avgPct - b.avgPct),
     missedMost: [...missedCount].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, n]) => ({ role: k.split("|||")[0], task: k.split("|||")[1], times: n })),
     people: dayRows.map((r) => ({ ...serializeSubmission(r), source: r.source || "app", photos: photosIn(r) })).sort((a, b) => a.staffName.localeCompare(b.staffName)),
-    missing: expected.filter((u) => !started.has(u.id)).map((u) => ({ userId: u.id, name: u.name, roleName: u.shift_role })),
+    missing: notStarted(date, started).map((u) => ({ userId: u.id, name: u.name, roleName: u.shift_role })),
   });
+});
+
+// Excel of the checklist log for any dates (open it, or upload it to Google Sheets: File -> Import).
+router.get("/export", requireAuth, requirePermission("shiftchecklist:view_all"), async (req, res) => {
+  const D = /^\d{4}-\d{2}-\d{2}$/;
+  const to = D.test(req.query.to || "") ? req.query.to : todayISO();
+  const from = D.test(req.query.from || "") ? req.query.from : to.slice(0, 8) + "01";
+  if (to < from || (new Date(to) - new Date(from)) / 86400000 > 400) return res.status(400).json({ error: "Choose a date range of up to a year" });
+  const rows = db.prepare(`SELECT s.*, u.name AS staff_name FROM shift_checklist_submissions s JOIN users u ON u.id = s.user_id WHERE s.work_date BETWEEN ? AND ? ORDER BY s.work_date, u.name, s.shift`).all(from, to);
+  const { default: ExcelJS } = await import("exceljs");
+  const wb = new ExcelJS.Workbook(), ws = wb.addWorksheet("Checklists");
+  ws.columns = [["Date", 12], ["Staff", 24], ["Role", 22], ["Shift", 10], ["Done", 7], ["Total", 7], ["% done", 8], ["Status", 12], ["Not done", 60], ["Metrics", 40]].map(([header, width]) => ({ header, width }));
+  ws.getRow(1).font = { bold: true };
+  for (const r of rows) {
+    const items = JSON.parse(r.items_json);
+    ws.addRow([r.work_date, r.staff_name, r.role_name, r.shift, r.completed, r.total, r.completion_pct, r.status === "submitted" ? "Submitted" : "In progress", items.filter((i) => !i.done).map((i) => i.text).join("; "), r.metrics_json ? Object.entries(JSON.parse(r.metrics_json)).map(([k, v]) => `${k}: ${v}`).join("; ") : ""]);
+  }
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="checklists-${from}_to_${to}.xlsx"`);
+  await wb.xlsx.write(res); res.end();
 });
 
 export default router;

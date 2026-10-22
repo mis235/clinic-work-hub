@@ -40,7 +40,7 @@ export default function KioskPage() {
         }
       } catch (e) {
         if (dead) return;
-        setState({ phase: "error", text: e.message === "NOKEY" ? "This phone is not set up yet. Open the setup link from the admin." : e.status === 401 ? e.message : cameraHelp(e) });
+        setState({ phase: "error", text: e.message === "NOKEY" ? "This phone is not set up yet. Open the setup link from the admin." : e.status === 401 || e.status === 403 ? e.message : cameraHelp(e) });
       }
     })();
     return () => { dead = true; stop?.(); };

@@ -37,12 +37,16 @@ export default function ChecklistDashboard({ user }) {
   return (
     <>
       <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-        <div className="meta">Everything staff submit — in this app or through the old Google form — appears here together. Refreshes by itself.</div>
-        <input className="field" type="date" style={{ width: 170 }} value={date} max={todayIST()} onChange={(e) => setDate(e.target.value)} />
+        <div className="meta">Live checklist progress. Refreshes by itself.</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input className="field" type="date" style={{ width: 170 }} value={date} max={todayIST()} onChange={(e) => setDate(e.target.value)} />
+          <button className="btn btn-outline btn-sm" onClick={() => api.downloadChecklistXlsx(todayIST().slice(0, 8) + "01", todayIST())}>Excel · this month</button>
+          <button className="btn btn-outline btn-sm" onClick={() => api.downloadChecklistXlsx(new Date(Date.now() + 19800000 - 90 * 86400000).toISOString().slice(0, 10), todayIST())}>Excel · 3 months</button>
+        </div>
       </div>
 
       <div className="dept-grid tile-grid">
-        {[["Submitted", `${s.submitted}/${s.expected}`], ["In progress", s.inProgress], ["Not started", s.notStarted], ["Average done", s.avgPct == null ? "—" : s.avgPct + "%"], ["Task photos", s.photos], ["From old form", s.fromSheet]].map(([l, v]) => (
+        {[["Submitted", `${s.submitted}/${s.expected}`], ["In progress", s.inProgress], ["Not started (present)", s.notStarted], ["Average done", s.avgPct == null ? "—" : s.avgPct + "%"]].map(([l, v]) => (
           <div key={l} className="dept-card"><div className="meta">{l}</div><div className="title" style={{ fontSize: 24 }}>{v}</div></div>
         ))}
       </div>
@@ -99,7 +103,7 @@ export default function ChecklistDashboard({ user }) {
             )}
           </div>
         ))}
-        {d.missing.length > 0 && <div className="meta" style={{ paddingTop: 12, borderTop: "1px solid var(--line)", marginTop: 8 }}><b>{d.missing.length}</b> not started: {d.missing.map((m) => m.name).join(", ")}</div>}
+        {d.missing.length > 0 && <div className="meta" style={{ paddingTop: 12, borderTop: "1px solid var(--line)", marginTop: 8 }}><b>{d.missing.length}</b> present but not started: {d.missing.map((m) => m.name).join(", ")}</div>}
       </div>
 
       {isAdmin && (

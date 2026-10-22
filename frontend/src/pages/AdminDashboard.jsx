@@ -7,7 +7,7 @@ import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
 import Icon, { initials } from "../components/Icon.jsx";
 
-const todayISO = () => new Date().toISOString().slice(0, 10);
+const todayISO = () => new Date(Date.now() + 19800000).toISOString().slice(0, 10); // India date
 function greeting() {
   const h = new Date().getHours();
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
@@ -112,7 +112,7 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
             </p>
             <div className="hero-actions">
               {canAssign && <button className="btn btn-light" onClick={() => setShowForm(true)}><Icon name="plus" size={16} /> Assign task</button>}
-              <button className="btn btn-outline" onClick={() => onNavigate("Shift Logs")}>Open checklist monitor</button>
+              <button className="btn btn-outline" onClick={() => onNavigate("Dashboards")}>Open dashboard</button>
             </div>
           </div>
         </div>
@@ -130,7 +130,7 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
           <div className="card" style={{ marginBottom: 0 }}>
             <div className="card-head">
               <div className="name">Today's shift checklists</div>
-              <button className="btn btn-ghost btn-sm" onClick={() => onNavigate("Shift Logs")}>View all</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => onNavigate("Dashboards")}>View all</button>
             </div>
             {subs.length === 0 && <div className="meta" style={{ padding: "14px 0" }}>Nobody has started a checklist yet today.</div>}
             {subs.slice(0, 6).map((s) => (

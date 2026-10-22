@@ -26,7 +26,10 @@ const istNow = () => new Date(Date.now() + 19800000);
 const dist = (a, b) => Math.sqrt(a.reduce((s, v, i) => s + (v - b[i]) ** 2, 0));
 const okDesc = (d) => Array.isArray(d) && d.length === 128 && d.every((x) => typeof x === "number" && Number.isFinite(x));
 
+// Face check-in is for the clinic phone only: a computer or laptop opening the same link is refused.
+const isPhone = (req) => /Android|iPhone|iPad|iPod|Mobile/i.test(req.headers["user-agent"] || "");
 function requireKiosk(req, res, next) {
+  if (!isPhone(req) && process.env.KIOSK_ALLOW_DESKTOP !== "true") return res.status(403).json({ error: "Face check-in works only on the clinic phone. Please use the phone.", phoneOnly: true });
   const h = req.headers.authorization || "";
   try {
     const p = jwt.verify(h.startsWith("Bearer ") ? h.slice(7) : "", secret());

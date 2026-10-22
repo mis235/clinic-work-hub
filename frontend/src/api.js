@@ -143,6 +143,7 @@ export const api = {
   checkFaceDuplicate: (descriptors, exceptUserId) => req("/api/kiosk/check-duplicate", { method: "POST", body: { descriptors, exceptUserId } }),
   kioskLan: () => req("/api/kiosk/lan"),
   downloadAttendanceXlsx: (from, to) => downloadFile(`/api/attendance/export?from=${from}&to=${to || from}`, `attendance-${from === (to || from) ? from : from + "_to_" + to}.xlsx`),
+  downloadChecklistXlsx: (from, to) => downloadFile(`/api/shift-checklist/export?from=${from}&to=${to}`, `checklists-${from}_to_${to}.xlsx`),
   enrolledFaces: () => req("/api/kiosk/enrolled"),
   enrollFace: (id, descriptors) => req(`/api/kiosk/enroll/${id}`, { method: "POST", body: { descriptors } }),
   removeFace: (id) => req(`/api/kiosk/enroll/${id}`, { method: "DELETE" }),

@@ -6,7 +6,6 @@ export const NAV = {
   "Shift Checklist":  { label: "My Shift Checklist",  icon: "clipboard" },
   "Tracker":          { label: "My Progress",         icon: "tasks" },
   "Attendance":       { label: "Attendance",          icon: "clock" },
-  "Shift Logs":       { label: "Checklist Monitor",   icon: "calendarCheck" },
   "Departments":      { label: "Departments & Workspaces", icon: "users" },
   "My Workspace":     { label: "My Workspace",        icon: "file" },
   "Exits":            { label: "Staff Exits",         icon: "userplus" },
@@ -30,7 +29,7 @@ export const NAV = {
 // One place for each job. Admin sees: Home / People / Insights / Knowledge / Assistants / Admin.
 export const NAV_GROUPS = [
   { title: "Home",         keys: ["Dashboard", "My checklist"] },
-  { title: "Daily work",   keys: ["Shift Checklist", "Tracker", "Attendance", "Shift Logs"] },
+  { title: "Daily work",   keys: ["Shift Checklist", "Tracker", "Attendance"] },
   { title: "People & pay", keys: ["Departments", "Staff", "Exits", "My Profile", "Leave", "Payroll", "HR"] },
   { title: "Insights",     keys: ["Reports", "Dashboards"] },
   { title: "Knowledge",    keys: ["Documents", "Policies", "Learning", "Events"] },
@@ -41,7 +40,7 @@ export const NAV_GROUPS = [
 export function navItemsFor(user) {
   // Insights, Knowledge and the Clinic Chatbot are for the leadership team only (admin + people the admin ticks: MIS, COS, COE, doctors).
   const lead = user.role === "admin" || !!user.leadership;
-  if (user.role === "admin") return ["Dashboard", "Attendance", "Shift Logs", "Departments", "Staff", "Exits", "Leave", "Payroll", "HR", "Reports", "Dashboards", "Documents", "Policies", "Learning", "Events", "Clinic Assistant", "Assistant", "System"];
-  if (user.role === "manager") return ["Dashboard", "Shift Checklist", "Attendance", "Shift Logs", "Departments", "Leave", ...(lead ? ["Reports", "Dashboards", "Documents", "Policies", "Learning", "Events", "Clinic Assistant"] : []), "Assistant"];
+  if (user.role === "admin") return ["Dashboard", "Attendance", "Dashboards", "Departments", "Staff", "Exits", "Leave", "Payroll", "HR", "Reports", "Documents", "Policies", "Learning", "Events", "Clinic Assistant", "Assistant", "System"];
+  if (user.role === "manager") return ["Dashboard", "Shift Checklist", "Attendance", "Dashboards", "Departments", "Leave", ...(lead ? ["Reports", "Documents", "Policies", "Learning", "Events", "Clinic Assistant"] : []), "Assistant"];
   return ["My checklist", "Shift Checklist", "Tracker", "My Workspace", "My Profile", "Leave", ...(lead ? ["Documents", "Policies", "Learning", "Clinic Assistant"] : []), "Assistant"];
 }

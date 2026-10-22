@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import PageShell from "../components/PageShell.jsx";
-import ConnectedToolPage from "./ConnectedToolPage.jsx";
 import ChecklistDashboard from "../components/ChecklistDashboard.jsx";
 
 const rupee = (n) => "₹" + Number(n || 0).toLocaleString("en-IN");
@@ -14,6 +13,7 @@ export default function ClinicDashboardPage({ user, onLogout, onBack, onNavigate
   const [tab, setTab] = useState("checklist");
   useEffect(() => {
     const load = () => {
+      if (!(user.role === "admin" || user.leadership)) return;
       api.portalDepartments().then((d) => setDepts(d.rows)).catch(() => setDepts((x) => x || []));
       api.getReports(30).then(setRep).catch(() => setRep((x) => x || {}));
     };
@@ -32,13 +32,9 @@ export default function ClinicDashboardPage({ user, onLogout, onBack, onNavigate
       </div>
       <div className="pill-row">
         <button className={`pill ${tab === "checklist" ? "active" : ""}`} onClick={() => setTab("checklist")}>Checklist dashboard</button>
-        <button className={`pill ${tab === "live" ? "active" : ""}`} onClick={() => setTab("live")}>Clinic overview</button>
-        <button className={`pill ${tab === "google" ? "active" : ""}`} onClick={() => setTab("google")}>Old Google dashboard</button>
-        <button className={`pill ${tab === "old" ? "active" : ""}`} onClick={() => setTab("old")}>Earlier dashboard</button>
+        {(user.role === "admin" || user.leadership) && <button className={`pill ${tab === "live" ? "active" : ""}`} onClick={() => setTab("live")}>Clinic overview</button>}
       </div>
       {tab === "checklist" && <ChecklistDashboard user={user} />}
-      {tab === "google" && <ConnectedToolPage toolKey="checklist_dashboard" active="Dashboards" user={user} isStaffLayout />}
-      {tab === "old" && <ConnectedToolPage toolKey="dashboard" active="Dashboards" user={user} isStaffLayout />}
       {tab === "live" && (!depts ? <div className="empty">Loading…</div> : (
         <>
           <div className="dept-grid tile-grid">

@@ -15,7 +15,7 @@ const base = `http://localhost:${PORT}`;
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = "") => { cond ? pass++ : fail++; console.log(`${cond ? "  PASS" : "  FAIL"}  ${name}${cond ? "" : "  " + extra}`); };
 const call = async (method, url, body, token) => {
-  const r = await fetch(base + url, { method, headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  const r = await fetch(base + url, { method, headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) Mobile Safari/537.36", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: body ? JSON.stringify(body) : undefined });
   let j = null; try { j = await r.json(); } catch {}
   return { status: r.status, body: j };
 };
@@ -351,7 +351,15 @@ try {
   ok("a stranger is not recognised", (await call("POST", "/api/kiosk/checkin", { descriptor: fdesc(50) }, kdev.body.key)).body?.matched === false);
   const brd2 = (await call("GET", "/api/attendance/board", null, admin)).body;
   ok("the face check-in shows on the attendance board", ["P", "L"].includes(brd2.rows.find((r) => r.id === mkd.body.id)?.mark));
+  ok("face check-in is refused on a computer", (await fetch(base + "/api/kiosk/checkin", { method: "POST", headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120", Authorization: `Bearer ${kdev.body.key}` }, body: JSON.stringify({ descriptor: fdesc(1) }) })).status === 403);
   await call("DELETE", `/api/kiosk/devices/${kdev.body.id}`, null, admin);
+  {
+    const dsh = await call("GET", "/api/shift-checklist/dashboard", null, admin);
+    ok("dashboard 'not started' counts only people who are in today", dsh.status === 200 && dsh.body.summary.notStarted === dsh.body.missing.length);
+    const xl = await fetch(base + "/api/shift-checklist/export", { headers: { Authorization: `Bearer ${admin}` } });
+    ok("checklist Excel export works", xl.status === 200 && /spreadsheetml/.test(xl.headers.get("content-type")));
+    ok("staff cannot export checklists", (await fetch(base + "/api/shift-checklist/export", { headers: { Authorization: `Bearer ${stoken}` } })).status === 403);
+  }
   ok("a switched-off clinic phone stops working", (await call("POST", "/api/kiosk/checkin", { descriptor: fdesc(1) }, kdev.body.key)).status === 401);
 
   const tfd2 = new FormData(); tfd2.append("department", "Front Desk"); tfd2.append("folder", "Onboarding"); tfd2.append("title", "Welcome guide"); tfd2.append("file", new Blob(["%PDF-1.4 test"], { type: "application/pdf" }), "guide.pdf");
