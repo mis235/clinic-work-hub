@@ -116,6 +116,97 @@ router.post("/", requireAuth, requirePermission("staff:manage"), (req, res) => {
   res.status(201).json({ id, name, department: departmentName, role: roleName });
 });
 
+
+// ---- Paste a staff list ("Name - Designation" per line): preview the matches, then apply -----------------------------
+// Letters only, with common Indian-English spelling variants made equal (Laxmi/Lakshmi, Shivamma/Sivamma, Jyoti/Jyothi).
+const bnorm = (x) => String(x || "").toLowerCase().replace(/[^a-z]/g, "").replace(/ksh/g, "x").replace(/sh/g, "s").replace(/th/g, "t").replace(/ph/g, "f").replace(/(.)\1+/g, "$1");
+function bdist(a, b) {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+const NOISE = /\b(aunty|auntie|sir|madam|mam)\b/gi;
+function guessDepartment(name, desig) {
+  const t = `${name} ${desig}`.toLowerCase();
+  if (/^dr\b|^dr\.|doctor/.test(name.toLowerCase().trim()) || /doctor/.test(t)) return "Doctors";
+  if (/therapist/.test(t)) return "Therapist";
+  if (/pharma/.test(t)) return "Pharmacy";
+  if (/\bhr\b|cos\b|\bmis\b|director|chief|admin/.test(t)) return "Management";
+  if (/front desk|reception|billing|counsel|relation/.test(t)) return "Front Desk";
+  if (/floor|incharge|in-charge|co-?ordinator|stock/.test(t)) return "Floor Coordinator";
+  if (/account|finance/.test(t)) return "Finance";
+  if (/house|security|driver|clean|support/.test(t)) return "Supporting Staff";
+  if (/manager/.test(t)) return "Management";
+  return "Supporting Staff";
+}
+function parseStaffList(text) {
+  return String(text || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean).slice(0, 200).map((line) => {
+    const m = /^(.*?)\s*(?:[-\u2013\u2014:|,]\s+|\t+)\s*(.+)$/.exec(line);
+    const name = (m ? m[1] : line).trim().replace(/\s+/g, " "), designation = (m ? m[2] : "").trim();
+    return { line, name, designation, department: guessDepartment(name, designation) };
+  }).filter((r) => r.name);
+}
+function matchStaff(name, users, taken) {
+  const full = bnorm(name), core = bnorm(name.replace(NOISE, "")), first = bnorm(name.replace(NOISE, "").split(" ")[0]);
+  const free = users.filter((u) => !taken.has(u.id));
+  const nm = (u) => bnorm(u.name.replace(NOISE, ""));
+  const fn = (u) => bnorm(u.name.replace(NOISE, "").split(" ")[0]);
+  return free.find((u) => nm(u) === core || nm(u) === full)
+    || free.find((u) => fn(u) === first)
+    || (first.length >= 4 && free.find((u) => fn(u).length >= 4 && first.startsWith(fn(u))))
+    || (first.length >= 5 && free.find((u) => fn(u).length >= 5 && bdist(fn(u), first) <= 2)) || null;
+}
+router.post("/bulk-preview", requireAuth, requirePermission("staff:manage"), (req, res) => {
+  const rows = parseStaffList(req.body?.text);
+  if (!rows.length) return res.status(400).json({ error: "Paste one person per line, like: Zoya - Therapist" });
+  const users = db.prepare("SELECT u.id, u.name, u.designation, d.name AS department FROM users u LEFT JOIN departments d ON d.id = u.department_id WHERE u.active = 1").all();
+  const taken = new Set();
+  res.json({
+    rows: rows.map((r) => { const u = matchStaff(r.name, users, taken); if (u) taken.add(u.id); return { ...r, matchId: u?.id || null, matchName: u?.name || null, matchDesignation: u?.designation || null }; }),
+    staff: users.map((u) => ({ id: u.id, name: u.name })).sort((a, b) => a.name.localeCompare(b.name)),
+  });
+});
+router.post("/bulk-apply", requireAuth, requirePermission("staff:manage"), (req, res) => {
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows.slice(0, 200) : [];
+  if (!rows.length) return res.status(400).json({ error: "Nothing to apply" });
+  const deptId = (n) => { let d = db.prepare("SELECT id FROM departments WHERE name = ?").get(n); if (!d) { d = { id: randomUUID() }; db.prepare("INSERT INTO departments (id, name) VALUES (?, ?)").run(d.id, n); } return d.id; };
+  const staffRole = db.prepare("SELECT id FROM roles WHERE name = 'staff'").get();
+  const isAdmin = req.user.roleName === "admin";
+  let added = 0, updated = 0; const used = new Set();
+  const nextPhone = () => { for (let n = 1; n < 1000; n++) { const p = `+91900003${String(n).padStart(4, "0")}`; if (!db.prepare("SELECT 1 FROM users WHERE phone = ?").get(p)) return p; } };
+  const tx = db.transaction(() => {
+    for (const r of rows) {
+      const name = String(r.name || "").trim().slice(0, 80), desig = String(r.designation || "").trim().slice(0, 120) || null, dept = String(r.department || "").trim().slice(0, 60) || guessDepartment(name, desig || "");
+      if (!name) continue;
+      let id = null;
+      if (r.matchId) {
+        const u = db.prepare("SELECT id, role_id FROM users WHERE id = ?").get(r.matchId);
+        if (u && !used.has(u.id)) {
+          const isAdminRow = db.prepare("SELECT 1 FROM roles WHERE id = ? AND name = 'admin'").get(u.role_id);
+          if (isAdminRow) continue;   // the admin account is never renamed from here
+          db.prepare("UPDATE users SET name = ?, designation = COALESCE(?, designation), department_id = ? WHERE id = ?").run(name, desig, deptId(dept), u.id);
+          id = u.id; updated++;
+        }
+      }
+      if (!id) {
+        id = randomUUID();
+        db.prepare(`INSERT INTO users (id, name, phone, email, pin_hash, role_id, department_id, designation, employee_code, must_change_pin) VALUES (?,?,?,?,?,?,?,?,?,1)`)
+          .run(id, name, nextPhone(), null, bcrypt.hashSync("1234", 10), staffRole.id, deptId(dept), desig, nextEmployeeCode());
+        added++;
+      }
+      used.add(id);
+      if (isAdmin && desig) {   // job titles that carry extra access
+        if (/\bHR\b|human resource/i.test(desig)) db.prepare("UPDATE users SET is_hr = 1 WHERE id = ?").run(id);
+        if (/\b(COS|MIS|COE|Director|Chief|Founder)\b/i.test(desig)) db.prepare("UPDATE users SET leadership = 1 WHERE id = ?").run(id);
+      }
+    }
+  });
+  tx();
+  audit({ userId: req.user.userId, action: "STAFF_LIST_APPLIED", detail: `${added} added, ${updated} updated` });
+  res.json({ ok: true, added, updated });
+});
+
 // GET /api/users/onboarding — every active person with a completeness score.
 router.get("/onboarding", requireAuth, requirePermission("task:view_all"), (req, res) => {
   backfillEmployeeCodes();

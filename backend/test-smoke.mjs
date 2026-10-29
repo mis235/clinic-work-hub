@@ -360,6 +360,20 @@ try {
     ok("checklist Excel export works", xl.status === 200 && /spreadsheetml/.test(xl.headers.get("content-type")));
     ok("staff cannot export checklists", (await fetch(base + "/api/shift-checklist/export", { headers: { Authorization: `Bearer ${stoken}` } })).status === 403);
   }
+  {
+    const list = "Zoya - Therapist\nNagarani - COS\nLaxmi Aunty - Housekeeping\nGracy - Therapist\nAboli - HR\nShiva - Driver";
+    ok("staff cannot paste a list", (await call("POST", "/api/users/bulk-preview", { text: list }, stoken)).status === 403);
+    const pv = await call("POST", "/api/users/bulk-preview", { text: list }, admin);
+    const byName = Object.fromEntries(pv.body.rows.map((r) => [r.name, r]));
+    ok("preview matches existing people", byName["Zoya"].matchName === "Zoya" && /^Naga/.test(byName["Nagarani"].matchName || "") && /^Lakshmi|^Lax/i.test(byName["Laxmi Aunty"].matchName || ""), JSON.stringify(pv.body.rows.map((r) => [r.name, r.matchName])));
+    ok("new people are not matched", !byName["Gracy"].matchId && !byName["Shiva"].matchId);
+    ok("department is guessed", byName["Gracy"].department === "Therapist" && byName["Shiva"].department === "Supporting Staff" && byName["Aboli"].department === "Management");
+    const ap = await call("POST", "/api/users/bulk-apply", { rows: pv.body.rows }, admin);
+    ok("list applied", ap.body?.added === 2 && ap.body?.updated === 4, JSON.stringify(ap.body));
+    const again = await call("POST", "/api/users/bulk-preview", { text: list }, admin);
+    ok("new people now match on a second run (no duplicates)", again.body.rows.every((r) => r.matchId));
+    ok("renamed person is saved", (await call("GET", "/api/users/full", null, admin)).body.some((u) => u.name === "Nagarani"));
+  }
   ok("a switched-off clinic phone stops working", (await call("POST", "/api/kiosk/checkin", { descriptor: fdesc(1) }, kdev.body.key)).status === 401);
 
   const tfd2 = new FormData(); tfd2.append("department", "Front Desk"); tfd2.append("folder", "Onboarding"); tfd2.append("title", "Welcome guide"); tfd2.append("file", new Blob(["%PDF-1.4 test"], { type: "application/pdf" }), "guide.pdf");

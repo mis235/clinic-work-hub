@@ -8,6 +8,7 @@ import Icon from "../components/Icon.jsx";
 import Avatar from "../components/Avatar.jsx";
 import FaceEnrollModal from "../components/FaceEnrollModal.jsx";
 import FaceCapture from "../components/FaceCapture.jsx";
+import StaffListImport from "../components/StaffListImport.jsx";
 
 const DEPTS = ["Management", "Front Desk", "Therapist", "MDO", "Doctors", "Pharmacy", "Floor Coordinator", "Finance", "Supporting Staff"];
 
@@ -24,6 +25,7 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
   const [faceFor, setFaceFor] = useState(null);
   const [faces, setFaces] = useState({});
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [pasting, setPasting] = useState(false);
 
   const refresh = () => api.listRosterAll().then(setRoster).catch(() => setRoster([]));
   const loadFaces = () => api.enrolledFaces().then((r) => setFaces(Object.fromEntries(r.map((x) => [x.user_id, x])))).catch(() => {});
@@ -56,10 +58,12 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <input className="field" style={{ width: 200 }} placeholder="Search by name…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <button className="btn btn-outline" onClick={() => setPasting(true)}>Paste staff list</button>
             <button className="btn btn-primary" onClick={() => setAdding(true)}><Icon name="userplus" size={16} /> Add staff</button>
           </div>
         </div>
 
+        {pasting && <StaffListImport onClose={() => setPasting(false)} onDone={(m) => { setPasting(false); flash(m); refresh(); }} />}
         <div className="pill-row">
           {removedCount > 0 && <button className={`pill ${showRemoved ? "active" : ""}`} onClick={() => setShowRemoved((x) => !x)}>{showRemoved ? "← Back to active staff" : `Removed staff (${removedCount})`}</button>}
           {!showRemoved && depts.map((d) => <button key={d} className={`pill ${dept === d ? "active" : ""}`} onClick={() => setDept(d)}>{d}</button>)}
