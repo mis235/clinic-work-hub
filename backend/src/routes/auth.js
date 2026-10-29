@@ -2,7 +2,7 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 import db from "../db.js";
-import { signToken } from "../middleware/auth.js";
+import { signToken, requireAuth } from "../middleware/auth.js";
 import { loginThrottle } from "../security.js";
 import { audit } from "../audit.js";
 import { accessFor } from "../access.js";
@@ -25,6 +25,20 @@ function userWithRole(row) {
     designation: row.designation || null,
   };
 }
+
+// POST /api/auth/change-password — the signed-in admin/manager changes their own password (no file editing needed).
+router.post("/change-password", requireAuth, (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+  const row = db.prepare("SELECT id, password_hash FROM users WHERE id = ?").get(req.user.userId);
+  if (!row?.password_hash) return res.status(400).json({ error: "This account signs in with a PIN. Change the PIN instead." });
+  if (!bcrypt.compareSync(String(currentPassword || ""), row.password_hash)) return res.status(401).json({ error: "The current password is not right." });
+  const np = String(newPassword || "");
+  if (np.length < 8) return res.status(400).json({ error: "Use at least 8 characters." });
+  if (/^(change-this-password|password|12345678)$/i.test(np)) return res.status(400).json({ error: "Choose a password that is not easy to guess." });
+  db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(bcrypt.hashSync(np, 10), row.id);
+  audit({ userId: row.id, action: "PASSWORD_CHANGED", detail: "" });
+  res.json({ ok: true });
+});
 
 // POST /api/auth/login
 // Accepts EITHER { email, password } (typical for admin/manager on desktop)

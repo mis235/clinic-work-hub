@@ -4,6 +4,26 @@ import { api } from "../api.js";
 import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
 
+function PasswordCard() {
+  const [cur, setCur] = useState(""), [pw, setPw] = useState(""), [again, setAgain] = useState(""), [msg, setMsg] = useState(null);
+  async function save() {
+    if (pw !== again) return setMsg({ ok: false, t: "The two new passwords do not match." });
+    try { await api.changeMyPassword(cur, pw); setMsg({ ok: true, t: "Password changed. Use it the next time you sign in." }); setCur(""); setPw(""); setAgain(""); } catch (e) { setMsg({ ok: false, t: e.message }); }
+  }
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <div className="card-head"><div><span className="name">Change my password</span><span className="dept">For the admin sign-in. No file editing needed.</span></div></div>
+      <div className="form-grid">
+        <div><label className="field-label">Current password</label><input className="field" type="password" value={cur} onChange={(e) => setCur(e.target.value)} autoComplete="current-password" /></div>
+        <div><label className="field-label">New password (8+ characters)</label><input className="field" type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="new-password" /></div>
+        <div><label className="field-label">New password again</label><input className="field" type="password" value={again} onChange={(e) => setAgain(e.target.value)} autoComplete="new-password" /></div>
+      </div>
+      {msg && <div className={msg.ok ? "note" : "login-error"} style={{ marginTop: 10 }}>{msg.t}</div>}
+      <button className="btn btn-primary" style={{ marginTop: 12 }} disabled={!cur || !pw} onClick={save}>Save password</button>
+    </div>
+  );
+}
+
 function EmailCard({ onChanged }) {
   const [cur, setCur] = useState(null);
   const [user, setUser] = useState(""); const [pass, setPass] = useState(""); const [to, setTo] = useState("");
@@ -220,6 +240,7 @@ export default function SystemPage({ user, onLogout, onBack }) {
           </div>
         </div>
 
+        <PasswordCard />
         <BackupCopyCard onChanged={load} />
         <StorageCard />
         <EmailCard onChanged={load} />

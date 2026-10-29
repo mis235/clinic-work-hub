@@ -374,6 +374,11 @@ try {
     ok("new people now match on a second run (no duplicates)", again.body.rows.every((r) => r.matchId));
     ok("renamed person is saved", (await call("GET", "/api/users/full", null, admin)).body.some((u) => u.name === "Nagarani"));
   }
+  {
+    ok("password change needs the current password", (await call("POST", "/api/auth/change-password", { currentPassword: "wrong", newPassword: "A-long-new-pass1" }, admin)).status === 401);
+    ok("a weak new password is refused", (await call("POST", "/api/auth/change-password", { currentPassword: process.env.ADMIN_PASSWORD || "x", newPassword: "short" }, admin)).status !== 200);
+    ok("PIN accounts are told to change the PIN", (await call("POST", "/api/auth/change-password", { currentPassword: "1234", newPassword: "A-long-new-pass1" }, stoken)).status === 400);
+  }
   ok("a switched-off clinic phone stops working", (await call("POST", "/api/kiosk/checkin", { descriptor: fdesc(1) }, kdev.body.key)).status === 401);
 
   const tfd2 = new FormData(); tfd2.append("department", "Front Desk"); tfd2.append("folder", "Onboarding"); tfd2.append("title", "Welcome guide"); tfd2.append("file", new Blob(["%PDF-1.4 test"], { type: "application/pdf" }), "guide.pdf");

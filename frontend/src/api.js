@@ -211,6 +211,7 @@ export const api = {
   applyStaffList: (rows) => req("/api/users/bulk-apply", { method: "POST", body: { rows } }),
   createStaff: (payload) => req("/api/users", { method: "POST", body: payload }),
   setOnboardingDocs: (id, docs) => req(`/api/users/${id}/onboarding-docs`, { method: "PATCH", body: { docs } }),
+  changeMyPassword: (currentPassword, newPassword) => req("/api/auth/change-password", { method: "POST", body: { currentPassword, newPassword } }),
   changeMyPin: (currentPin, newPin) => req("/api/users/me/pin", { method: "POST", body: { currentPin, newPin } }),
   resetStaffPin: (id, newPin) => req(`/api/users/${id}/reset-pin`, { method: "POST", body: { newPin } }),
   saveShiftProgress: (payload) => req("/api/shift-checklist/progress", { method: "POST", body: payload }),
