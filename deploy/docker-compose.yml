@@ -1,0 +1,16 @@
+# Runs next to n8n on the same server. Uses the existing Traefik for the secure (https) address.
+services:
+  clinic-hub:
+    build: ..
+    container_name: clinic-hub
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1.0
+    volumes:
+      - ./data:/data
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.clinic-hub.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.clinic-hub.entrypoints=websecure
+      - traefik.http.routers.clinic-hub.tls.certresolver=letsencrypt
+      - traefik.http.services.clinic-hub.loadbalancer.server.port=4000

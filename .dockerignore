@@ -1,0 +1,10 @@
+node_modules
+**/node_modules
+frontend/dist
+backend/.env
+backend/*.db
+backend/*.db-*
+backend/uploads
+backend/payslips
+.git
+deploy
