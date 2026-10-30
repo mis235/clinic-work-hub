@@ -7,7 +7,7 @@ services:
     mem_limit: 1g
     cpus: 1.0
     volumes:
-      - ./data:/data
+      - ../../data:/data
     labels:
       - traefik.enable=true
       - traefik.http.routers.clinic-hub.rule=Host(`${DOMAIN}`)
