@@ -1,6 +1,8 @@
 # Work Hub for the cloud server. Built once on the server; data lives outside the image (in /data).
 FROM node:20-bookworm-slim AS build
 WORKDIR /app
+# build tools: better-sqlite3 has no ready-made file for this Node version, so it is compiled
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
 COPY backend/package*.json backend/
 RUN cd backend && npm ci --omit=dev --no-audit --no-fund
 COPY frontend/package*.json frontend/
