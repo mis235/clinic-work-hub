@@ -5,10 +5,9 @@ set -euo pipefail
 DOMAIN="${DOMAIN:-staff.drnishitaranka.com}"
 REPO="${REPO:-mis235/clinic-work-hub}"
 DIR=/docker/clinic-work-hub
-[ -n "${GH_TOKEN:-}" ] || { echo "Missing GH_TOKEN. Run:  GH_TOKEN=your-token bash install-server.sh"; exit 1; }
 command -v git >/dev/null || apt-get install -y git
 mkdir -p "$DIR" && cd "$DIR"
-if [ ! -d src/.git ]; then git clone "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" src; else (cd src && git pull "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"); fi
+if [ ! -d src/.git ]; then git clone "https://${GH_TOKEN:+x-access-token:${GH_TOKEN}@}github.com/${REPO}.git" src; else (cd src && git pull "https://${GH_TOKEN:+x-access-token:${GH_TOKEN}@}github.com/${REPO}.git"); fi
 (cd src && git remote set-url origin "https://github.com/${REPO}.git")   # the token is not kept on the server
 mkdir -p data
 if [ ! -f data/.env ]; then
