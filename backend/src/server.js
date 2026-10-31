@@ -7,6 +7,7 @@ import exitRoutes from "./routes/exits.js";
 import workspaceRoutes from "./routes/workspace.js";
 import kioskRoutes from "./routes/kiosk.js";
 import leaveRoutes from "./routes/leave.js";
+import { tidyExistingNames } from "./names.js";
 import { ensureSingleAdmin, requireLeadership, seedAccess } from "./access.js";
 import { startHttps } from "./https.js";
 import { isEmailConfigured, mailSettings, saveMailSettings, clearMailSettings, sendEmail, friendlyMailError } from "./email.js";
@@ -206,6 +207,7 @@ if (db.prepare("SELECT COUNT(*) AS c FROM users").get().c === 0) {
 // Only the ADMIN_EMAIL account is admin; everyone else is staff.
 seedAccess();
 ensureSingleAdmin();
+try { tidyExistingNames(db); } catch (e) { console.warn("name tidy skipped:", e.message); }
 
 const port = process.env.PORT || 4000;
 const server = app.listen(port, () => {

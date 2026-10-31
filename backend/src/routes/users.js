@@ -1,3 +1,4 @@
+import { properName, properTitle } from "../names.js";
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
@@ -90,7 +91,8 @@ function applyExtras(userId, body) {
 
 // POST /api/users — onboard a new team member (requires staff:manage)
 router.post("/", requireAuth, requirePermission("staff:manage"), (req, res) => {
-  const { name, departmentName, roleName, phone, pin, email, birthday, joinedAt, designation, shiftRole } = req.body || {};
+  const { departmentName, roleName, phone, pin, email, birthday, joinedAt, shiftRole } = req.body || {};
+  const name = properName(req.body?.name), designation = req.body?.designation ? properTitle(req.body.designation) : req.body?.designation;
   if (!name || !departmentName || !roleName || !phone || !pin) {
     return res.status(400).json({ error: "name, departmentName, roleName, phone, pin are required" });
   }
@@ -177,7 +179,7 @@ router.post("/bulk-apply", requireAuth, requirePermission("staff:manage"), (req,
   const nextPhone = () => { for (let n = 1; n < 1000; n++) { const p = `+91900003${String(n).padStart(4, "0")}`; if (!db.prepare("SELECT 1 FROM users WHERE phone = ?").get(p)) return p; } };
   const tx = db.transaction(() => {
     for (const r of rows) {
-      const name = String(r.name || "").trim().slice(0, 80), desig = String(r.designation || "").trim().slice(0, 120) || null, dept = String(r.department || "").trim().slice(0, 60) || guessDepartment(name, desig || "");
+      const name = properName(String(r.name || "").slice(0, 80)), desig = properTitle(String(r.designation || "").slice(0, 120)) || null, dept = String(r.department || "").trim().slice(0, 60) || guessDepartment(name, desig || "");
       if (!name) continue;
       let id = null;
       if (r.matchId) {
@@ -299,7 +301,8 @@ router.patch("/:id/role", requireAuth, requirePermission("staff:manage"), (req, 
 router.patch("/:id", requireAuth, requirePermission("staff:manage"), (req, res) => {
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.params.id);
   if (!user) return res.status(404).json({ error: "User not found" });
-  const { birthday, joinedAt, phone, name, email, designation, shiftRole, departmentName, roleName } = req.body || {};
+  const { birthday, joinedAt, phone, email, shiftRole, departmentName, roleName } = req.body || {};
+  const name = req.body?.name == null ? req.body?.name : properName(req.body.name), designation = req.body?.designation == null ? req.body?.designation : properTitle(req.body.designation);
   if (phone && db.prepare("SELECT 1 FROM users WHERE phone = ? AND id != ?").get(phone, req.params.id)) return res.status(409).json({ error: "Another staff member already uses this phone number" });
   if (email && db.prepare("SELECT 1 FROM users WHERE email = ? AND id != ?").get(email, req.params.id)) return res.status(409).json({ error: "Another staff member already uses this email" });
   if (departmentName) {

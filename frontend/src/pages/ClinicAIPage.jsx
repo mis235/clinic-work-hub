@@ -56,7 +56,7 @@ export default function ClinicAIPage({ user, isStaffLayout, onLogout, onBack }) 
         <div className="card" style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 300px)", minHeight: 420 }}>
           <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
             {messages.map((m, i) => (
-              <div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", maxWidth: "85%", whiteSpace: "pre-wrap", padding: "10px 14px", borderRadius: 14, background: m.role === "user" ? "var(--brand, #6d4aff)" : "var(--bg-soft, #f3efff)", color: m.role === "user" ? "#fff" : "inherit" }}>{m.content}</div>))}
+              <div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", maxWidth: "85%", whiteSpace: "pre-wrap", padding: "10px 14px", borderRadius: 14, background: m.role === "user" ? "var(--brand, #0b6b63)" : "var(--bg-soft, #e8f2ef)", color: m.role === "user" ? "#fff" : "inherit" }}>{m.content}</div>))}
             {busy && <div className="meta">Thinking… (data questions can take up to a minute)</div>}
             <div ref={bottom} />
           </div>

@@ -148,10 +148,10 @@ function FacePanel({ date, people, isAdmin, flash }) {
         <div className="card">
           <div className="title">Setting up the clinic phone</div>
           <ol className="meta" style={{ lineHeight: 1.8, paddingLeft: 18 }}>
-            <li>{lan?.tunnelUrl ? <>The <b>anywhere link</b> is on, so the phone can be on any Wi-Fi or mobile data. Keep this computer on with the app running.</> : <>The clinic phone and this computer must be on the <b>same Wi-Fi</b> — or start the app with <b>start-with-anywhere-link-windows.bat</b> to use it from any network.</>}</li>
-            <li>Press <b>Create phone link</b>, then send that link to the phone (WhatsApp it to yourself) and open it in Chrome.</li>
-            <li>The first time, Chrome says <b>“Your connection isn't private”</b> — tap <b>Advanced → Proceed</b>. This is normal (the app makes its own security certificate). Then allow the <b>camera</b>.</li>
-            <li>Keep the phone propped up with the screen on. If Windows asks about network access the first time, choose <b>Allow</b>.</li>
+            <li>Use the clinic phone (any Android phone or iPhone with Chrome or Safari). It works on Wi-Fi or mobile data.</li>
+            <li>Press <b>Create phone link</b> below, send that link to the phone (WhatsApp it to yourself) and open it there.</li>
+            <li>Allow the <b>camera</b> when the phone asks. Then add it to the home screen (menu → Add to Home screen) so it opens in one tap.</li>
+            <li>Keep the phone propped up at the front desk with the screen on and plugged in to charge.</li>
           </ol>
           {lan && !lan.httpsPort && <div className="login-error" style={{ marginBottom: 10 }}>The secure address is not running, so the phone camera may be blocked. Restart the app once after updating.</div>}
           {lan && lan.addresses.length === 0 && <div className="login-error" style={{ marginBottom: 10 }}>This computer is not connected to a network, so a phone cannot reach it.</div>}
