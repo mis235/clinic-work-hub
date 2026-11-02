@@ -11,7 +11,7 @@ export default function Sidebar({ items, active, onSelect, who, onLogout, mobile
           <img src="/logo.png" alt="" className="sidebar-logo" />
           <div>
             Work Hub
-            <small>DR. NISHITA'S CLINIC</small>
+            <small>Dr. Nishita's Clinic</small>
           </div>
         </div>
         <nav className="sidebar-nav" aria-label="Main">
