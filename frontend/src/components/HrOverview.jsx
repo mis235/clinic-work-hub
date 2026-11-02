@@ -67,5 +67,5 @@ export default function HrOverview({ user, onNavigate }) {
     </>
   );
 }
-const Section = ({ title, empty, children }) => { const arr = [].concat(children).flat().filter(Boolean); return <div style={{ marginTop: 10 }}><div className="meta" style={{ fontWeight: 700, textTransform: "uppercase", fontSize: 11, letterSpacing: ".04em" }}>{title}</div>{arr.length ? arr : empty && <div className="meta" style={{ padding: "6px 0" }}>{empty}</div>}</div>; };
+const Section = ({ title, empty, children }) => { const arr = [].concat(children).flat().filter(Boolean); return <div style={{ marginTop: 10 }}><div className="meta" style={{ fontWeight: 700, fontSize: 11, letterSpacing: ".04em" }}>{title}</div>{arr.length ? arr : empty && <div className="meta" style={{ padding: "6px 0" }}>{empty}</div>}</div>; };
 const Line = ({ a, b, badge, cls }) => <div className="task-row" style={{ padding: "7px 0" }}><div><div className="title" style={{ fontSize: 13 }}>{a}</div><div className="meta">{b}</div></div>{badge && <span className={`badge ${cls || ""}`}>{badge}</span>}</div>;

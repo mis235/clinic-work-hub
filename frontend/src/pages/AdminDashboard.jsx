@@ -99,7 +99,7 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
 
         <div className="hero">
           <div style={{ position: "relative", zIndex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", opacity: 0.8, marginBottom: 8 }}>{dateLabel}</div>
+            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", opacity: 0.8, marginBottom: 8 }}>{dateLabel}</div>
             <h2>{greeting()}, {firstName(user.name)}</h2>
             <p>
               {loading ? "Loading today's picture…" : (

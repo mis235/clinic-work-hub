@@ -543,3 +543,19 @@ button:active:not(:disabled) { transform: scale(.97); }
 .lumi-confetti { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 5; }
 .lumi-confetti i { position: absolute; top: -12px; width: 8px; height: 14px; border-radius: 2px; animation: lumi-fall 2.6s linear forwards; }
 @keyframes lumi-fall { to { transform: translateY(110vh) rotate(540deg); opacity: .9; } }
+
+/* Lumi button + mini chat on every screen */
+.lumi-fab { position: fixed; right: 16px; bottom: 16px; z-index: 40; width: 74px; height: 74px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow-lg); cursor: pointer; display: grid; place-items: center; padding: 0; animation: rise .6s .3s both; }
+.lumi-fab:hover { transform: translateY(-3px) scale(1.04); }
+.lumi-panel { position: fixed; right: 16px; bottom: 100px; z-index: 40; width: min(360px, calc(100vw - 32px)); height: min(480px, calc(100vh - 140px)); background: var(--surface); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow-lg); display: flex; flex-direction: column; overflow: hidden; animation: rise .3s both; }
+.lumi-panel-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--primary-soft); border-bottom: 1px solid var(--line); }
+.lumi-panel-head > div { flex: 1; line-height: 1.2; }
+.lumi-x { all: unset; cursor: pointer; font-size: 24px; line-height: 1; padding: 0 6px; color: var(--ink-soft); }
+.lumi-msgs { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.lumi-msg { max-width: 88%; padding: 9px 12px; border-radius: 14px; white-space: pre-wrap; font-size: 13.5px; line-height: 1.45; animation: rise .25s both; }
+.lumi-msg.assistant { align-self: flex-start; background: var(--surface-sunk); border-bottom-left-radius: 4px; }
+.lumi-msg.user { align-self: flex-end; background: var(--primary); color: #fff; border-bottom-right-radius: 4px; }
+.lumi-ideas { display: flex; flex-wrap: wrap; gap: 6px; }
+.lumi-form { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--line); }
+.lumi-form .field { flex: 1; }
+@media (max-width: 700px) { .lumi-fab { bottom: 12px; right: 12px; width: 64px; height: 64px; } .lumi-fab svg { width: 52px; height: 52px; } .lumi-panel { bottom: 86px; right: 12px; } }

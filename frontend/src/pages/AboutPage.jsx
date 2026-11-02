@@ -50,7 +50,7 @@ export default function AboutPage({ user, onLogout, onBack }) {
               <div className="board-mark" aria-hidden="true"><span>Dr. Nishita's Clinic</span></div>
             </div>
             <div className="clinic-info">
-              <div className="eyebrow" style={{ color: "var(--primary)", fontWeight: 700, fontSize: 11.5, letterSpacing: "0.1em", textTransform: "uppercase" }}>Our clinic</div>
+              <div className="eyebrow" style={{ color: "var(--primary)", fontWeight: 700, fontSize: 11.5, letterSpacing: "0.1em" }}>Our clinic</div>
               <h2>{c.name}</h2>
               <div className="clinic-tagline">{c.tagline}</div>
               <div className="clinic-line"><Icon name="building" size={17} /><span>{c.address}</span></div>
@@ -72,7 +72,7 @@ export default function AboutPage({ user, onLogout, onBack }) {
             <div className="person-row" style={{ gap: 22, alignItems: "flex-start", flexWrap: "wrap" }}>
               <DoctorPhoto url={f.photoUrl} name={f.name} />
               <div className="info" style={{ minWidth: 240 }}>
-                <div className="eyebrow" style={{ color: "var(--primary)", fontWeight: 700, fontSize: 11.5, letterSpacing: "0.1em", textTransform: "uppercase" }}>Founder & Medical Director</div>
+                <div className="eyebrow" style={{ color: "var(--primary)", fontWeight: 700, fontSize: 11.5, letterSpacing: "0.1em" }}>Founder & Medical Director</div>
                 <h2 style={{ fontSize: 24, margin: "6px 0 8px" }}>{f.name}</h2>
                 <div>
                   <span className="badge teal" style={{ marginRight: 6 }}>Dermatologist</span>

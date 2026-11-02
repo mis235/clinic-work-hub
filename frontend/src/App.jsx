@@ -25,6 +25,7 @@ import ClinicDashboardPage from "./pages/ClinicDashboardPage.jsx";
 import DepartmentsPage from "./pages/DepartmentsPage.jsx";
 import DocumentsPage from "./pages/DocumentsPage.jsx";
 import KioskPage from "./pages/KioskPage.jsx";
+import LumiFloat from "./components/LumiFloat.jsx";
 import ChangePinModal from "./components/ChangePinModal.jsx";
 
 const VIEW_KEY = {
@@ -79,7 +80,7 @@ function MainApp() {
     setUser(next);
   }
   const pinGate = user.mustChangePin ? <ChangePinModal forced onDone={pinChanged} /> : null;
-  return <>{pinGate}{renderApp()}</>;
+  return <>{pinGate}{renderApp()}{user && view !== "clinicassistant" && <LumiFloat user={user} />}</>;
 
   function renderApp() {
   if (user.role === "admin" || user.role === "manager") {
