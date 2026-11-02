@@ -1,3 +1,5 @@
+import AskLumiBar from "../components/AskLumiBar.jsx";
+import Lumi from "../components/Lumi.jsx";
 import HrOverview from "../components/HrOverview.jsx";
 import { useEffect, useState, useCallback } from "react";
 import { navItemsFor } from "../navItems.js";
@@ -97,9 +99,11 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
       <main className="main">
         <MobileTopBar title="Dashboard" onOpenMenu={() => setMobileOpen(true)} />
 
+        <AskLumiBar />
         <div className="hero">
+          <Lumi mood="wave" size={118} className="hero-lumi" />
           <div style={{ position: "relative", zIndex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", opacity: 0.8, marginBottom: 8 }}>{dateLabel}</div>
+            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.02em", opacity: 0.85, marginBottom: 8 }}>{dateLabel}</div>
             <h2>{greeting()}, {firstName(user.name)}</h2>
             <p>
               {loading ? "Loading today's picture…" : (

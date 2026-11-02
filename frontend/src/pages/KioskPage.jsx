@@ -48,9 +48,9 @@ export default function KioskPage() {
   }, []);
 
   const mood = state.phase === "result" ? (state.ok ? "cheer" : "sorry") : state.phase === "error" ? "sorry" : state.phase === "check" ? "think" : "wave";
-  const color = state.phase === "result" ? (state.ok ? "#0f9d6b" : "#d64545") : state.phase === "error" ? "#d64545" : "#fff";
+  const color = state.phase === "result" ? (state.ok ? "#12a56f" : "#d64545") : state.phase === "error" ? "#d64545" : "#fff";
   return (
-    <div style={{ minHeight: "100vh", background: "#0a2a27", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", padding: 20, gap: 14, fontFamily: "system-ui, sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "#2a1b3d", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", padding: 20, gap: 14, fontFamily: "system-ui, sans-serif" }}>
       <img src="/logo.png" alt="" style={{ height: 44, marginTop: 6 }} />
       <div style={{ fontSize: 15, opacity: .8 }}>Dr. Nishita's Clinic · Attendance</div>
       <div style={{ fontSize: 44, fontWeight: 800, letterSpacing: "-0.02em" }}>{clock.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })}</div>

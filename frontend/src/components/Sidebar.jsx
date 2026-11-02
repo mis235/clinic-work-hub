@@ -38,6 +38,14 @@ export default function Sidebar({ items, active, onSelect, who, onLogout, mobile
           <button onClick={onLogout} title="Sign out" aria-label="Sign out"><Icon name="logout" size={18} /></button>
         </div>
       </aside>
+      <nav className="bottom-nav" aria-label="Quick menu">
+        {items.slice(0, 3).map((k) => (
+          <button key={k} className={active === k ? "active" : ""} onClick={() => onSelect(k)} aria-label={NAV[k]?.label || k}>
+            <Icon name={NAV[k]?.icon || "list"} size={19} /><span>{NAV[k]?.label || k}</span>
+          </button>
+        ))}
+        <button onClick={() => window.dispatchEvent(new Event("open-menu"))} aria-label="More"><Icon name="menu" size={19} /></button>
+      </nav>
     </>
   );
 }

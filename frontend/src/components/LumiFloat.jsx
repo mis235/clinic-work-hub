@@ -11,6 +11,7 @@ export default function LumiFloat({ user }) {
   const [ideas, setIdeas] = useState([]);
   const [msgs, setMsgs] = useState([{ role: "assistant", content: `Hi ${first}, I am Lumi. Ask me about your tasks, leave or any clinic policy.` }]);
   const end = useRef(null);
+  useEffect(() => { const f = () => setOpen(true); window.addEventListener("lumi-open", f); return () => window.removeEventListener("lumi-open", f); }, []);
   useEffect(() => { if (open && !ideas.length) api.getAssistantFaqs().then((d) => setIdeas((d.suggestions || []).slice(0, 3))).catch(() => {}); }, [open]);
   useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, busy, open]);
 

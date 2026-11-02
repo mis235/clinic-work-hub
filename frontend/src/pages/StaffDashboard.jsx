@@ -1,3 +1,5 @@
+import AskLumiBar from "../components/AskLumiBar.jsx";
+import Lumi from "../components/Lumi.jsx";
 import { useEffect, useState, useCallback } from "react";
 import { api } from "../api.js";
 import { STATUS, effectiveStatus } from "../constants.js";
@@ -90,7 +92,9 @@ export default function StaffDashboard({ user, onLogout }) {
           <AssistantPage user={user} isStaffLayout />
         ) : (
           <>
+        <AskLumiBar />
         <div className="hero">
+          <Lumi mood="wave" size={118} className="hero-lumi" />
           <div style={{ position: "relative", zIndex: 1 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.02em", opacity: 0.85, marginBottom: 8 }}>
               {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}

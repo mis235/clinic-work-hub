@@ -1,3 +1,4 @@
+import Lumi, { LumiOrbit } from "../components/Lumi.jsx";
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
 
@@ -53,13 +54,15 @@ export default function Login({ onLoggedIn }) {
           <img src="/clinic/dr-nishita.png" alt="Dr. Nishita Ranka" />
           <div>Dr. Nishita Ranka<small>Founder & Medical Director</small></div>
         </div>
+        <div className="login-lumi-sm"><Lumi mood="wave" size={78} /></div>
         <div className="login-hero-top">
           <img src="/logo.png" alt="Dr. Nishita's Clinic" className="login-hero-logo" />
           <span className="name">Dr. Nishita's Clinic</span>
         </div>
 
         <div className="login-hero-mid">
-          <div className="login-hero-eyebrow">Internal Work Hub</div>
+          <div className="login-lumi"><LumiOrbit mood="wave" size={210} /></div>
+          <div className="login-hero-eyebrow">Meet Lumi · Internal Work Hub</div>
           {tab === "password" ? (
             <h1>Run the clinic<br /><em>with one view</em> of the day.</h1>
           ) : (
