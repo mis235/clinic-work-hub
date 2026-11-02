@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
 import PageShell from "../components/PageShell.jsx";
+import Lumi from "../components/Lumi.jsx";
 
 const IDEAS = [
   "How many new patients came this month?",
@@ -16,7 +17,7 @@ export default function ClinicAIPage({ user, isStaffLayout, onLogout, onBack }) 
   const [url, setUrl] = useState("");
   const [editing, setEditing] = useState(false);
   const [err, setErr] = useState("");
-  const [messages, setMessages] = useState([{ role: "assistant", content: `Hi ${user.name.split(" ")[0]}. Ask me about patients, procedures, revenue, packages, pharmacy or the call log.` }]);
+  const [messages, setMessages] = useState([{ role: "assistant", content: `Hi ${user.name.split(" ").find((w) => !/^dr\.?$/i.test(w))}, I am Lumi. Ask me about patients, procedures, revenue, packages, pharmacy or the call log.` }]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const bottom = useRef(null);
@@ -38,9 +39,9 @@ export default function ClinicAIPage({ user, isStaffLayout, onLogout, onBack }) 
   const showSetup = isAdmin && cfg && (!cfg.configured || editing);
 
   return (
-    <PageShell user={user} active="Clinic Assistant" title="Clinic AI" isStaffLayout={isStaffLayout} onLogout={onLogout} onBack={onBack}>
+    <PageShell user={user} active="Clinic Assistant" title="Lumi" isStaffLayout={isStaffLayout} onLogout={onLogout} onBack={onBack}>
       <div className="page-head row">
-        <div><div className="eyebrow">Leadership only</div><h1>Clinic AI</h1><p>Your clinic data analyst — patients, charts, revenue, reports.</p></div>
+        <div className="lumi-hero"><Lumi mood={busy ? "think" : "wave"} size={84} /><div><div className="eyebrow">Leadership only</div><h1>Lumi</h1><p>Your clinic data helper — patients, charts, revenue and reports.</p></div></div>
         {isAdmin && cfg?.configured && <button className="btn btn-ghost" onClick={() => setEditing((x) => !x)}>Change n8n link</button>}
       </div>
       {showSetup && (
@@ -57,7 +58,7 @@ export default function ClinicAIPage({ user, isStaffLayout, onLogout, onBack }) 
           <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
             {messages.map((m, i) => (
               <div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", maxWidth: "85%", whiteSpace: "pre-wrap", padding: "10px 14px", borderRadius: 14, background: m.role === "user" ? "var(--brand, #0b6b63)" : "var(--bg-soft, #e8f2ef)", color: m.role === "user" ? "#fff" : "inherit" }}>{m.content}</div>))}
-            {busy && <div className="meta">Thinking… (data questions can take up to a minute)</div>}
+            {busy && <div className="lumi-row"><Lumi mood="think" size={44} /><div className="lumi-bubble">Lumi is thinking… (data questions can take up to a minute)</div></div>}
             <div ref={bottom} />
           </div>
           {messages.length === 1 && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "10px 0" }}>{IDEAS.map((q) => <button key={q} className="btn btn-outline btn-sm" onClick={() => send(q)}>{q}</button>)}</div>}

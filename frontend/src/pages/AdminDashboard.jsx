@@ -10,7 +10,7 @@ import Icon, { initials } from "../components/Icon.jsx";
 const todayISO = () => new Date(Date.now() + 19800000).toISOString().slice(0, 10); // India date
 function greeting() {
   const h = new Date().getHours();
-  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  return h < 12 ? "Good Morning" : h < 17 ? "Good Afternoon" : "Good Evening";
 }
 
 const firstName = (n = "") => n.split(/\s+/).find((w) => !/^dr\.?$/i.test(w)) || n;

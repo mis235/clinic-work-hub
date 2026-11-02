@@ -293,7 +293,7 @@ router.put("/signature", requireAuth, (req, res) => {
   const m = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(req.body?.dataUrl || "");
   if (!m) return res.status(400).json({ error: "Please draw your signature (PNG)" });
   const buf = Buffer.from(m[1], "base64");
-  if (buf.length > 400 * 1024 || buf.length < 100 || buf.subarray(1, 4).toString() !== "PNG") return res.status(400).json({ error: "The signature picture is not valid or too big" });
+  if (buf.length > 900 * 1024 || buf.length < 100 || buf.subarray(1, 4).toString() !== "PNG") return res.status(400).json({ error: "The signature picture is not valid or too big" });
   fs.writeFileSync(sigFile(req.user.userId), buf);
   res.json({ ok: true });
 });

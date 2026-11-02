@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import Lumi from "../components/Lumi.jsx";
 import { kioskApi } from "../api.js";
 import { faceDescriptor, startCamera, cameraHelp, loadFace, snapshotJpeg } from "../face.js";
 
@@ -46,13 +47,16 @@ export default function KioskPage() {
     return () => { dead = true; stop?.(); };
   }, []);
 
+  const mood = state.phase === "result" ? (state.ok ? "cheer" : "sorry") : state.phase === "error" ? "sorry" : state.phase === "check" ? "think" : "wave";
   const color = state.phase === "result" ? (state.ok ? "#0f9d6b" : "#d64545") : state.phase === "error" ? "#d64545" : "#fff";
   return (
-    <div style={{ minHeight: "100vh", background: "#0b1b2b", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", padding: 20, gap: 14, fontFamily: "system-ui, sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "#0a2a27", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", padding: 20, gap: 14, fontFamily: "system-ui, sans-serif" }}>
       <img src="/logo.png" alt="" style={{ height: 44, marginTop: 6 }} />
       <div style={{ fontSize: 15, opacity: .8 }}>Dr. Nishita's Clinic · Attendance</div>
       <div style={{ fontSize: 44, fontWeight: 800, letterSpacing: "-0.02em" }}>{clock.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })}</div>
       <div style={{ opacity: .7, marginTop: -8 }}>{clock.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}</div>
+      {state.phase === "result" && state.ok && <div className="lumi-confetti" aria-hidden>{Array.from({ length: 28 }, (_, i) => <i key={i} style={{ left: `${(i * 37) % 100}%`, background: ["#0B6B63", "#E2B84F", "#7FE0D2", "#F29AA6"][i % 4], animationDelay: `${(i % 7) * 0.12}s` }} />)}</div>}
+      <Lumi mood={mood} size={96} />
       <div style={{ position: "relative", width: "min(92vw, 420px)", aspectRatio: "3/4", borderRadius: 28, overflow: "hidden", border: `4px solid ${color}`, background: "#000" }}>
         <video ref={video} playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)" }} />
       </div>

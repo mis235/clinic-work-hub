@@ -20,7 +20,7 @@ export const NAV = {
   "Policies":         { label: "Policies & SOPs",     icon: "shield" },
   "Learning":         { label: "Training Library",    icon: "cap" },
   "Events":           { label: "Events & Culture",    icon: "party" },
-  "Clinic Assistant": { label: "Clinic Chatbot",      icon: "bot" },
+  "Clinic Assistant": { label: "Lumi (Clinic Chatbot)",      icon: "bot" },
   "Assistant":        { label: "Ask Work Hub",        icon: "sparkles" },
   "System":           { label: "System & Backups",    icon: "shield" },
   "Onboarding":       { label: "Staff Onboarding",    icon: "userplus" }, // opened from the Staff page, not the menu

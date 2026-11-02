@@ -514,3 +514,32 @@ button:active:not(:disabled) { transform: scale(.97); }
 .login-hero-stat { animation: rise .7s .2s cubic-bezier(.2,.7,.2,1) both; }
 .login-form, .login-panel { animation: rise .6s .1s cubic-bezier(.2,.7,.2,1) both; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* ------------------------------------------------------------ Lumi, the clinic helper */
+.lumi { overflow: visible; display: block; }
+.lumi-all { transform-origin: 60px 110px; animation: lumi-float 3.2s ease-in-out infinite; }
+.lumi-shadow { transform-origin: 60px 110px; animation: lumi-shadow 3.2s ease-in-out infinite; }
+.lumi-eyes { transform-origin: 60px 76px; animation: lumi-blink 4.5s infinite; }
+.lumi-star { transform-origin: 60px 16px; animation: lumi-twinkle 2.4s ease-in-out infinite; }
+.lumi-halo { animation: lumi-twinkle 2.4s ease-in-out infinite; }
+.lumi-wave .lumi-arm-r { transform-origin: 90px 70px; animation: lumi-wave .7s ease-in-out infinite alternate; }
+.lumi-cheer .lumi-all { animation: lumi-jump .8s ease-in-out infinite; }
+.lumi-cheer .lumi-arm-l { transform-origin: 30px 70px; animation: lumi-wave .35s ease-in-out infinite alternate-reverse; }
+.lumi-cheer .lumi-arm-r { transform-origin: 90px 70px; animation: lumi-wave .35s ease-in-out infinite alternate; }
+.lumi-sparks { animation: lumi-twinkle .8s ease-in-out infinite; transform-origin: 60px 40px; }
+.lumi-think .lumi-all { animation: lumi-sway 2.4s ease-in-out infinite; }
+.lumi-dots circle { animation: lumi-twinkle 1.2s ease-in-out infinite; } .lumi-dots circle:nth-child(2) { animation-delay: .2s; } .lumi-dots circle:nth-child(3) { animation-delay: .4s; }
+.lumi-sorry .lumi-all { animation: lumi-sway 3s ease-in-out infinite; }
+@keyframes lumi-float { 0%, 100% { transform: translateY(0) scale(1, 1); } 50% { transform: translateY(-7px) scale(1.02, .985); } }
+@keyframes lumi-shadow { 0%, 100% { transform: scaleX(1); opacity: .18; } 50% { transform: scaleX(.8); opacity: .1; } }
+@keyframes lumi-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
+@keyframes lumi-twinkle { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .55; transform: scale(1.12); } }
+@keyframes lumi-wave { from { transform: rotate(-14deg); } to { transform: rotate(22deg); } }
+@keyframes lumi-jump { 0%, 100% { transform: translateY(0) scale(1.04, .96); } 45% { transform: translateY(-16px) scale(.97, 1.04); } }
+@keyframes lumi-sway { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+.lumi-row { display: flex; align-items: flex-end; gap: 10px; }
+.lumi-bubble { background: var(--primary-soft); color: var(--ink); border-radius: 16px 16px 16px 4px; padding: 10px 14px; animation: rise .4s both; }
+.lumi-hero { display: flex; align-items: center; gap: 16px; padding: 4px 0 12px; }
+.lumi-confetti { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 5; }
+.lumi-confetti i { position: absolute; top: -12px; width: 8px; height: 14px; border-radius: 2px; animation: lumi-fall 2.6s linear forwards; }
+@keyframes lumi-fall { to { transform: translateY(110vh) rotate(540deg); opacity: .9; } }

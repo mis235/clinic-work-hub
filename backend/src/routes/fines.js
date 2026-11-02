@@ -36,7 +36,8 @@ router.get("/categories", requireAuth, (req, res) => res.json(FINE_CATEGORIES));
 // Admin/manager: all fines (filter ?month= & ?userId=). Staff: only their own.
 router.get("/", requireAuth, (req, res) => {
   const month = /^\d{4}-\d{2}$/.test(req.query.month || "") ? req.query.month : thisMonth();
-  const lead = isLead(req.user);
+  if (!isLead(req.user)) return res.status(403).json({ error: "Not allowed" });
+  const lead = true;
   const userId = lead ? req.query.userId || null : req.user.userId;
   const rows = db.prepare(
     `SELECT f.*, u.name AS staff_name, d.name AS department, a.name AS added_by_name
@@ -61,7 +62,7 @@ router.get("/summary", requireAuth, (req, res) => {
 });
 
 router.post("/", requireAuth, (req, res) => {
-  if (!isLead(req.user)) return res.status(403).json({ error: "Only admin or a manager can add a fine" });
+  if (req.user.roleName !== "admin") return res.status(403).json({ error: "Only the admin can add a fine" });
   const { userId, category, amount, note, date } = req.body || {};
   const staff = db.prepare("SELECT id, name FROM users WHERE id = ? AND active = 1").get(userId);
   if (!staff) return res.status(400).json({ error: "Choose a staff member" });

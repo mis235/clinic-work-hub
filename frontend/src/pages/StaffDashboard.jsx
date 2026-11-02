@@ -92,10 +92,10 @@ export default function StaffDashboard({ user, onLogout }) {
           <>
         <div className="hero">
           <div style={{ position: "relative", zIndex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", opacity: 0.8, marginBottom: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.02em", opacity: 0.85, marginBottom: 8 }}>
               {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
             </div>
-            <h2>{new Date().getHours() < 12 ? "Good morning" : new Date().getHours() < 17 ? "Good afternoon" : "Good evening"}, {firstName(user.name)}</h2>
+            <h2>{new Date().getHours() < 12 ? "Good Morning" : new Date().getHours() < 17 ? "Good Afternoon" : "Good Evening"}, {firstName(user.name)}</h2>
             <p>{user.department}{user.designation ? ` · ${user.designation}` : ""}. You have <strong>{open.length}</strong> open task{open.length === 1 ? "" : "s"}{shiftSummary ? <> and your {shiftSummary.shift.toLowerCase()} checklist is <strong>{shiftSummary.status === "submitted" ? "submitted" : `${shiftSummary.completionPct}% done`}</strong>.</> : "."}</p>
             <div className="hero-actions">
               <button className="btn btn-light" onClick={() => setView("shiftchecklist")}><Icon name="clipboard" size={16} /> {shiftSummary && shiftSummary.status !== "submitted" ? "Continue checklist" : "Open shift checklist"}</button>

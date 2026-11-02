@@ -56,7 +56,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
         <button className={`pill ${tab === "day" ? "active" : ""}`} onClick={() => setTab("day")}>Mark the day</button>
         <button className={`pill ${tab === "register" ? "active" : ""}`} onClick={() => setTab("register")}>Month register</button>
         <button className={`pill ${tab === "face" ? "active" : ""}`} onClick={() => setTab("face")}>Face check-in</button>
-        <button className={`pill ${tab === "fines" ? "active" : ""}`} onClick={() => setTab("fines")}>Fines</button>
+        {user.role === "admin" && <button className={`pill ${tab === "fines" ? "active" : ""}`} onClick={() => setTab("fines")}>Fines</button>}
       </div>
 
       {tab === "day" && (!board ? <div className="empty">Loading…</div> : (
@@ -72,7 +72,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
                 {MARKS.map(([k, label]) => (
                   <button key={k} className={`pill ${r.mark === k ? "active" : ""}`} style={{ padding: "5px 10px" }} onClick={() => mark(r.id, date, r.mark === k ? "" : k)}>{label}</button>
                 ))}
-                {r.mark === "L" && <button className="btn btn-ghost btn-sm" onClick={() => { setPreset({ userId: r.id, category: "late", amount: 100, date, note: "" }); setTab("fines"); }}>Add fine</button>}
+                {r.mark === "L" && user.role === "admin" && <button className="btn btn-ghost btn-sm" onClick={() => { setPreset({ userId: r.id, category: "late", amount: 100, date, note: "" }); setTab("fines"); }}>Add fine</button>}
               </div>
             </div>
           ))}

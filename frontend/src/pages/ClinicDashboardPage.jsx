@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import PageShell from "../components/PageShell.jsx";
 import ChecklistDashboard from "../components/ChecklistDashboard.jsx";
+import ClinicAIPage from "./ClinicAIPage.jsx";
 
 const rupee = (n) => "₹" + Number(n || 0).toLocaleString("en-IN");
 const pctText = (p) => (p == null ? "—" : p + "%");
@@ -28,13 +29,15 @@ export default function ClinicDashboardPage({ user, onLogout, onBack, onNavigate
   return (
     <PageShell user={user} active="Dashboards" title="Clinic dashboards" onLogout={onLogout} onBack={onBack}>
       <div className="page-head row">
-        <div><div className="eyebrow">Insights</div><h1>Clinic dashboard</h1><p>Live numbers from attendance, checklists, tasks, documents and fines. Last 30 days for work completion.</p></div>
+        <div><div className="eyebrow">Insights</div><h1>Clinic Dashboard</h1><p>Live numbers from checklists, tasks and documents. Everything updates by itself when staff submit their work.</p></div>
       </div>
       <div className="pill-row">
-        <button className={`pill ${tab === "checklist" ? "active" : ""}`} onClick={() => setTab("checklist")}>Checklist dashboard</button>
-        {(user.role === "admin" || user.leadership) && <button className={`pill ${tab === "live" ? "active" : ""}`} onClick={() => setTab("live")}>Clinic overview</button>}
+        <button className={`pill ${tab === "checklist" ? "active" : ""}`} onClick={() => setTab("checklist")}>Checklist Dashboard</button>
+        {(user.role === "admin" || user.leadership) && <button className={`pill ${tab === "live" ? "active" : ""}`} onClick={() => setTab("live")}>Clinic Overview</button>}
+        {(user.role === "admin" || user.leadership) && <button className={`pill ${tab === "chat" ? "active" : ""}`} onClick={() => setTab("chat")}>Lumi Chatbot</button>}
       </div>
       {tab === "checklist" && <ChecklistDashboard user={user} />}
+      {tab === "chat" && <ClinicAIPage user={user} isStaffLayout />}
       {tab === "live" && (!depts ? <div className="empty">Loading…</div> : (
         <>
           <div className="dept-grid tile-grid">
