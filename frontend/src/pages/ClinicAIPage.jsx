@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
 import PageShell from "../components/PageShell.jsx";
-import Lumi from "../components/Lumi.jsx";
+import Lumi, { LumiOrbit } from "../components/Lumi.jsx";
 
 const IDEAS = [
   "How many new patients came this month?",
@@ -41,7 +41,7 @@ export default function ClinicAIPage({ user, isStaffLayout, onLogout, onBack }) 
   return (
     <PageShell user={user} active="Clinic Assistant" title="Lumi" isStaffLayout={isStaffLayout} onLogout={onLogout} onBack={onBack}>
       <div className="page-head row">
-        <div className="lumi-hero"><Lumi mood={busy ? "think" : "wave"} size={84} /><div><div className="eyebrow">Leadership only</div><h1>Lumi</h1><p>Your clinic data helper — patients, charts, revenue and reports.</p></div></div>
+        <div className="lumi-hero"><LumiOrbit mood={busy ? "think" : "wave"} size={150} /><div><div className="eyebrow">Leadership only</div><h1>Lumi</h1><p>Your clinic data helper — patients, charts, revenue and reports.</p></div></div>
         {isAdmin && cfg?.configured && <button className="btn btn-ghost" onClick={() => setEditing((x) => !x)}>Change n8n link</button>}
       </div>
       {showSetup && (

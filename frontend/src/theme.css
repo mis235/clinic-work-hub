@@ -520,8 +520,7 @@ button:active:not(:disabled) { transform: scale(.97); }
 .lumi-all { transform-origin: 60px 110px; animation: lumi-float 3.2s ease-in-out infinite; }
 .lumi-shadow { transform-origin: 60px 110px; animation: lumi-shadow 3.2s ease-in-out infinite; }
 .lumi-eyes { transform-origin: 60px 76px; animation: lumi-blink 4.5s infinite; }
-.lumi-star { transform-origin: 60px 16px; animation: lumi-twinkle 2.4s ease-in-out infinite; }
-.lumi-halo { animation: lumi-twinkle 2.4s ease-in-out infinite; }
+.lumi-sprout { transform-origin: 60px 30px; animation: lumi-sprout 2.8s ease-in-out infinite; }
 .lumi-wave .lumi-arm-r { transform-origin: 90px 70px; animation: lumi-wave .7s ease-in-out infinite alternate; }
 .lumi-cheer .lumi-all { animation: lumi-jump .8s ease-in-out infinite; }
 .lumi-cheer .lumi-arm-l { transform-origin: 30px 70px; animation: lumi-wave .35s ease-in-out infinite alternate-reverse; }
@@ -559,3 +558,14 @@ button:active:not(:disabled) { transform: scale(.97); }
 .lumi-form { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--line); }
 .lumi-form .field { flex: 1; }
 @media (max-width: 700px) { .lumi-fab { bottom: 12px; right: 12px; width: 64px; height: 64px; } .lumi-fab svg { width: 52px; height: 52px; } .lumi-panel { bottom: 86px; right: 12px; } }
+
+@keyframes lumi-sprout { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(7deg); } }
+.lumi-orbit { position: relative; flex-shrink: 0; }
+.lumi-orbit::before { content: ""; position: absolute; inset: 9%; border-radius: 50%; border: 1.5px dashed #D3B3EA; }
+.lumi-orbit-ring { position: absolute; inset: 0; animation: lumi-spin 40s linear infinite; }
+.lumi-orbit-dot { position: absolute; width: 22%; height: 22%; border-radius: 50%; transform: translate(-50%, -50%); display: grid; place-items: center; box-shadow: 0 2px 8px rgba(110, 50, 150, .22); animation: lumi-unspin 40s linear infinite; }
+.lumi-orbit-mid { position: absolute; inset: 0; display: grid; place-items: center; }
+@keyframes lumi-spin { to { transform: rotate(360deg); } }
+@keyframes lumi-unspin { to { transform: translate(-50%, -50%) rotate(-360deg); } }
+.lumi-fab { background: linear-gradient(160deg, #FFFFFF, #F3E6FB); border-color: #E4CBF5; }
+.lumi-panel-head { background: linear-gradient(90deg, #F6ECFC, #FDEFF6); }
