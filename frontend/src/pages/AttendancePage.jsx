@@ -42,7 +42,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
     <PageShell user={user} active="Attendance" title="Attendance" onLogout={onLogout} onBack={onBack}>
       <div className="page-head row">
         <div><div className="eyebrow">People</div><h1>Attendance</h1>
-          <p>Mark the day's attendance here (like the paper register). Staff do not need to check in on the app.</p></div>
+          <p>Staff check in by face on the clinic phone (tab Face check-in). Here you can see the day and correct anything, like the paper register.</p></div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button className="btn btn-outline btn-sm" disabled={dlBusy} onClick={download}>{dlBusy ? "Preparing…" : "⬇ Attendance sheet (Excel)"}</button><input className="field" type="date" style={{ width: 180 }} value={date} max={todayIST()} onChange={(e) => setDate(e.target.value)} /></div>
       </div>
 
