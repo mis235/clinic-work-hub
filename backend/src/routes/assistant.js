@@ -302,7 +302,9 @@ router.post("/ask", requireAuth, requirePermission("assistant:use"), async (req,
 
   // 3) No API key configured — still give something useful instead of a dead end.
   res.json({
-    reply: "I can help directly with tasks, attendance, and policies — try asking \"how many tasks do I have\" or \"what's the leave policy\". For anything else, an admin can enable richer answers by adding ANTHROPIC_API_KEY in the backend .env.",
+    reply: lead
+      ? "I did not understand that one. Try: \"Is Neelima present today?\", \"Attendance this month\", \"Overdue tasks\", \"Shift checklist status today\", \"Fines this month\" or \"Payroll status\". Patient and revenue questions need the n8n link."
+      : "I can answer about your own tasks, leave, attendance, fines and payslip. Try: \"How many tasks do I have?\" or \"What's the leave policy?\"",
     source: "fallback",
   });
 });
