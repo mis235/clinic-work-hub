@@ -39,7 +39,7 @@ export default function Sidebar({ items, active, onSelect, who, onLogout, mobile
         </div>
       </aside>
       <nav className="bottom-nav" aria-label="Quick menu">
-        {items.slice(0, 3).map((k) => (
+        {["Dashboard", "My checklist", "Shift Checklist", "Dashboards", "Leave", "Tracker"].filter((k) => items.includes(k)).slice(0, 3).map((k) => (
           <button key={k} className={active === k ? "active" : ""} onClick={() => onSelect(k)} aria-label={NAV[k]?.label || k}>
             <Icon name={NAV[k]?.icon || "list"} size={19} /><span>{NAV[k]?.label || k}</span>
           </button>

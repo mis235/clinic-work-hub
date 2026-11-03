@@ -125,7 +125,7 @@ export default function StaffProfilePage({ user, staffId, isStaffLayout, onLogou
             <Stat icon="clipboard" tone="green" num={p.shiftChecklist.avgCompletionPct === null ? "—" : `${p.shiftChecklist.avgCompletionPct}%`} label="Shift checklist average (30 days)" />
             <Stat icon="tasks" tone="blue" num={p.tasks.completionRate === null ? "—" : `${p.tasks.completionRate}%`} label="Task completion" />
             <Stat icon="alert" tone={p.tasks.overdue ? "red" : "green"} num={p.tasks.overdue} label="Overdue tasks" />
-            <Stat icon="calendarCheck" tone="violet" num={p.attendance.daysPresentLast30} label="Days present (30 days)" />
+            {!isStaffLayout && <Stat icon="calendarCheck" tone="violet" num={p.attendance.daysPresentLast30} label="Days present (30 days)" />}
           </div>
 
           {tab === "overview" && <>
@@ -138,7 +138,7 @@ export default function StaffProfilePage({ user, staffId, isStaffLayout, onLogou
               <Row k="Reports to" v={d.reporting_to} />
               <Row k="Date of joining" v={d.joined_at ? `${d.joined_at}${d.tenureYears !== null ? ` (${d.tenureYears} yrs)` : ""}` : null} />
               <Row k="Shift checklist role" v={d.shift_role || "None assigned"} />
-              <Row k="Last check-in" v={p.attendance.lastCheckIn ? new Date(p.attendance.lastCheckIn + "Z").toLocaleString() : "None yet"} />
+              {!isStaffLayout && <Row k="Last check-in" v={p.attendance.lastCheckIn ? new Date(p.attendance.lastCheckIn + "Z").toLocaleString() : "None yet"} />}
             </div>
             <div className="card" style={{ marginBottom: 0 }}>
               <div className="card-head"><div className="name">Personal & emergency</div></div>

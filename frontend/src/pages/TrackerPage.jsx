@@ -26,7 +26,7 @@ export default function TrackerPage({ user, isStaffLayout, onLogout, onBack }) {
     <>
       <div className="page-head">
         <h1>Procedure Tracker</h1>
-        <p>A live view of your own progress — tasks, attendance, and policy status, updated as you work.</p>
+        <p>A live view of your own progress — tasks, checklists and policy status, updated as you work.</p>
       </div>
 
       {!summary && <div className="empty">Loading…</div>}
@@ -46,21 +46,8 @@ export default function TrackerPage({ user, isStaffLayout, onLogout, onBack }) {
               <div className="num">{summary.tasks.overdue}</div>
               <div className="lbl">OVERDUE</div>
             </div>
-            <div className="stat-card in_progress">
-              <div className="num">{summary.attendance.daysPresentLast30}</div>
-              <div className="lbl">DAYS PRESENT (30D)</div>
-            </div>
           </div>
 
-          <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <div className="title" style={{ fontSize: 14, fontWeight: 700 }}>Today's attendance</div>
-              <div className="meta">{summary.attendance.checkedInToday ? "You're checked in for today." : "Not checked in yet today."}</div>
-            </div>
-            <span className={`badge ${summary.attendance.checkedInToday ? "done" : "pending"}`}>
-              {summary.attendance.checkedInToday ? "Checked in" : "Pending"}
-            </span>
-          </div>
 
           {summary.policiesPending > 0 && (
             <div className="note">

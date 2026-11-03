@@ -551,7 +551,25 @@ try {
     ok("assistant: staff get no policy dump", /own tasks/.test(await ask("tell me the grievance process", lvTok)));
     ok("assistant: staff see their leave status", /free casual leave/.test(await ask("was my leave approved?", lvTok)));
     ok("assistant: leadership gets clinic attendance", /Attendance today/.test(await ask("attendance today", admin)));
-    ok("assistant: staff suggestions are short", (await call("GET", "/api/assistant/faqs", null, lvTok)).body.suggestions.length === 5);
+    ok("assistant: staff suggestions are short", (await call("GET", "/api/assistant/faqs", null, lvTok)).body.suggestions.length === 4);
+    ok("assistant: staff cannot see others' attendance", /HR and the leadership/.test(await ask("is neelima present today", lvTok)));
+    ok("assistant: leadership can ask about one person", !/Whole clinic/.test(await ask("is the admin present today", admin)));
+    ok("assistant: date range accepted", /./.test(await ask("attendance this month", admin)));
+    {
+      const ev = await call("POST", "/api/hr/events", { title: "Test Day", eventType: "festival", eventDate: "2026-11-20" }, admin);
+      ok("events: add", ev.status < 300);
+      const month = await call("GET", "/api/hr/events?month=2026-11", null, admin);
+      const item = (month.body.items || []).find((i) => i.title === "Test Day");
+      ok("events: shown in its month", !!item);
+      const other = await call("GET", "/api/hr/events?month=2026-12", null, admin);
+      ok("events: not shown in other month", !(other.body.items || []).some((i) => i.title === "Test Day"));
+      if (item?.id) {
+        const up = await call("PUT", "/api/hr/events/" + item.id, { title: "Test Day 2", eventType: "festival", eventDate: "2026-11-21" }, admin);
+        ok("events: edit", up.status < 300);
+        const del = await call("DELETE", "/api/hr/events/" + item.id, null, admin);
+        ok("events: delete", del.status < 300);
+      }
+    }
     ok("assistant: staff cannot list staff", /managers, HR/.test(await ask("how many staff are there", lvTok)));
     ok("assistant: HR gets the staff count", /active staff/.test(await ask("how many staff are there", hrTok)));
   }

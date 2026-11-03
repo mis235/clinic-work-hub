@@ -3,6 +3,7 @@ import db from "../db.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
 import { isHr, canSeeAllLeave, leaveSummary, settings as hrSettings, birthdays, lateDays } from "./leave.js";
 import { isLeadership } from "../access.js";
+import { parseRange } from "../ask-range.js";
 
 const router = Router();
 
@@ -34,11 +35,11 @@ const SUGGESTED_QUESTIONS = [
   "What policies haven't I acknowledged yet?",
 ];
 
-const STAFF_QUESTIONS = ["How many leaves do I have left?", "Was my leave approved?", "How many tasks do I have open?", "Did I check in today?", "Do I have any fines this month?"];
+const STAFF_QUESTIONS = ["How many leaves do I have left?", "Was my leave approved?", "How many tasks do I have open?", "What's the leave policy?"];
 router.get("/faqs", requireAuth, requirePermission("assistant:use"), (req, res) => {
   const hr = isHr(req.user.userId, req.user.roleName), top = isLeadership(req.user.userId, req.user.roleName);
   if (!hr && !top) return res.json({ suggestions: STAFF_QUESTIONS });
-  const more = top ? ["Attendance today", "Shift checklist status today", "Fines this month", "Payroll status", "Overdue tasks"] : [];
+  const more = top ? ["Is Neelima present today?", "Attendance today", "Attendance this month", "Shift checklist status today", "Fines this month", "Payroll status", "Overdue tasks"] : [];
   res.json({ suggestions: [...SUGGESTED_QUESTIONS.slice(0, 5), ...more] });
 });
 
@@ -88,13 +89,56 @@ function policyBodyFor(keyword) {
   return `**${policy.title}**\n\n${policy.body}`;
 }
 
+
+const STATUS_WORD = { P: "Present", L: "Late", H: "Half day", LV: "On leave", A: "Absent", W: "Week off" };
+// Finds the one staff member a question is about ("is neelima present today", "Ayesha attendance 1 nov to 3 nov").
+function personIn(m) {
+  const words = new Set(m.replace(/[^a-z\s]/g, " ").split(/\s+/).filter((w) => w.length >= 3));
+  const users = db.prepare("SELECT id, name FROM users WHERE active = 1").all();
+  const hits = users.map((u) => {
+    const toks = u.name.toLowerCase().replace(/[^a-z\s]/g, " ").split(/\s+/).filter((w) => w.length >= 3 && w !== "dr");
+    const n = toks.filter((t) => words.has(t)).length;
+    return { u, n, first: toks[0] && words.has(toks[0]) };
+  }).filter((h) => h.n > 0).sort((a, b) => b.n - a.n || (b.first ? 1 : 0) - (a.first ? 1 : 0));
+  if (!hits.length) return null;
+  const best = hits[0];
+  return { user: best.u, ambiguous: hits.filter((h) => h.n === best.n).length > 1, others: hits.filter((h) => h.n === best.n).map((h) => h.u.name) };
+}
+function personAttendance(m, t) {
+  const who = personIn(m);
+  if (!who) return null;
+  if (who.ambiguous) return `I found more than one match: ${who.others.join(", ")}. Please type the full name.`;
+  const r = parseRange(m, t), name = who.user.name;
+  if (r.to < r.from) return null;
+  const days = Math.round((new Date(r.to) - new Date(r.from)) / 86400000) + 1;
+  if (days > 93) return "Please ask for 3 months or less at a time.";
+  const rows = db.prepare("SELECT mark_date, status, in_time, out_time FROM attendance_marks WHERE user_id = ? AND mark_date BETWEEN ? AND ? ORDER BY mark_date").all(who.user.id, r.from, r.to);
+  const hhmm = (s) => (s ? ` at ${s}` : "");
+  if (r.from === r.to) {
+    const x = rows[0];
+    if (!x) return `${name}: attendance is not marked for ${r.label === "today" ? "today" : dmy(r.from)} yet.`;
+    return `${name} is ${STATUS_WORD[x.status] || x.status} ${r.label === "today" ? "today" : "on " + dmy(r.from)}${x.status === "P" || x.status === "L" ? hhmm(x.in_time) : ""}.`;
+  }
+  const c = {}; for (const x of rows) c[x.status] = (c[x.status] || 0) + 1;
+  const marked = rows.length, present = (c.P || 0) + (c.L || 0);
+  const head = `${name}, ${dmy(r.from)} to ${dmy(r.to)} (${days} days): present ${present} (late ${c.L || 0}), half day ${c.H || 0}, leave ${c.LV || 0}, absent ${c.A || 0}, week off ${c.W || 0}, not marked ${days - marked}.`;
+  return head + (days <= 16 && rows.length ? "\n" + list(rows, (x) => `${dmy(x.mark_date)} — ${STATUS_WORD[x.status] || x.status}${x.status === "P" || x.status === "L" ? hhmm(x.in_time) : ""}`) : "");
+}
+
 // Whole-clinic answers: only for the leadership team (MIS, COS, COE, chosen doctors, admin).
 function clinicAnswer(m, t, month) {
-  if (/attendance|present|absent/.test(m) && /today|now|who|how many|clinic|everyone|staff/.test(m) && !/my\b/.test(m)) {
-    const rows = db.prepare("SELECT status, COUNT(*) n FROM attendance_marks WHERE mark_date = ? GROUP BY status").all(t);
+  if (/attendance|present|absent/.test(m) && /today|now|who|how many|clinic|everyone|staff|yesterday|week|month|days|from|between/.test(m) && !/my\b/.test(m)) {
+    const rg = parseRange(m, t);
+    if (rg.from !== rg.to) {
+      const days = Math.round((new Date(rg.to) - new Date(rg.from)) / 86400000) + 1;
+      const rows = db.prepare("SELECT status, COUNT(*) n FROM attendance_marks WHERE mark_date BETWEEN ? AND ? GROUP BY status").all(rg.from, rg.to);
+      const c = Object.fromEntries(rows.map((r) => [r.status, r.n]));
+      return `Whole clinic, ${dmy(rg.from)} to ${dmy(rg.to)} (${days} days, counted as person-days): present ${(c.P || 0) + (c.L || 0)} (late ${c.L || 0}), half day ${c.H || 0}, leave ${c.LV || 0}, absent ${c.A || 0}, week off ${c.W || 0}. To see one person, add the name, for example "Neelima attendance from 1 Nov to 3 Nov".`;
+    }
+    const rows = db.prepare("SELECT status, COUNT(*) n FROM attendance_marks WHERE mark_date = ? GROUP BY status").all(rg.from);
     const total = db.prepare("SELECT COUNT(*) n FROM users WHERE active = 1").get().n;
     const c = Object.fromEntries(rows.map((r) => [r.status, r.n])); const marked = rows.reduce((a, r) => a + r.n, 0);
-    return `Attendance today (${total} staff): present ${(c.P || 0) + (c.L || 0)} (late ${c.L || 0}), half day ${c.H || 0}, leave ${c.LV || 0}, absent ${c.A || 0}, week off ${c.W || 0}, not marked ${total - marked}.`;
+    return `Attendance ${rg.label} (${total} staff): present ${(c.P || 0) + (c.L || 0)} (late ${c.L || 0}), half day ${c.H || 0}, leave ${c.LV || 0}, absent ${c.A || 0}, week off ${c.W || 0}, not marked ${total - marked}.`;
   }
   if (/shift checklist|checklist/.test(m) && /today|submitted|status|who|clinic|pending|not/.test(m) && !/my\b/.test(m)) {
     const s = db.prepare("SELECT status, COUNT(*) n, ROUND(AVG(completion_pct)) a FROM (SELECT status, CASE WHEN total > 0 THEN completed * 100.0 / total ELSE 0 END AS completion_pct FROM shift_checklist_submissions WHERE work_date = ?) GROUP BY status").all(t);
@@ -130,6 +174,10 @@ router.post("/ask", requireAuth, requirePermission("assistant:use"), async (req,
   const me = db.prepare("SELECT name FROM users WHERE id = ?").get(userId);
   const hr = isHr(userId, req.user.roleName), top = isLeadership(userId, req.user.roleName), lead = hr || top;
   const t = todayIST(), month = t.slice(0, 7);
+  if (/attend|present|absent|in today|came|late|check.?in|punch|here today/.test(m)) {
+    if (!lead && !/\b(my|i|me)\b/.test(m) && personIn(m)) return res.json({ reply: "Attendance of other people is shown to HR and the leadership team only.", source: "scoped" });
+    if (lead) { const pa = personAttendance(m, t); if (pa) return res.json({ reply: pa, source: "data" }); }
+  }
   if (top) {
     const clinic = clinicAnswer(m, t, month);
     if (clinic) return res.json({ reply: clinic, source: "data" });

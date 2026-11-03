@@ -225,37 +225,59 @@ router.get("/training-videos/progress", requireAuth, requirePermission("reports:
 // and years-of-experience are COMPUTED from users.birthday / users.joined_at
 // so there's exactly one place that data lives, not a duplicate manual list.
 // ---------------------------------------------------------------------------
+const pad2 = (n) => String(n).padStart(2, "0");
+const istMonth = () => new Date(Date.now() + 19800000).toISOString().slice(0, 7);
+// One month at a time: ?month=YYYY-MM (default this month). Birthdays and work anniversaries are worked out from
+// the staff records; festivals / dates are the ones the admin typed in (yearly ones repeat every year).
 router.get("/events", requireAuth, (req, res) => {
-  const stored = db.prepare("SELECT * FROM clinic_events ORDER BY event_date").all();
-
-  const usersWithBirthdays = db.prepare("SELECT name, birthday FROM users WHERE active = 1 AND birthday IS NOT NULL").all();
-  const usersWithTenure = db.prepare("SELECT name, joined_at FROM users WHERE active = 1 AND joined_at IS NOT NULL").all();
-
-  const today = new Date();
-  const yearsOfExperience = usersWithTenure.map((u) => {
-    const joined = new Date(u.joined_at);
-    const years = ((today - joined) / (1000 * 60 * 60 * 24 * 365.25)).toFixed(1);
-    return { name: u.name, joinedAt: u.joined_at, years: Number(years) };
-  });
-
-  res.json({
-    festivalsAndImportantDates: stored,
-    birthdays: usersWithBirthdays,
-    yearsOfExperience,
-    note:
-      usersWithBirthdays.length === 0
-        ? "No staff birthdates are on file yet — add them via PATCH /api/users/:id or the admin Team screen to populate this."
-        : undefined,
-  });
+  const month = /^\d{4}-\d{2}$/.test(req.query.month || "") ? req.query.month : istMonth();
+  const [yy, mm] = month.split("-").map(Number);
+  const items = [];
+  for (const e of db.prepare("SELECT * FROM clinic_events").all()) {
+    const d = String(e.event_date || "");
+    let day = null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) { if (d.slice(0, 7) === month) day = Number(d.slice(8)); }
+    else if (/^\d{2}-\d{2}$/.test(d)) { if (Number(d.slice(0, 2)) === mm) day = Number(d.slice(3)); }
+    if (day) items.push({ kind: "event", id: e.id, day, title: e.title, eventType: e.event_type, eventDate: d, yearly: /^\d{2}-\d{2}$/.test(d) });
+  }
+  for (const u of db.prepare("SELECT name, birthday FROM users WHERE active = 1 AND birthday IS NOT NULL").all()) {
+    const d = new Date(u.birthday);
+    if (!Number.isNaN(d.getTime()) && d.getUTCMonth() + 1 === mm) items.push({ kind: "birthday", day: d.getUTCDate(), title: u.name + "'s birthday" });
+  }
+  for (const u of db.prepare("SELECT name, joined_at FROM users WHERE active = 1 AND joined_at IS NOT NULL").all()) {
+    const d = new Date(u.joined_at);
+    if (Number.isNaN(d.getTime()) || d.getUTCMonth() + 1 !== mm) continue;
+    const years = yy - d.getUTCFullYear();
+    if (years >= 1) items.push({ kind: "anniversary", day: d.getUTCDate(), title: `${u.name} completes ${years} year${years === 1 ? "" : "s"} at the clinic` });
+  }
+  items.sort((a, b) => a.day - b.day || a.title.localeCompare(b.title));
+  res.json({ month, label: new Date(Date.UTC(yy, mm - 1, 1)).toLocaleDateString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" }), items });
 });
 
+function cleanEvent(body) {
+  const { title, eventType, eventDate } = body || {};
+  const t = String(title || "").trim().slice(0, 120), type = ["festival", "important_date", "event"].includes(eventType) ? eventType : "event";
+  const d = String(eventDate || "").trim();
+  if (!t) return { error: "Please type a title" };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d) && !/^\d{2}-\d{2}$/.test(d)) return { error: "Please choose a date" };
+  return { t, type, d };
+}
 router.post("/events", requireAuth, requirePermission("staff:manage"), (req, res) => {
-  const { title, eventType, eventDate, recurring } = req.body || {};
-  if (!title || !eventType || !eventDate) return res.status(400).json({ error: "title, eventType, eventDate are required" });
+  const c = cleanEvent(req.body); if (c.error) return res.status(400).json({ error: c.error });
   const id = randomUUID();
-  db.prepare("INSERT INTO clinic_events (id, title, event_type, event_date, recurring) VALUES (?, ?, ?, ?, ?)")
-    .run(id, title, eventType, eventDate, recurring === false ? 0 : 1);
+  db.prepare("INSERT INTO clinic_events (id, title, event_type, event_date, recurring) VALUES (?, ?, ?, ?, ?)").run(id, c.t, c.type, c.d, /^\d{2}-\d{2}$/.test(c.d) ? 1 : 0);
   res.status(201).json({ id });
+});
+router.put("/events/:id", requireAuth, requirePermission("staff:manage"), (req, res) => {
+  const c = cleanEvent(req.body); if (c.error) return res.status(400).json({ error: c.error });
+  const r = db.prepare("UPDATE clinic_events SET title = ?, event_type = ?, event_date = ?, recurring = ? WHERE id = ?").run(c.t, c.type, c.d, /^\d{2}-\d{2}$/.test(c.d) ? 1 : 0, req.params.id);
+  if (!r.changes) return res.status(404).json({ error: "Event not found" });
+  res.json({ ok: true });
+});
+router.delete("/events/:id", requireAuth, requirePermission("staff:manage"), (req, res) => {
+  const r = db.prepare("DELETE FROM clinic_events WHERE id = ?").run(req.params.id);
+  if (!r.changes) return res.status(404).json({ error: "Event not found" });
+  res.json({ ok: true });
 });
 
 export default router;

@@ -10,6 +10,23 @@ export default function KioskPage() {
   const [clock, setClock] = useState(new Date());
   useEffect(() => { const t = setInterval(() => setClock(new Date()), 1000); return () => clearInterval(t); }, []);
 
+  // Make this page installable as its own "Check-in" app (separate from the Work Hub app).
+  const [installEvt, setInstallEvt] = useState(null);
+  const [showHow, setShowHow] = useState(false);
+  const standalone = typeof window !== "undefined" && (window.matchMedia?.("(display-mode: standalone)").matches || navigator.standalone);
+  useEffect(() => {
+    const link = document.querySelector('link[rel="manifest"]');
+    const old = link?.getAttribute("href");
+    link?.setAttribute("href", "/kiosk.webmanifest");
+    const onPrompt = (e) => { e.preventDefault(); setInstallEvt(e); };
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    return () => { window.removeEventListener("beforeinstallprompt", onPrompt); if (old) link?.setAttribute("href", old); };
+  }, []);
+  const install = async () => {
+    if (installEvt) { installEvt.prompt(); await installEvt.userChoice.catch(() => {}); setInstallEvt(null); }
+    else setShowHow((v) => !v);
+  };
+
   useEffect(() => {
     // The setup link carries the phone's key once (#key=...). Save it and remove it from the address bar.
     const m = /key=([^&]+)/.exec(window.location.hash);
@@ -62,6 +79,12 @@ export default function KioskPage() {
       </div>
       <div style={{ fontSize: 24, fontWeight: 700, color, textAlign: "center" }}>{state.text}</div>
       {state.sub && <div style={{ opacity: .85, textAlign: "center" }}>{state.sub}</div>}
+      {!standalone && (
+        <div style={{ textAlign: "center", marginTop: 6 }}>
+          <button onClick={install} style={{ background: "#C42F8F", color: "#fff", border: 0, borderRadius: 999, padding: "12px 22px", fontSize: 16, fontWeight: 700 }}>Install Check-in app</button>
+          {showHow && <div style={{ marginTop: 10, opacity: .9, maxWidth: 320, fontSize: 14 }}>Tap the 3 dots (⋮) at the top right of Chrome, then tap “Add to Home screen” and “Install”. On iPhone: tap Share, then “Add to Home Screen”.</div>}
+        </div>
+      )}
     </div>
   );
 }
