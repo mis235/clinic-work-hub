@@ -1,5 +1,8 @@
 import jwt from "jsonwebtoken";
 import db from "../db.js";
+import { accessFor } from "../access.js";
+// HR (ticked by the admin in Staff -> Edit) can do the people work: add/remove staff, departments, pay, events.
+const HR_ACTIONS = new Set(["staff:manage", "department:manage", "payroll:manage", "attendance:manual_override", "attendance:view_all"]);
 
 // Read lazily so the value is always the one from backend/.env, however files are loaded.
 const secret = () => {
@@ -52,7 +55,7 @@ function permissionsForRole(roleId) {
 export function requirePermission(action) {
   return (req, res, next) => {
     const granted = permissionsForRole(req.user?.roleId);
-    if (!granted.has(action)) {
+    if (!granted.has(action) && !(HR_ACTIONS.has(action) && accessFor(req.user?.userId, req.user?.roleName).isHr)) {
       return res.status(403).json({ error: `Missing permission: ${action}` });
     }
     next();

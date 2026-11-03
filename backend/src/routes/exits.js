@@ -1,5 +1,6 @@
 // Staff exits: resignation / termination / contract end -> notice -> handover -> settlement -> relieved.
 // Admin only. Produces the relieving letter, experience certificate and full & final settlement statement.
+import { accessFor } from "../access.js";
 import { Router } from "express";
 import fs from "node:fs";
 import path from "node:path";
@@ -12,7 +13,7 @@ import { finesTotal } from "./fines.js";
 import { render, buildDocx, SAMPLES, valuesFor, GEN_DIR, EXIT_KINDS } from "./documents.js";
 
 const router = Router();
-const adminOnly = (req, res, next) => (req.user?.roleName === "admin" ? next() : res.status(403).json({ error: "Admin only" }));
+const adminOnly = (req, res, next) => (req.user?.roleName === "admin" || accessFor(req.user.userId, req.user.roleName).isHr ? next() : res.status(403).json({ error: "Admin only" }));
 router.use(requireAuth, adminOnly);
 
 db.exec(`

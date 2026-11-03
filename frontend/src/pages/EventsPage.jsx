@@ -15,7 +15,7 @@ export default function EventsPage({ user, onLogout, onBack }) {
   const [form, setForm] = useState(null); // null | {} (new) | item (edit)
   const [mobileOpen, setMobileOpen] = useState(false);
   const [err, setErr] = useState("");
-  const canManage = user.role === "admin" || user.role === "manager";
+  const canManage = user.role === "admin" || !!user.isHr;
 
   const refresh = () => api.getEvents(month).then((d) => { setData(d); setErr(""); }).catch((e) => setErr(e.message));
   useEffect(() => { setData(null); refresh(); }, [month]);

@@ -1,7 +1,8 @@
+import Avatar from "./Avatar.jsx";
 import { NAV, NAV_GROUPS } from "../navItems.js";
 import Icon, { initials } from "./Icon.jsx";
 
-export default function Sidebar({ items, active, onSelect, who, onLogout, mobileOpen, onCloseMobile, badges = {} }) {
+export default function Sidebar({ items, active, onSelect, who, me, onLogout, mobileOpen, onCloseMobile, badges = {} }) {
   const [name, ...rest] = (who || "").split(" · ");
   return (
     <>
@@ -33,8 +34,10 @@ export default function Sidebar({ items, active, onSelect, who, onLogout, mobile
           })}
         </nav>
         <div className="sidebar-foot">
-          <div className="avatar">{initials(name)}</div>
-          <div className="who">{name}<small>{rest.join(" · ")}</small></div>
+          <button onClick={() => { onSelect("My Profile"); onCloseMobile?.(); }} title="My profile" aria-label="My profile" style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, textAlign: "left", background: "none", border: 0, padding: 0, color: "inherit", cursor: "pointer" }}>
+            {me?.id ? <Avatar id={me.id} name={name} size={36} /> : <div className="avatar">{initials(name)}</div>}
+            <div className="who">{name}<small>{rest.join(" · ")}</small></div>
+          </button>
           <button onClick={onLogout} title="Sign out" aria-label="Sign out"><Icon name="logout" size={18} /></button>
         </div>
       </aside>

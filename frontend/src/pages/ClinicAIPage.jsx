@@ -32,8 +32,17 @@ export default function ClinicAIPage({ user, isStaffLayout, onLogout, onBack }) 
     const q = (text ?? input).trim();
     if (!q || busy) return;
     setMessages((m) => [...m, { role: "user", content: q }]); setInput(""); setBusy(true);
-    try { const { reply } = await api.askClinicAi(q); setMessages((m) => [...m, { role: "assistant", content: reply }]); }
-    catch (e) { setMessages((m) => [...m, { role: "assistant", content: "⚠️ " + e.message }]); }
+    // Built-in answers (staff, attendance, leave, tasks, fines) come first; patient/revenue questions go to n8n when it is connected.
+    const mine = /attend|present|absent|leave|late|fine|task|staff|birthday|payroll|checklist|holiday|policy/i.test(q);
+    try {
+      let reply;
+      if (cfg?.configured && !mine) reply = (await api.askClinicAi(q)).reply;
+      else reply = (await api.askAssistant(q)).reply;
+      setMessages((m) => [...m, { role: "assistant", content: reply }]);
+    } catch (e) {
+      try { const { reply } = await api.askAssistant(q); setMessages((m) => [...m, { role: "assistant", content: reply }]); }
+      catch { setMessages((m) => [...m, { role: "assistant", content: "⚠️ " + e.message }]); }
+    }
     setBusy(false);
   }
   const showSetup = isAdmin && cfg && (!cfg.configured || editing);
@@ -52,8 +61,8 @@ export default function ClinicAIPage({ user, isStaffLayout, onLogout, onBack }) 
           {err && <div className="login-error" style={{ marginTop: 10 }}>{err}</div>}
           <div style={{ marginTop: 12 }}><button className="btn btn-primary btn-sm" onClick={saveUrl}>Save link</button></div>
         </div>)}
-      {cfg && !cfg.configured && !isAdmin && <div className="empty">Clinic AI is not connected yet. Ask the admin to connect it.</div>}
-      {cfg?.configured && (
+      {cfg && !cfg.configured && <div className="meta" style={{ marginBottom: 8 }}>Lumi answers about staff, attendance, leave and tasks now. Patient and revenue questions need the n8n link{isAdmin ? " (paste it above)" : " (ask the admin)"}.</div>}
+      {cfg && (
         <div className="card" style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 300px)", minHeight: 420 }}>
           <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
             {messages.map((m, i) => (

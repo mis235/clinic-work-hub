@@ -41,6 +41,6 @@ export function navItemsFor(user) {
   // Insights, Knowledge and the Clinic Chatbot are for the leadership team only (admin + people the admin ticks: MIS, COS, COE, doctors).
   const lead = user.role === "admin" || !!user.leadership;
   if (user.role === "admin") return ["Dashboard", "Attendance", "Dashboards", "Departments", "Staff", "Exits", "Leave", "Payroll", "HR", "Reports", "Documents", "Policies", "Learning", "Events", "Clinic Assistant", "Assistant", "System"];
-  if (user.role === "manager") return ["Dashboard", "Shift Checklist", ...(user.isHr ? ["Attendance"] : []), "Dashboards", "Departments", "Leave", ...(lead ? ["Reports", "Documents", "Policies", "Learning", "Events", "Clinic Assistant"] : []), "Assistant"];
-  return ["My checklist", "Shift Checklist", "Tracker", "My Workspace", "My Profile", "Leave", ...(lead ? ["Documents", "Policies", "Learning", "Clinic Assistant"] : []), "Assistant"];
+  if (user.role === "manager") return ["Dashboard", "Shift Checklist", ...(user.isHr ? ["Attendance", "Staff", "Payroll", "HR", "Exits", "Events"] : []), "Dashboards", "Departments", "Leave", ...(lead ? ["Reports", "Documents", "Policies", "Learning", ...(user.isHr ? [] : ["Events"]), "Clinic Assistant"] : []), "Assistant"];
+  return ["My checklist", "Shift Checklist", "Tracker", "My Workspace", "My Profile", "Leave", ...(lead ? ["Dashboards", "Reports", "Documents", "Policies", "Learning", "Events", "Clinic Assistant"] : []), "Assistant"];
 }

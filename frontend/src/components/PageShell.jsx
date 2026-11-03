@@ -11,7 +11,7 @@ export default function PageShell({ user, active, title, isStaffLayout, onLogout
     <div className="app-shell">
       <Sidebar items={navItemsFor(user)} active={active}
         onSelect={(item) => item !== active && onBack(item)}
-        who={`${user.name} · ${user.role === "admin" ? "Admin" : "Manager"}`} onLogout={onLogout}
+        who={`${user.name} · ${user.role === "admin" ? "Admin" : user.isHr ? "HR" : "Manager"}`} me={{ id: user.id }} onLogout={onLogout}
         mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
       <div className="main">
         <MobileTopBar title={title || active} onOpenMenu={() => setMobileOpen(true)} />

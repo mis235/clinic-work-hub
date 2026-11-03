@@ -31,7 +31,7 @@ import ChangePinModal from "./components/ChangePinModal.jsx";
 const VIEW_KEY = {
   "Dashboard": "dashboard", "AI Advisors": "assistant", "Policies": "policies", "Reports": "reports",
   "About": "about", "Learning": "learning", "Events": "events", "HR": "hr", "Payroll": "payroll", "Staff": "staff",
-  "Assistant": "assistant", "Tracker": "tracker", "Shift Checklist": "shiftchecklist", "Shift Logs": "dashboards", "Onboarding": "onboarding", "System": "system", "Attendance": "attendance", "Clinic Assistant": "clinicassistant", "Dashboards": "dashboards", "Documents": "documents", "Departments": "departments", "Roster": "roster", "Exits": "exits", "Leave": "leave",
+  "Assistant": "assistant", "Tracker": "tracker", "Shift Checklist": "shiftchecklist", "Shift Logs": "dashboards", "Onboarding": "onboarding", "System": "system", "Attendance": "attendance", "Clinic Assistant": "clinicassistant", "Dashboards": "dashboards", "Documents": "documents", "Departments": "departments", "Roster": "roster", "Exits": "exits", "Leave": "leave", "My Profile": "myprofile",
 };
 
 export default function App() {
@@ -95,6 +95,7 @@ function MainApp() {
     if (view === "assistant") return <AssistantPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "tracker") return <TrackerPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "shiftchecklist") return <ShiftChecklistPage user={user} onLogout={logout} onBack={navigate} />;
+    if (view === "myprofile") return <StaffProfilePage user={user} staffId="me" onLogout={logout} onBack={navigate} />;
     if (view === "staffprofile" && profile) return <StaffProfilePage user={user} staffId={profile.id} backLabel={profile.from} onLogout={logout} onBack={navigate} />;
     if (view === "policies") return <PoliciesPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "reports") return <ReportsPage user={user} onLogout={logout} onBack={navigate} />;
