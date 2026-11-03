@@ -178,6 +178,11 @@ router.post("/ask", requireAuth, requirePermission("assistant:use"), async (req,
     if (!lead && !/\b(my|i|me)\b/.test(m) && personIn(m)) return res.json({ reply: "Attendance of other people is shown to HR and the leadership team only.", source: "scoped" });
     if (lead) { const pa = personAttendance(m, t); if (pa) return res.json({ reply: pa, source: "data" }); }
   }
+  if (/\bcover/.test(m)) {
+    const mineCover = db.prepare("SELECT l.from_date, l.to_date, u.name FROM leave_requests l JOIN users u ON u.id = l.user_id WHERE l.cover_user_id = ? AND l.status = 'approved' AND l.to_date >= ? ORDER BY l.from_date").all(userId, t);
+    if (!mineCover.length) return res.json({ reply: "You are not covering anyone's work right now.", source: "data" });
+    return res.json({ reply: "You are covering:\n" + mineCover.map((c) => `• ${c.name}: ${c.from_date} to ${c.to_date}${c.from_date <= t ? " (now)" : ""}`).join("\n"), source: "data" });
+  }
   if (top) {
     const clinic = clinicAnswer(m, t, month);
     if (clinic) return res.json({ reply: clinic, source: "data" });
