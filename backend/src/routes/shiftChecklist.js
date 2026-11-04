@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import db from "../db.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
+import { accessFor } from "../access.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOAD_ROOT = path.join(process.env.DATA_DIR || path.join(__dirname, "..", ".."), "uploads");
@@ -47,6 +48,28 @@ function notStarted(date, startedIds) {
   return db.prepare("SELECT id, name, shift_role FROM users WHERE shift_role IS NOT NULL AND active = 1").all().filter((u) => here.has(u.id) && !startedIds.has(u.id));
 }
 
+// ---- Who fills which checklist -------------------------------------------------------------------------------------------
+// 1) their own role (users.shift_role)  2) roles the admin/HR assigned to them (one checklist can have several people)
+// 3) the role of a colleague who is on approved leave and chose them as the person covering, for those dates.
+db.exec("CREATE TABLE IF NOT EXISTS checklist_assignments (role_name TEXT NOT NULL, user_id TEXT NOT NULL, PRIMARY KEY (role_name, user_id))");
+function rolesFor(userId, date) {
+  const out = [], seen = new Set();
+  const add = (roleName, kind, forName) => { if (roleName && !seen.has(roleName)) { seen.add(roleName); out.push({ roleName, kind, forName: forName || null }); } };
+  add(db.prepare("SELECT shift_role FROM users WHERE id = ?").get(userId)?.shift_role, "own");
+  for (const a of db.prepare("SELECT role_name FROM checklist_assignments WHERE user_id = ? ORDER BY role_name").all(userId)) add(a.role_name, "assigned");
+  for (const l of db.prepare(`SELECT u.name, u.shift_role FROM leave_requests l JOIN users u ON u.id = l.user_id
+      WHERE l.cover_user_id = ? AND l.status = 'approved' AND ? BETWEEN l.from_date AND l.to_date`).all(userId, date)) add(l.shift_role, "covering", l.name);
+  return out;
+}
+const KEY_SEP = "|";
+const storedShift = (role, own, shift) => (role === own ? shift : `${shift}${KEY_SEP}${role}`);
+function pickRole(userId, wanted) {
+  const own = db.prepare("SELECT shift_role FROM users WHERE id = ?").get(userId)?.shift_role || null;
+  const roles = rolesFor(userId, todayISO());
+  const role = wanted ? roles.find((r) => r.roleName === wanted)?.roleName : (own || roles[0]?.roleName);
+  return { own, role: role || null };
+}
+
 function templateFor(roleName) {
   const rows = db
     .prepare(`SELECT section, item_text, sort_order FROM shift_checklist_templates WHERE role_name = ? ORDER BY sort_order`)
@@ -66,15 +89,35 @@ function templateFor(roleName) {
 
 // GET /api/shift-checklist/template — the logged-in user's own role template, for today.
 router.get("/template", requireAuth, (req, res) => {
-  const user = db.prepare(`SELECT shift_role FROM users WHERE id = ?`).get(req.user.userId);
-  if (!user?.shift_role) {
+  const { role } = pickRole(req.user.userId, req.query.role ? String(req.query.role) : null);
+  if (!role) {
     return res.status(404).json({ error: "No shift checklist is assigned to your role yet. Ask an admin to set one up from Staff." });
   }
-  const { sections, metrics } = templateFor(user.shift_role);
+  const { sections, metrics } = templateFor(role);
   if (sections.length === 0) {
-    return res.status(404).json({ error: `No checklist items found for "${user.shift_role}" yet.` });
+    return res.status(404).json({ error: `No checklist items found for "${role}" yet.` });
   }
-  res.json({ roleName: user.shift_role, sections, metrics });
+  res.json({ roleName: role, sections, metrics });
+});
+
+// GET /api/shift-checklist/my-roles — every checklist this person fills today (own, assigned, or covering a colleague).
+router.get("/my-roles", requireAuth, (req, res) => res.json(rolesFor(req.user.userId, todayISO())));
+
+// Admin / HR: which people fill which checklist (several people can share one).
+const canAssign = (req) => req.user.roleName === "admin" || accessFor(req.user.userId, req.user.roleName).isHr;
+router.get("/assignments", requireAuth, (req, res) => {
+  if (!canAssign(req)) return res.status(403).json({ error: "Admin or HR only" });
+  const roles = db.prepare("SELECT DISTINCT role_name FROM shift_checklist_templates ORDER BY role_name").all().map((r) => r.role_name);
+  const staff = db.prepare("SELECT id, name, shift_role FROM users WHERE active = 1 ORDER BY name").all();
+  res.json({ roles: roles.map((roleName) => ({ roleName, own: staff.filter((u) => u.shift_role === roleName).map((u) => u.id), assigned: db.prepare("SELECT user_id FROM checklist_assignments WHERE role_name = ?").all(roleName).map((r) => r.user_id) })), staff: staff.map((u) => ({ id: u.id, name: u.name })) });
+});
+router.put("/assignments", requireAuth, (req, res) => {
+  if (!canAssign(req)) return res.status(403).json({ error: "Admin or HR only" });
+  const { roleName, userIds } = req.body || {};
+  if (!db.prepare("SELECT 1 FROM shift_checklist_templates WHERE role_name = ?").get(roleName)) return res.status(400).json({ error: "Unknown checklist" });
+  const ids = (Array.isArray(userIds) ? userIds : []).filter((id) => db.prepare("SELECT 1 FROM users WHERE id = ? AND active = 1").get(id));
+  db.transaction(() => { db.prepare("DELETE FROM checklist_assignments WHERE role_name = ?").run(roleName); for (const id of ids) db.prepare("INSERT OR IGNORE INTO checklist_assignments (role_name, user_id) VALUES (?, ?)").run(roleName, id); })();
+  res.json({ ok: true });
 });
 
 // GET /api/shift-checklist/today — what the logged-in user has already submitted today (both shifts), if anything.
@@ -89,7 +132,7 @@ function serializeSubmission(row) {
   return {
     id: row.id,
     userId: row.user_id,
-    shift: row.shift,
+    shift: String(row.shift).split(KEY_SEP)[0],
     workDate: row.work_date,
     items: JSON.parse(row.items_json),
     metrics: row.metrics_json ? JSON.parse(row.metrics_json) : null,
@@ -154,9 +197,12 @@ router.post("/item-photo", requireAuth, requirePermission("shiftchecklist:submit
 // JSON { shift, items:[{section,text,done}], metrics }. Creates the day's row as 'in_progress'
 // (so managers see live progress); never downgrades an already-submitted row's status.
 router.post("/progress", requireAuth, requirePermission("shiftchecklist:submit"), (req, res) => {
-  const user = db.prepare(`SELECT shift_role FROM users WHERE id = ?`).get(req.user.userId);
-  if (!user?.shift_role) return res.status(400).json({ error: "No shift checklist is assigned to your role." });
-  const { shift, metrics } = req.body || {};
+  const picked = pickRole(req.user.userId, req.body?.role ? String(req.body.role) : null);
+  if (!picked.role) return res.status(400).json({ error: "You cannot fill that checklist today." });
+  const user = { shift_role: picked.role };
+  const { metrics } = req.body || {};
+  const shiftIn = req.body?.shift;
+  const shift = shiftIn ? storedShift(picked.role, picked.own, shiftIn) : shiftIn;
   if (!shift || !Array.isArray(req.body?.items) || req.body.items.length === 0) return res.status(400).json({ error: "shift and items are required" });
   const items = cleanItems(req.body.items);
   const completed = items.filter((i) => i.done).length;
@@ -189,7 +235,7 @@ async function pushToSheet(row, staffName, email) {
     const detail = [...groups].map(([k, v]) => `${k}:\n${v.join("\n")}`).join("\n");
     const ist = new Date(Date.now() + 19800000).toISOString(); const [y, m, d] = ist.slice(0, 10).split("-");
     const at = `${d}/${m}/${y} ${ist.slice(11, 19)}`;
-    const cells = [at, CLINIC_NAME, staffName, row.role_name, row.work_date, row.shift, row.completed, row.total, row.completion_pct, detail, row.metrics_json || "", row.photo_path ? "Yes (in app)" : "", "", email || ""];
+    const cells = [at, CLINIC_NAME, staffName, row.role_name, row.work_date, String(row.shift).split(KEY_SEP)[0], row.completed, row.total, row.completion_pct, detail, row.metrics_json || "", row.photo_path ? "Yes (in app)" : "", "", email || ""];
     const r = await fetch(url, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ key: getSetting("checklist_push_key"), row: cells }), redirect: "follow", signal: AbortSignal.timeout(20000) });
     const text = (await r.text()).slice(0, 200);
     if (/^no\b/i.test(text.trim())) throw new Error("The secret word does not match the one in the Google script.");
@@ -218,11 +264,13 @@ router.post("/push/test", requireAuth, async (req, res) => {
 });
 
 router.post("/submit", requireAuth, requirePermission("shiftchecklist:submit"), upload.single("photo"), async (req, res) => {
-  const user = db.prepare(`SELECT shift_role FROM users WHERE id = ?`).get(req.user.userId);
-  if (!user?.shift_role) return res.status(400).json({ error: "No shift checklist is assigned to your role." });
+  const picked = pickRole(req.user.userId, req.body?.role ? String(req.body.role) : null);
+  if (!picked.role) return res.status(400).json({ error: "You cannot fill that checklist today." });
+  const user = { shift_role: picked.role };
 
-  const { shift, photoLiveTimestamp } = req.body;
-  if (!shift) return res.status(400).json({ error: "shift is required" });
+  const { photoLiveTimestamp } = req.body;
+  if (!req.body.shift) return res.status(400).json({ error: "shift is required" });
+  const shift = storedShift(picked.role, picked.own, req.body.shift);
 
   let items, metrics;
   try {
@@ -475,14 +523,37 @@ router.get("/dashboard", requireAuth, requirePermission("shiftchecklist:view_all
   for (const r of rows) (byRole[r.role_name] ||= []).push(r.completion_pct);
   const missedCount = new Map();
   for (const r of rows.filter((x) => x.status === "submitted" || x.work_date < date)) for (const i of JSON.parse(r.items_json)) if (!i.done) { const k = `${r.role_name}|||${i.text}`; missedCount.set(k, (missedCount.get(k) || 0) + 1); }
+  // One row per checklist (role), like the old Google dashboard: who should fill it, and whether anyone has.
+  const istHour = (r) => { const t = String(r.submitted_at || ""); const d = new Date(t.replace(" ", "T") + (r.source === "sheet" ? "" : "Z")); return isNaN(d) ? null : (r.source === "sheet" ? d.getHours() : new Date(d.getTime() + 19800000).getUTCHours()); };
+  const istTime = (r) => { const t = String(r.submitted_at || ""); const d = new Date(t.replace(" ", "T") + (r.source === "sheet" ? "" : "Z")); if (isNaN(d)) return ""; const x = r.source === "sheet" ? d : new Date(d.getTime() + 19800000); const h = r.source === "sheet" ? x.getHours() : x.getUTCHours(), m = r.source === "sheet" ? x.getMinutes() : x.getUTCMinutes(); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
+  const allUsers = db.prepare("SELECT id, name, shift_role FROM users WHERE active = 1").all();
+  const rolesAll = new Set([...allUsers.map((u) => u.shift_role).filter(Boolean), ...db.prepare("SELECT role_name FROM checklist_assignments").all().map((r) => r.role_name)]);
+  const roster = [...rolesAll].sort().map((roleName) => {
+    const owners = [...new Set([...allUsers.filter((u) => u.shift_role === roleName).map((u) => u.name), ...db.prepare("SELECT u.name FROM checklist_assignments a JOIN users u ON u.id = a.user_id WHERE a.role_name = ? AND u.active = 1").all(roleName).map((r) => r.name)])];
+    const subs = dayRows.filter((r) => r.role_name === roleName).sort((a, b) => (a.status === "submitted" ? 0 : 1) - (b.status === "submitted" ? 0 : 1) || String(b.updated_at || "").localeCompare(String(a.updated_at || "")));
+    const sub = subs[0];
+    const items = sub ? JSON.parse(sub.items_json) : [];
+    const secMap = new Map(); for (const i of items) { const e = secMap.get(i.section || "Checklist") || { name: i.section || "Checklist", done: 0, total: 0 }; e.total++; if (i.done) e.done++; secMap.set(e.name, e); }
+    const h = sub && sub.status === "submitted" ? istHour(sub) : null;
+    return {
+      roleName, owners, status: sub ? (sub.status === "submitted" ? "submitted" : "in_progress") : "pending",
+      submittedBy: sub ? sub.staff_name : null, coveredBy: sub && owners.length && !owners.includes(sub.staff_name) ? sub.staff_name : null,
+      completed: sub?.completed ?? null, total: sub?.total ?? null, pct: sub?.completion_pct ?? null,
+      sections: [...secMap.values()], photos: sub ? photosIn(sub) : 0, time: sub ? istTime(sub) : "", late: h != null && h >= 20, source: sub?.source || null,
+      items: sub ? items : [],
+    };
+  });
+  const sectionsOf = roster.flatMap((r) => r.sections);
   res.json({
     date, today,
     summary: {
       expected: expected.length, submitted: dayRows.filter((r) => r.status === "submitted").length, inProgress: dayRows.filter((r) => r.status === "in_progress").length,
       notStarted: notStarted(date, started).length, avgPct: avg(dayRows.map((r) => r.completion_pct)),
+      totalChecklists: roster.length, tasksDone: roster.reduce((n, r) => n + (r.completed || 0), 0), tasksTotal: roster.reduce((n, r) => n + (r.total || 0), 0),
+      incompleteSections: sectionsOf.filter((x) => x.done < x.total).length, late: roster.filter((r) => r.late).length,
       photos: dayRows.reduce((n, r) => n + photosIn(r), 0), fromSheet: dayRows.filter((r) => r.source === "sheet").length, fromApp: dayRows.filter((r) => r.source !== "sheet").length,
     },
-    trend,
+    trend, roster,
     byRole: Object.entries(byRole).map(([role, v]) => ({ role, avgPct: avg(v), submissions: v.length })).sort((a, b) => a.avgPct - b.avgPct),
     missedMost: [...missedCount].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, n]) => ({ role: k.split("|||")[0], task: k.split("|||")[1], times: n })),
     people: dayRows.map((r) => ({ ...serializeSubmission(r), source: r.source || "app", photos: photosIn(r) })).sort((a, b) => a.staffName.localeCompare(b.staffName)),

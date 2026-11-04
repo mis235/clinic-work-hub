@@ -11,6 +11,8 @@ const defaultShift = () => (new Date().getHours() < 14 ? "Morning" : "Evening");
 export default function ShiftChecklistPage({ user, isStaffLayout, onLogout, onBack }) {
   const [template, setTemplate] = useState(null);   // { roleName, sections, metrics }
   const [notAssigned, setNotAssigned] = useState(null);
+  const [roles, setRoles] = useState([]);           // every checklist this person fills today (own / assigned / covering)
+  const [role, setRole] = useState(null);           // the one being shown
   const [existing, setExisting] = useState([]);     // today's rows (in_progress or submitted), any shift
   const [shift, setShift] = useState(defaultShift());
   const [checked, setChecked] = useState({});
@@ -29,11 +31,16 @@ export default function ShiftChecklistPage({ user, isStaffLayout, onLogout, onBa
   const saveTimer = useRef(null);
 
   useEffect(() => {
-    api.getShiftChecklistTemplate().then(setTemplate).catch((e) => setNotAssigned(e.message));
+    api.myChecklistRoles().then((r) => { setRoles(r); }).catch(() => {});
     api.getShiftChecklistToday().then(setExisting).catch(() => setExisting([]));
   }, []);
+  useEffect(() => {
+    setTemplate(null); setNotAssigned(null); loadedKey.current = ""; dirty.current = false;
+    api.getShiftChecklistTemplate(role).then(setTemplate).catch((e) => setNotAssigned(e.message));
+  }, [role]);
 
-  const todays = existing.find((s) => s.shift === shift);
+  const shownRole = template?.roleName;
+  const todays = existing.find((s) => s.shift === shift && (!shownRole || s.roleName === shownRole));
 
   // Restore ticks/numbers saved earlier today whenever the shift (or the loaded data) changes.
   useEffect(() => {
@@ -62,9 +69,9 @@ export default function ShiftChecklistPage({ user, isStaffLayout, onLogout, onBa
     setSaveState("saving");
     saveTimer.current = setTimeout(async () => {
       try {
-        const saved = await api.saveShiftProgress({ shift, items: buildItems(), metrics: template.metrics.length ? metricValues : null });
+        const saved = await api.saveShiftProgress({ role: shownRole, shift, items: buildItems(), metrics: template.metrics.length ? metricValues : null });
         loadedKey.current = `${shift}:${saved.id}`;
-        setExisting((prev) => [...prev.filter((s) => s.shift !== shift), saved]);
+        setExisting((prev) => [...prev.filter((s) => !(s.shift === shift && s.roleName === saved.roleName)), saved]);
         setSaveState("saved");
       } catch { setSaveState("error"); }
     }, 700);
@@ -107,13 +114,14 @@ export default function ShiftChecklistPage({ user, isStaffLayout, onLogout, onBa
       clearTimeout(saveTimer.current);
       const fd = new FormData();
       fd.append("shift", shift);
+      fd.append("role", shownRole || "");
       fd.append("items", JSON.stringify(buildItems()));
       if (template.metrics.length > 0) fd.append("metrics", JSON.stringify(metricValues));
       if (photoCapturedAt) fd.append("photoLiveTimestamp", photoCapturedAt);
       if (photoFile) fd.append("photo", photoFile);
       const saved = await api.submitShiftChecklist(fd);
       loadedKey.current = `${shift}:${saved.id}`;
-      setExisting((prev) => [...prev.filter((s) => s.shift !== shift), saved]);
+      setExisting((prev) => [...prev.filter((s) => !(s.shift === shift && s.roleName === saved.roleName)), saved]);
       setPhotoFile(null); setPhotoPreview(null); setPhotoCapturedAt(null);
       setEditing(false); setSaveState("idle"); dirty.current = false;
     } catch (e) {
@@ -135,6 +143,13 @@ export default function ShiftChecklistPage({ user, isStaffLayout, onLogout, onBa
         </div>
       </div>
 
+      {roles.length > 1 && (
+        <div className="pill-row" style={{ marginBottom: 12 }}>
+          {roles.map((r) => (
+            <button key={r.roleName} className={`pill ${(shownRole || roles[0].roleName) === r.roleName ? "active" : ""}`} onClick={() => setRole(r.roleName)}>
+              {r.kind === "covering" ? `Covering ${r.forName}: ` : r.kind === "assigned" ? "Also yours: " : ""}{r.roleName}
+            </button>))}
+        </div>)}
       {notAssigned && <div className="empty">{notAssigned}</div>}
 
       {template && (

@@ -271,7 +271,10 @@ export const api = {
   // Shift checklist (the real recurring Opening/During-the-day/End-of-day
   // checklist per role, ported from the Apps Script system) — distinct from
   // the ad-hoc "tasks" above.
-  getShiftChecklistTemplate: () => req("/api/shift-checklist/template"),
+  getShiftChecklistTemplate: (role) => req("/api/shift-checklist/template" + (role ? `?role=${encodeURIComponent(role)}` : "")),
+  myChecklistRoles: () => req("/api/shift-checklist/my-roles"),
+  checklistAssignments: () => req("/api/shift-checklist/assignments"),
+  saveChecklistAssignment: (roleName, userIds) => req("/api/shift-checklist/assignments", { method: "PUT", body: { roleName, userIds } }),
   getShiftChecklistToday: () => req("/api/shift-checklist/today"),
   submitShiftChecklist: (formData) => reqForm("/api/shift-checklist/submit", formData),
   getShiftChecklistSubmissions: (params = {}) => {

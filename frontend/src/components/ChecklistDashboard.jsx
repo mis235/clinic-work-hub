@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { api, assetUrl } from "../api.js";
 
 const todayIST = () => new Date(Date.now() + 19800000).toISOString().slice(0, 10);
@@ -15,6 +15,15 @@ export default function ChecklistDashboard({ user }) {
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const isAdmin = user.role === "admin";
+  const canAssign = isAdmin || !!user.isHr;
+  const [q, setQ] = useState(""); const [statusF, setStatusF] = useState("all"); const [secF, setSecF] = useState("all");
+  const [asg, setAsg] = useState(null);
+  useEffect(() => { if (canAssign) api.checklistAssignments().then(setAsg).catch(() => {}); }, []);
+  async function toggleAssign(roleName, uid, current) {
+    const next = current.includes(uid) ? current.filter((x) => x !== uid) : [...current, uid];
+    await api.saveChecklistAssignment(roleName, next).catch((e) => setMsg(e.message));
+    api.checklistAssignments().then(setAsg).catch(() => {}); load();
+  }
   const [push, setPush] = useState(null); const [pushUrl, setPushUrl] = useState(""); const [pushKey, setPushKey] = useState("");
   const loadPush = () => isAdmin && api.checklistPush().then((r) => { setPush(r); setPushUrl(r.url || ""); }).catch(() => {});
   useEffect(() => { loadPush(); }, []);
@@ -50,10 +59,47 @@ export default function ChecklistDashboard({ user }) {
         </div>
       </div>
 
+      <div className="meta" style={{ marginBottom: 6 }}>Search staff</div>
+      <input className="field" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Type a name…" style={{ maxWidth: 520, marginBottom: 10 }} />
+      <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginBottom: 12 }}>
+        <div><div className="meta">Status</div><div className="pill-row">{[["all", "All"], ["submitted", "Submitted"], ["pending", "Pending"]].map(([k, l]) => <button key={k} className={`pill ${statusF === k ? "active" : ""}`} onClick={() => setStatusF(k)}>{l}</button>)}</div></div>
+        <div><div className="meta">Section touched</div><div className="pill-row">{[["all", "All"], ["Opening", "Opening"], ["During the Day", "During the Day"], ["End of Day", "End of Day"]].map(([k, l]) => <button key={k} className={`pill ${secF === k ? "active" : ""}`} onClick={() => setSecF(k)}>{l}</button>)}</div></div>
+      </div>
+
       <div className="dept-grid tile-grid">
-        {[["Submitted", `${s.submitted}/${s.expected}`], ["In progress", s.inProgress], ["Not started (present)", s.notStarted], ["Average done", s.avgPct == null ? "—" : s.avgPct + "%"]].map(([l, v]) => (
+        {[["Total checklists", s.totalChecklists ?? s.expected], ["Submitted today", s.submitted], ["Pending", Math.max(0, (s.totalChecklists ?? s.expected) - s.submitted - s.inProgress)], ["In progress", s.inProgress],
+          ["Tasks completed (clinic-wide)", `${s.tasksDone ?? 0} / ${s.tasksTotal ?? 0}`], ["Evidence photos", s.photos], ["Incomplete sections", s.incompleteSections ?? 0], ["Late submissions (after 8 PM)", s.late ?? 0]].map(([l, v]) => (
           <div key={l} className="dept-card"><div className="meta">{l}</div><div className="title" style={{ fontSize: 24 }}>{v}</div></div>
         ))}
+      </div>
+
+      <div className="card" style={{ marginBottom: 16, overflowX: "auto" }}>
+        <table className="reg-table" style={{ width: "100%", minWidth: 760 }}>
+          <thead><tr><th>Staff</th><th>Role</th><th>Status</th><th>Done</th><th>Total</th><th>Completion</th><th>Sections touched</th><th>Photos</th><th>Time</th><th>Submitted by</th></tr></thead>
+          <tbody>
+            {(d.roster || []).filter((r) => (statusF === "all" || (statusF === "submitted" ? r.status === "submitted" : r.status !== "submitted"))
+              && (secF === "all" || r.sections.some((x) => x.name.toLowerCase() === secF.toLowerCase() && x.done > 0))
+              && (!q.trim() || (r.owners.join(" ") + " " + (r.submittedBy || "") + " " + r.roleName).toLowerCase().includes(q.trim().toLowerCase()))).map((r) => (
+              <React.Fragment key={r.roleName}>
+                <tr style={{ cursor: r.items.length ? "pointer" : "default" }} onClick={() => r.items.length && setOpen(open === r.roleName ? null : r.roleName)}>
+                  <td><b>{r.owners.join(" / ") || "—"}</b>{r.items.length ? " ▾" : ""}</td>
+                  <td>{r.roleName}</td>
+                  <td><span className={`badge ${r.status === "submitted" ? "done" : r.status === "in_progress" ? "progress" : "overdue"}`}>{r.status === "submitted" ? "✓ Submitted" : r.status === "in_progress" ? "In progress" : "⏳ Pending"}</span></td>
+                  <td>{r.completed ?? "—"}</td><td>{r.total ?? "—"}</td>
+                  <td>{r.pct == null ? "—" : <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 70, height: 7, background: "var(--line)", borderRadius: 4, overflow: "hidden", display: "inline-block" }}><span style={{ display: "block", height: "100%", width: `${r.pct}%`, background: "var(--primary)" }} /></span>{r.pct}%</span>}</td>
+                  <td>{r.sections.length ? r.sections.map((x) => <div key={x.name} className="meta" style={{ whiteSpace: "nowrap" }}>{x.done === x.total ? "✓" : "•"} {x.name} ({x.done}/{x.total})</div>) : "—"}</td>
+                  <td>{r.items.length ? r.photos : "—"}</td>
+                  <td>{r.time || "—"}{r.late ? " ⚠" : ""}</td>
+                  <td>{r.submittedBy ? <>{r.submittedBy}{r.coveredBy ? <div className="meta">covering</div> : null}</> : "—"}</td>
+                </tr>
+                {open === r.roleName && (
+                  <tr><td colSpan={10} style={{ background: "var(--bg, #fafafa)" }}>
+                    {r.items.map((i, k) => <div key={k} style={{ fontSize: 13, padding: "2px 0" }}>{i.done ? "✅" : "⬜"} <span style={{ opacity: i.done ? 1 : 0.7 }}>{i.text}</span>{i.photoUrl && <a href={assetUrl(i.photoUrl)} target="_blank" rel="noreferrer"> 📷</a>}</div>)}
+                  </td></tr>)}
+              </React.Fragment>))}
+          </tbody>
+        </table>
+        <div className="meta" style={{ marginTop: 8 }}>Last loaded {new Date().toLocaleTimeString("en-IN")} · refreshes every 30 seconds{s.fromSheet ? ` · ${s.fromSheet} from the old Google form` : ""}</div>
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
@@ -111,6 +157,21 @@ export default function ChecklistDashboard({ user }) {
         {d.missing.length > 0 && <div className="meta" style={{ paddingTop: 12, borderTop: "1px solid var(--line)", marginTop: 8 }}><b>{d.missing.length}</b> present but not started: {d.missing.map((m) => m.name).join(", ")}</div>}
       </div>
 
+      {canAssign && asg && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="title">Who fills each checklist</div>
+          <p className="meta" style={{ margin: "6px 0 10px" }}>Tick everyone who should see a checklist (for example Wednesday or Pharmacy). If you tick two or more people, all of them see it and anyone can submit it. When someone on leave chooses a person to cover, that person automatically gets the colleague's checklist too.</p>
+          {asg.roles.map((r) => (
+            <details key={r.roleName} style={{ borderTop: "1px solid var(--line)", padding: "8px 0" }}>
+              <summary style={{ cursor: "pointer" }}><b>{r.roleName}</b> <span className="meta">— {[...new Set([...r.own, ...r.assigned])].map((id) => asg.staff.find((x) => x.id === id)?.name).filter(Boolean).join(", ") || "nobody yet"}</span></summary>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: "8px 0" }}>
+                {asg.staff.map((u) => (
+                  <label key={u.id} className="pill" style={{ cursor: r.own.includes(u.id) ? "default" : "pointer", opacity: r.own.includes(u.id) ? 0.6 : 1 }}>
+                    <input type="checkbox" checked={r.own.includes(u.id) || r.assigned.includes(u.id)} disabled={r.own.includes(u.id)} onChange={() => toggleAssign(r.roleName, u.id, r.assigned)} /> {u.name}{r.own.includes(u.id) ? " (main)" : ""}
+                  </label>))}
+              </div>
+            </details>))}
+        </div>)}
       {isAdmin && (
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="title">Send every submitted checklist to the Google Sheet</div>

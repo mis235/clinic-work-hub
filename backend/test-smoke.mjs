@@ -570,6 +570,21 @@ try {
         ok("events: delete", del.status < 300);
       }
     }
+    {
+      const dash = await call("GET", "/api/shift-checklist/dashboard", null, admin);
+      ok("checklist dashboard has a roster of checklists", Array.isArray(dash.body.roster) && dash.body.roster.length > 0 && typeof dash.body.summary.tasksTotal === "number");
+      const asg = await call("GET", "/api/shift-checklist/assignments", null, admin);
+      const role = asg.body.roles?.find((r) => r.own.length === 0 && r.assigned.length === 0)?.roleName || asg.body.roles?.[0]?.roleName;
+      const me = (await call("GET", "/api/shift-checklist/my-roles", null, lvTok)).body;
+      ok("my-roles lists own checklists", Array.isArray(me));
+      const meId = JSON.parse(Buffer.from(lvTok.split(".")[1], "base64url").toString()).userId;
+      const put = await call("PUT", "/api/shift-checklist/assignments", { roleName: role, userIds: [meId] }, admin);
+      ok("admin can assign a checklist to a person", put.status === 200);
+      const after = (await call("GET", "/api/shift-checklist/my-roles", null, lvTok)).body;
+      ok("assigned checklist shows up for that person", after.some((r) => r.roleName === role));
+      ok("staff cannot assign checklists", (await call("PUT", "/api/shift-checklist/assignments", { roleName: role, userIds: [] }, lvTok)).status === 403);
+      await call("PUT", "/api/shift-checklist/assignments", { roleName: role, userIds: [] }, admin);
+    }
     ok("assistant: staff cannot list staff", /managers, HR/.test(await ask("how many staff are there", lvTok)));
     ok("assistant: HR gets the staff count", /active staff/.test(await ask("how many staff are there", hrTok)));
   }
