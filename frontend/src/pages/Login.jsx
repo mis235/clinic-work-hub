@@ -14,6 +14,7 @@ export default function Login({ onLoggedIn }) {
   const [roster, setRoster] = useState([]);
   const [userId, setUserId] = useState("");
   const [pin, setPin] = useState("");
+  const [find, setFind] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(() => { try { const m = sessionStorage.getItem("sessionMsg"); sessionStorage.removeItem("sessionMsg"); return m || ""; } catch { return ""; } });
@@ -109,13 +110,18 @@ export default function Login({ onLoggedIn }) {
           ) : (
             <>
               <label className="field-label">Your name</label>
-              <select className="field" value={userId} onChange={(e) => setUserId(e.target.value)}>
-                {roster.map((u) => (
-                  <option key={u.id} value={u.id}>{u.name} — {u.department}{u.role === "manager" ? " (Manager)" : ""}</option>
-                ))}
-              </select>
+              <input className="field" style={{ fontSize: 16 }} value={find} onChange={(e) => setFind(e.target.value)} placeholder="Type your name to search" autoComplete="off" autoCapitalize="off" />
+              <div style={{ maxHeight: 190, overflowY: "auto", margin: "8px 0", border: "1px solid var(--line, #eed)", borderRadius: 14 }}>
+                {roster.filter((u) => !find.trim() || u.name.toLowerCase().includes(find.trim().toLowerCase())).map((u) => (
+                  <button type="button" key={u.id} onClick={() => { setUserId(u.id); setFind(""); }}
+                    style={{ display: "block", width: "100%", textAlign: "left", padding: "12px 14px", fontSize: 16, border: 0, borderBottom: "1px solid rgba(0,0,0,.05)", cursor: "pointer",
+                      background: u.id === userId ? "var(--primary-soft, #fbe3f1)" : "transparent", fontWeight: u.id === userId ? 700 : 400, color: "inherit" }}>
+                    {u.id === userId ? "✓ " : ""}{u.name} — {u.department}{u.role === "manager" ? " (Manager)" : ""}
+                  </button>))}
+              </div>
+              <div className="meta" style={{ marginBottom: 6 }}>Signing in as: <b>{roster.find((u) => u.id === userId)?.name || "—"}</b></div>
               <label className="field-label">4-digit PIN</label>
-              <input className="field" type="password" inputMode="numeric" maxLength={4} value={pin} onChange={(e) => setPin(e.target.value)} />
+              <input className="field" style={{ fontSize: 16 }} type="password" inputMode="numeric" pattern="[0-9]*" maxLength={4} value={pin} onChange={(e) => setPin(e.target.value)} />
             </>
           )}
 
