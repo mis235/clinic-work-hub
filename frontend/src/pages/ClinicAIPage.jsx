@@ -45,13 +45,12 @@ export default function ClinicAIPage({ user, isStaffLayout, onLogout, onBack }) 
     }
     setBusy(false);
   }
-  const showSetup = isAdmin && cfg && (!cfg.configured || editing);
+  const showSetup = false; // the n8n link is set on the server (deploy/set-lumi-link.sh), not in the app
 
   return (
     <PageShell user={user} active="Clinic Assistant" title="Lumi" isStaffLayout={isStaffLayout} onLogout={onLogout} onBack={onBack}>
       <div className="page-head row">
         <div className="lumi-hero"><LumiOrbit mood={busy ? "think" : "wave"} size={150} /><div><div className="eyebrow">Leadership only</div><h1>Lumi</h1><p>Your clinic data helper — patients, charts, revenue and reports.</p></div></div>
-        {isAdmin && cfg?.configured && <button className="btn btn-ghost" onClick={() => setEditing((x) => !x)}>Change n8n link</button>}
       </div>
       {showSetup && (
         <div className="card">
@@ -61,7 +60,6 @@ export default function ClinicAIPage({ user, isStaffLayout, onLogout, onBack }) 
           {err && <div className="login-error" style={{ marginTop: 10 }}>{err}</div>}
           <div style={{ marginTop: 12 }}><button className="btn btn-primary btn-sm" onClick={saveUrl}>Save link</button></div>
         </div>)}
-      {cfg && !cfg.configured && <div className="meta" style={{ marginBottom: 8 }}>Lumi answers about staff, attendance, leave and tasks now. Patient and revenue questions need the n8n link{isAdmin ? " (paste it above)" : " (ask the admin)"}.</div>}
       {cfg && (
         <div className="card" style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 300px)", minHeight: 420 }}>
           <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>

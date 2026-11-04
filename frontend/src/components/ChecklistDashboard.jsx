@@ -172,33 +172,6 @@ export default function ChecklistDashboard({ user }) {
               </div>
             </details>))}
         </div>)}
-      {isAdmin && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div className="title">Send every submitted checklist to the Google Sheet</div>
-          <p className="meta" style={{ margin: "6px 0" }}>Paste the Google script link (ends with /exec) and your secret word. After this, each checklist staff submit here is also added as a new row in your Google Sheet, so the old Google dashboard keeps updating.</p>
-          <input className="field" value={pushUrl} onChange={(e) => setPushUrl(e.target.value)} placeholder="https://script.google.com/macros/s/…/exec" />
-          <input className="field" style={{ marginTop: 8 }} value={pushKey} onChange={(e) => setPushKey(e.target.value)} placeholder={push?.hasKey ? "Secret word (saved — leave empty to keep)" : "Secret word (same as in the Google script)"} />
-          <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-            <button className="btn btn-primary btn-sm" disabled={busy} onClick={savePush}>Save</button>
-            <button className="btn btn-outline btn-sm" disabled={busy || !push?.url} onClick={testPush}>Send a test row</button>
-          </div>
-          {push?.status && <div className="meta" style={{ marginTop: 8 }}>Last send: {new Date(push.status.at).toLocaleString("en-IN")} — {push.status.ok ? "OK" : <span style={{ color: "var(--red)" }}>{push.status.error}</span>}</div>}
-        </div>
-      )}
-      {isAdmin && (
-        <div className="card">
-          <div className="title">Keep the old Google form in step (optional)</div>
-          <p className="meta" style={{ margin: "6px 0" }}>If staff still fill the old Google form, paste the log sheet's link here and the app reads it every 10 minutes. Easiest way: open the sheet → press <b>Share</b> → General access → <b>Anyone with the link → Viewer</b> → copy the normal link and paste it here. (Or File → Share → Publish to web → CSV.) A private sheet cannot be read.</p>
-          <input className="field" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/…/edit" />
-          <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-            <button className="btn btn-primary btn-sm" disabled={busy} onClick={saveSheet}>Save link</button>
-            <button className="btn btn-outline btn-sm" disabled={busy || !sheet?.url} onClick={syncNow}>{busy ? "Working…" : "Sync now"}</button>
-          </div>
-          {st && <div className="meta" style={{ marginTop: 8 }}>Last check: {new Date(st.at).toLocaleString("en-IN")} — {st.ok ? `OK (${st.rows} rows read)` : <span style={{ color: "var(--red)" }}>{st.error}</span>}</div>}
-          {msg && <div className="note" style={{ marginTop: 8 }}>{msg}</div>}
-          <div className="meta" style={{ marginTop: 8 }}>No link? Download the sheet as CSV and use <b>System &amp; Backups → Import checklist history</b> instead. If your Google Workspace blocks “Publish to web”, ask its admin to allow it.</div>
-        </div>
-      )}
     </>
   );
 }
