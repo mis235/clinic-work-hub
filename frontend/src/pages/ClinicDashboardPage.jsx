@@ -34,9 +34,11 @@ export default function ClinicDashboardPage({ user, onLogout, onBack, onNavigate
       <div className="pill-row">
         <button className={`pill ${tab === "checklist" ? "active" : ""}`} onClick={() => setTab("checklist")}>Checklist Dashboard</button>
         {(user.role === "admin" || user.leadership) && <button className={`pill ${tab === "live" ? "active" : ""}`} onClick={() => setTab("live")}>Clinic Overview</button>}
+        {(user.role === "admin" || user.leadership) && <button className={`pill ${tab === "patients" ? "active" : ""}`} onClick={() => setTab("patients")}>Patient Dashboard</button>}
         {(user.role === "admin" || user.leadership) && <button className={`pill ${tab === "chat" ? "active" : ""}`} onClick={() => setTab("chat")}>Lumi Chatbot</button>}
       </div>
       {tab === "checklist" && <ChecklistDashboard user={user} />}
+      {tab === "patients" && <PatientDashboard user={user} />}
       {tab === "chat" && <ClinicAIPage user={user} isStaffLayout />}
       {tab === "live" && (!depts ? <div className="empty">Loading…</div> : (
         <>
@@ -74,5 +76,45 @@ export default function ClinicDashboardPage({ user, onLogout, onBack, onNavigate
         </>
       ))}
     </PageShell>
+  );
+}
+
+// The clinic's patient/procedure dashboard (an HTML file kept privately on the server).
+function PatientDashboard({ user }) {
+  const [src, setSrc] = useState(null);
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  const auth = () => ({ Authorization: "Bearer " + localStorage.getItem("token") });
+  const base = import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? "" : "http://localhost:4000");
+  const load = async () => {
+    try {
+      const r = await fetch(base + "/api/clinic-ai/patient-dashboard", { headers: auth() });
+      if (!r.ok) { setSrc(null); setMsg((await r.json().catch(() => ({}))).error || "Not available."); return; }
+      const blob = await r.blob(); setSrc(URL.createObjectURL(blob)); setMsg("");
+    } catch { setMsg("Could not load the dashboard."); }
+  };
+  useEffect(() => { load(); }, []);
+  async function upload(e) {
+    const f = e.target.files?.[0]; if (!f) return;
+    setBusy(true); setMsg("Uploading… (a big file can take a minute)");
+    try {
+      const r = await fetch(base + "/api/clinic-ai/patient-dashboard", { method: "PUT", headers: { ...auth(), "Content-Type": "application/octet-stream" }, body: f });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || "Upload failed");
+      setMsg("Uploaded."); await load();
+    } catch (err) { setMsg(err.message); }
+    setBusy(false); e.target.value = "";
+  }
+  return (
+    <div className="card">
+      {user.role === "admin" && (
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
+          <label className="btn btn-outline btn-sm" style={{ cursor: "pointer" }}>{src ? "Replace dashboard file" : "Upload dashboard file"}
+            <input type="file" accept=".html,text/html" onChange={upload} disabled={busy} style={{ display: "none" }} /></label>
+          <span className="meta">The patient data stays on your server and is shown only to admin and leadership.</span>
+        </div>)}
+      {msg && <div className="meta" style={{ marginBottom: 8 }}>{msg}</div>}
+      {src && <iframe title="Patient Dashboard" src={src} sandbox="allow-scripts" style={{ width: "100%", height: "calc(100vh - 260px)", minHeight: 520, border: 0, borderRadius: 12 }} />}
+    </div>
   );
 }

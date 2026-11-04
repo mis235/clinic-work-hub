@@ -1,4 +1,6 @@
-import { Router } from "express";
+import express, { Router } from "express";
+import fs from "node:fs";
+import path from "node:path";
 import db from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireLeadership } from "../access.js";
@@ -58,6 +60,26 @@ router.post("/ask", requireAuth, requireLeadership, async (req, res) => {
   } catch (e) {
     res.status(502).json({ error: e.name === "TimeoutError" ? "n8n took too long to answer. Try a shorter question." : "Could not reach n8n from this computer. Check the address and that n8n is running." });
   }
+});
+
+// ---- Patient Dashboard: the clinic's own dashboard page (one HTML file) stored privately on the server ----------------
+// Uploaded by the admin; shown only to admin + leadership. It never goes into GitHub.
+const PD_DIR = path.join(process.env.DATA_DIR || path.join(process.cwd(), "data"), "private");
+const PD_FILE = path.join(PD_DIR, "patient-dashboard.html");
+router.get("/patient-dashboard", requireAuth, requireLeadership, (req, res) => {
+  if (!fs.existsSync(PD_FILE)) return res.status(404).json({ error: "The patient dashboard has not been uploaded yet." });
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  res.send(fs.readFileSync(PD_FILE));
+});
+router.put("/patient-dashboard", requireAuth, express.raw({ type: "*/*", limit: "40mb" }), (req, res) => {
+  if (req.user.roleName !== "admin") return res.status(403).json({ error: "Only the admin can upload this." });
+  const buf = req.body;
+  if (!Buffer.isBuffer(buf) || buf.length < 200 || !/<html|<!doctype/i.test(buf.subarray(0, 2000).toString("utf8"))) return res.status(400).json({ error: "That does not look like the dashboard .html file." });
+  fs.mkdirSync(PD_DIR, { recursive: true });
+  fs.writeFileSync(PD_FILE, buf);
+  audit({ userId: req.user.userId, action: "PATIENT_DASHBOARD_UPLOADED" });
+  res.json({ ok: true, bytes: buf.length });
 });
 
 export default router;
