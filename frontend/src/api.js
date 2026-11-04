@@ -93,6 +93,9 @@ export const api = {
   checklistDashboard: (date, days) => req(`/api/shift-checklist/dashboard?date=${date}&days=${days || 14}`),
   checklistSheet: () => req("/api/shift-checklist/sheet"),
   saveChecklistSheet: (url) => req("/api/shift-checklist/sheet", { method: "PUT", body: { url } }),
+  checklistPush: () => req("/api/shift-checklist/push"),
+  saveChecklistPush: (url, key) => req("/api/shift-checklist/push", { method: "PUT", body: { url, key } }),
+  testChecklistPush: () => req("/api/shift-checklist/push/test", { method: "POST" }),
   syncChecklistSheet: () => req("/api/shift-checklist/sheet/sync", { method: "POST" }),
   deleteGenerated: (id) => req(`/api/doc-templates/generated/${id}`, { method: "DELETE" }),
 

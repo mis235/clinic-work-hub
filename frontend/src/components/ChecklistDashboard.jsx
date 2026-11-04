@@ -15,6 +15,11 @@ export default function ChecklistDashboard({ user }) {
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const isAdmin = user.role === "admin";
+  const [push, setPush] = useState(null); const [pushUrl, setPushUrl] = useState(""); const [pushKey, setPushKey] = useState("");
+  const loadPush = () => isAdmin && api.checklistPush().then((r) => { setPush(r); setPushUrl(r.url || ""); }).catch(() => {});
+  useEffect(() => { loadPush(); }, []);
+  async function savePush() { setBusy(true); setMsg(""); try { await api.saveChecklistPush(pushUrl, pushKey || undefined); setMsg("Saved."); loadPush(); } catch (e) { setMsg(e.message); } setBusy(false); }
+  async function testPush() { setBusy(true); setMsg(""); try { await api.testChecklistPush(); setMsg("Test row sent. Look at the bottom of your Google Sheet."); } catch (e) { setMsg(e.message); } loadPush(); setBusy(false); }
 
   const load = () => api.checklistDashboard(date, 14).then((r) => { setD(r); setErr(""); }).catch((e) => setErr(e.message));
   const loadSheet = () => api.checklistSheet().then((r) => { setSheet(r); setUrl(r.url === "set" ? "" : r.url || ""); }).catch(() => {});
@@ -106,6 +111,19 @@ export default function ChecklistDashboard({ user }) {
         {d.missing.length > 0 && <div className="meta" style={{ paddingTop: 12, borderTop: "1px solid var(--line)", marginTop: 8 }}><b>{d.missing.length}</b> present but not started: {d.missing.map((m) => m.name).join(", ")}</div>}
       </div>
 
+      {isAdmin && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="title">Send every submitted checklist to the Google Sheet</div>
+          <p className="meta" style={{ margin: "6px 0" }}>Paste the Google script link (ends with /exec) and your secret word. After this, each checklist staff submit here is also added as a new row in your Google Sheet, so the old Google dashboard keeps updating.</p>
+          <input className="field" value={pushUrl} onChange={(e) => setPushUrl(e.target.value)} placeholder="https://script.google.com/macros/s/…/exec" />
+          <input className="field" style={{ marginTop: 8 }} value={pushKey} onChange={(e) => setPushKey(e.target.value)} placeholder={push?.hasKey ? "Secret word (saved — leave empty to keep)" : "Secret word (same as in the Google script)"} />
+          <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+            <button className="btn btn-primary btn-sm" disabled={busy} onClick={savePush}>Save</button>
+            <button className="btn btn-outline btn-sm" disabled={busy || !push?.url} onClick={testPush}>Send a test row</button>
+          </div>
+          {push?.status && <div className="meta" style={{ marginTop: 8 }}>Last send: {new Date(push.status.at).toLocaleString("en-IN")} — {push.status.ok ? "OK" : <span style={{ color: "var(--red)" }}>{push.status.error}</span>}</div>}
+        </div>
+      )}
       {isAdmin && (
         <div className="card">
           <div className="title">Keep the old Google form in step (optional)</div>

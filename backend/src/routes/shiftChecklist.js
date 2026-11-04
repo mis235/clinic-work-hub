@@ -178,6 +178,45 @@ router.post("/progress", requireAuth, requirePermission("shiftchecklist:submit")
 // POST /api/shift-checklist/submit
 // multipart/form-data: shift, items (JSON string [{section,text,done}]), metrics (JSON string, optional),
 // photoLiveTimestamp (string, captured client-side when the photo was taken), photo (file, optional).
+// ---- Send every submitted checklist to the Google Sheet too (through a small Google Apps Script link the admin pastes) ----
+const CLINIC_NAME = "Dr. Nishita's Clinic \u2014 Skin, Hair & Aesthetics";
+async function pushToSheet(row, staffName, email) {
+  const url = getSetting("checklist_push_url"); if (!url) return { skipped: true };
+  const set = (o) => putSetting("checklist_push_status", JSON.stringify({ at: new Date().toISOString(), ...o }));
+  try {
+    const items = JSON.parse(row.items_json || "[]"); const groups = new Map();
+    for (const i of items) { const k = i.section || "Checklist"; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(`  [${i.done ? "DONE" : "PENDING"}] ${i.text}`); }
+    const detail = [...groups].map(([k, v]) => `${k}:\n${v.join("\n")}`).join("\n");
+    const ist = new Date(Date.now() + 19800000).toISOString(); const [y, m, d] = ist.slice(0, 10).split("-");
+    const at = `${d}/${m}/${y} ${ist.slice(11, 19)}`;
+    const cells = [at, CLINIC_NAME, staffName, row.role_name, row.work_date, row.shift, row.completed, row.total, row.completion_pct, detail, row.metrics_json || "", row.photo_path ? "Yes (in app)" : "", "", email || ""];
+    const r = await fetch(url, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ key: getSetting("checklist_push_key"), row: cells }), redirect: "follow", signal: AbortSignal.timeout(20000) });
+    const text = (await r.text()).slice(0, 200);
+    if (/^no\b/i.test(text.trim())) throw new Error("The secret word does not match the one in the Google script.");
+    if (!r.ok || /<html/i.test(text) && !/ok/i.test(text)) throw new Error(`The Google link answered with an error (${r.status}).`);
+    set({ ok: true }); return { ok: true };
+  } catch (e) { set({ ok: false, error: e.message }); return { ok: false, error: e.message }; }
+}
+router.get("/push", requireAuth, (req, res) => {
+  if (req.user.roleName !== "admin") return res.status(403).json({ error: "Admin only" });
+  let status = null; try { status = JSON.parse(getSetting("checklist_push_status") || "null"); } catch {}
+  res.json({ url: getSetting("checklist_push_url"), hasKey: !!getSetting("checklist_push_key"), status });
+});
+router.put("/push", requireAuth, (req, res) => {
+  if (req.user.roleName !== "admin") return res.status(403).json({ error: "Admin only" });
+  const url = String(req.body?.url || "").trim();
+  if (url && !/^https:\/\/script\.google\.com\/\S+\/exec$/.test(url)) return res.status(400).json({ error: "That is not a Google Apps Script web app link. It should end with /exec" });
+  putSetting("checklist_push_url", url); if (req.body?.key !== undefined) putSetting("checklist_push_key", String(req.body.key).trim());
+  res.json({ ok: true });
+});
+router.post("/push/test", requireAuth, async (req, res) => {
+  if (req.user.roleName !== "admin") return res.status(403).json({ error: "Admin only" });
+  const r = await pushToSheet({ items_json: JSON.stringify([{ section: "Test", text: "Test row from the Work Hub (you can delete it)", done: true }]), role_name: "Test", work_date: todayISO(), shift: "Test", completed: 1, total: 1, completion_pct: 100 }, "Work Hub test", "");
+  if (r.skipped) return res.status(400).json({ error: "Save the Google link first." });
+  if (!r.ok) return res.status(502).json({ error: r.error });
+  res.json({ ok: true });
+});
+
 router.post("/submit", requireAuth, requirePermission("shiftchecklist:submit"), upload.single("photo"), async (req, res) => {
   const user = db.prepare(`SELECT shift_role FROM users WHERE id = ?`).get(req.user.userId);
   if (!user?.shift_role) return res.status(400).json({ error: "No shift checklist is assigned to your role." });
@@ -228,6 +267,8 @@ router.post("/submit", requireAuth, requirePermission("shiftchecklist:submit"), 
 
   const row = db.prepare(`SELECT * FROM shift_checklist_submissions WHERE user_id = ? AND work_date = ? AND shift = ?`)
     .get(req.user.userId, workDate, shift);
+  const who = db.prepare("SELECT name, email FROM users WHERE id = ?").get(req.user.userId);
+  pushToSheet(row, who?.name || "", who?.email || "");   // fire and forget: a Google hiccup never blocks staff
   res.json(serializeSubmission(row));
 });
 
