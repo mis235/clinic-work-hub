@@ -87,6 +87,7 @@ function PatientDashboard({ user }) {
   const [src, setSrc] = useState(null);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const [full, setFull] = useState(false);
   const auth = () => ({ Authorization: "Bearer " + localStorage.getItem("token") });
   const base = import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? "" : "http://localhost:4000");
   const load = async () => {
@@ -108,16 +109,21 @@ function PatientDashboard({ user }) {
     } catch (err) { setMsg(err.message); }
     setBusy(false); e.target.value = "";
   }
+  const box = full ? { position: "fixed", inset: 0, zIndex: 200, background: "#fff", padding: 10, display: "flex", flexDirection: "column" } : null;
   return (
-    <div className="card">
-      {user.role === "admin" && (
+    <div className="card" style={box || undefined}>
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
+        <button className="btn btn-primary btn-sm" onClick={() => setFull((f) => !f)}>{full ? "✕ Close full screen" : "⤢ Open full screen"}</button>
+        {!full && <span className="meta">Full screen shows the whole dashboard properly, with all tiles in one row.</span>}
+      </div>
+      {user.role === "admin" && !full && (
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
           <label className="btn btn-outline btn-sm" style={{ cursor: "pointer" }}>{src ? "Replace dashboard file" : "Upload dashboard file"}
             <input type="file" accept=".html,text/html" onChange={upload} disabled={busy} style={{ display: "none" }} /></label>
           <span className="meta">The patient data stays on your server and is shown only to admin and leadership.</span>
         </div>)}
       {msg && <div className="meta" style={{ marginBottom: 8 }}>{msg}</div>}
-      {src && <iframe title="Patient Dashboard" src={src} sandbox="allow-scripts" style={{ width: "100%", height: "calc(100vh - 260px)", minHeight: 520, border: 0, borderRadius: 12 }} />}
+      {src && <iframe title="Patient Dashboard" src={src} sandbox="allow-scripts" style={{ width: "100%", height: full ? "100%" : "calc(100vh - 200px)", flex: full ? 1 : undefined, minHeight: 560, border: 0, borderRadius: 12 }} />}
     </div>
   );
 }
