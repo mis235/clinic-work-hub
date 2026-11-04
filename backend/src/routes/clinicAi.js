@@ -36,10 +36,10 @@ router.put("/config", requireAuth, (req, res) => {
 });
 
 function pickReply(text) {
-  let data; try { data = JSON.parse(text); } catch { return text.trim(); }
+  let data; try { data = JSON.parse(text); } catch { const m = /"responseText"\s*:\s*"((?:[^"\\]|\\.)*)/.exec(text); if (m) { try { return JSON.parse('"' + m[1] + '"'); } catch { return m[1].replace(/\\n/g, "\n"); } } return text.trim(); }
   if (Array.isArray(data)) data = data[0];
   if (typeof data === "string") return data;
-  return data?.output ?? data?.text ?? data?.message ?? data?.response ?? data?.reply ?? JSON.stringify(data);
+  return data?.responseText ?? data?.output ?? data?.text ?? data?.message ?? data?.response ?? data?.reply ?? JSON.stringify(data);
 }
 
 router.post("/ask", requireAuth, requireLeadership, async (req, res) => {
