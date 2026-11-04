@@ -3,6 +3,7 @@ import { api } from "../api.js";
 import PageShell from "../components/PageShell.jsx";
 import ChecklistDashboard from "../components/ChecklistDashboard.jsx";
 import ClinicAIPage from "./ClinicAIPage.jsx";
+import Icon from "../components/Icon.jsx";
 
 const rupee = (n) => "₹" + Number(n || 0).toLocaleString("en-IN");
 const pctText = (p) => (p == null ? "—" : p + "%");
@@ -22,6 +23,7 @@ export default function ClinicDashboardPage({ user, onLogout, onBack, onNavigate
     const t = setInterval(load, 30000);   // numbers refresh by themselves
     return () => clearInterval(t);
   }, []);
+  const lead = user.role === "admin" || !!user.leadership;
   const sum = (k) => (depts || []).reduce((a, d) => a + (d[k] || 0), 0);
   const trend = rep?.completionTrend || [];
   const max = Math.max(100, ...trend.map((t) => t.completion_pct || 0));
@@ -29,25 +31,23 @@ export default function ClinicDashboardPage({ user, onLogout, onBack, onNavigate
   return (
     <PageShell user={user} active="Dashboards" title="Clinic dashboards" onLogout={onLogout} onBack={onBack}>
       <div className="page-head row">
-        <div><div className="eyebrow">Insights</div><h1>Clinic Dashboard</h1><p>Live numbers from checklists, tasks and documents. Everything updates by itself when staff submit their work.</p></div>
+        <div><div className="eyebrow">Insights</div><h1>Clinic Dashboard</h1><p>Checklists, patients and clinic numbers in one place. They update by themselves when staff submit their work.</p></div>
+        <div className="live-chip"><span className="live-dot" /> Live · {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}</div>
       </div>
-      <div className="pill-row">
-        <button className={`pill ${tab === "checklist" ? "active" : ""}`} onClick={() => setTab("checklist")}>Checklist Dashboard</button>
-        {(user.role === "admin" || user.leadership) && <button className={`pill ${tab === "live" ? "active" : ""}`} onClick={() => setTab("live")}>Clinic Overview</button>}
-        {(user.role === "admin" || user.leadership) && <button className={`pill ${tab === "patients" ? "active" : ""}`} onClick={() => setTab("patients")}>Patient Dashboard</button>}
-        {(user.role === "admin" || user.leadership) && <button className={`pill ${tab === "chat" ? "active" : ""}`} onClick={() => setTab("chat")}>Lumi Chatbot</button>}
+      <div className="pill-row dash-tabs">
+        {[["checklist", "Checklists", "tasks", true], ["live", "Clinic Overview", "chart", lead], ["patients", "Patients", "users", lead], ["chat", "Ask Lumi", "bot", lead]].filter((t) => t[3]).map(([k, label, icon]) => (
+          <button key={k} className={`pill ${tab === k ? "active" : ""}`} onClick={() => setTab(k)}><Icon name={icon} size={15} /> {label}</button>
+        ))}
       </div>
       {tab === "checklist" && <ChecklistDashboard user={user} />}
       {tab === "patients" && <PatientDashboard user={user} />}
       {tab === "chat" && <ClinicAIPage user={user} isStaffLayout />}
       {tab === "live" && (!depts ? <div className="empty">Loading…</div> : (
         <>
-          <div className="dept-grid tile-grid">
-            <div className="dept-card"><div className="meta">In clinic today</div><div className="title" style={{ fontSize: 24 }}>{sum("present_today")}/{sum("staff")}</div></div>
-            <div className="dept-card"><div className="meta">Work completed</div><div className="title" style={{ fontSize: 24 }}>{pctText(rep?.completion?.overall_pct)}</div></div>
-            <div className="dept-card"><div className="meta">Open tasks</div><div className="title" style={{ fontSize: 24 }}>{sum("tasks_open")}</div></div>
-            <div className="dept-card"><div className="meta">Documents</div><div className="title" style={{ fontSize: 24 }}>{sum("documents")}</div></div>
-            <div className="dept-card"><div className="meta">Fines this month</div><div className="title" style={{ fontSize: 24 }}>{rupee(sum("fines_month"))}</div></div>
+          <div className="kpi-row">
+            {[["users", "In clinic today", `${sum("present_today")}/${sum("staff")}`, "#c42f8f"], ["check", "Work completed", pctText(rep?.completion?.overall_pct), "#12a56f"], ["tasks", "Open tasks", sum("tasks_open"), "#e0a020"], ["file", "Documents", sum("documents"), "#5b7be0"], ["wallet", "Fines this month", rupee(sum("fines_month")), "#d64545"]].map(([ic, l, v, c]) => (
+              <div key={l} className="kpi" style={{ "--kc": c }}><div className="kpi-ic"><Icon name={ic} size={18} /></div><div className="meta">{l}</div><div className="kpi-v">{v}</div></div>
+            ))}
           </div>
 
           {trend.length > 0 && (
@@ -55,7 +55,10 @@ export default function ClinicDashboardPage({ user, onLogout, onBack, onNavigate
               <div className="title" style={{ marginBottom: 8 }}>Checklist completion by day</div>
               <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 120 }}>
                 {trend.slice(-30).map((t) => (
-                  <div key={t.date} title={`${t.date}: ${t.completion_pct ?? 0}%`} style={{ flex: 1, background: "var(--primary)", borderRadius: 4, height: `${((t.completion_pct || 0) / max) * 100}%`, minHeight: 2 }} />
+                  <div key={t.date} title={`${t.date}: ${t.completion_pct ?? 0}%`} style={{ flex: 1, height: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+                    <div style={{ background: "linear-gradient(180deg, var(--primary), #8e5bd8)", borderRadius: 4, height: `${((t.completion_pct || 0) / max) * 100}%`, minHeight: 2 }} />
+                    <div className="meta" style={{ fontSize: 9, textAlign: "center", marginTop: 3 }}>{String(t.date).slice(8)}</div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -67,7 +70,7 @@ export default function ClinicDashboardPage({ user, onLogout, onBack, onNavigate
               <table className="reg-table" style={{ width: "100%" }}>
                 <thead><tr><th style={{ textAlign: "left" }}>Department</th><th>Staff</th><th>In today</th><th>Work done</th><th>Open tasks</th><th>Docs</th><th>Fines</th></tr></thead>
                 <tbody>{(depts || []).map((d) => (
-                  <tr key={d.id}><td className="nm">{d.name}</td><td>{d.staff}</td><td>{d.present_today}</td><td>{pctText(d.completion_pct)}</td><td>{d.tasks_open}</td><td>{d.documents}</td><td>{d.fines_month ? rupee(d.fines_month) : ""}</td></tr>
+                  <tr key={d.id}><td className="nm">{d.name}</td><td>{d.staff}</td><td>{d.present_today}</td><td><span className="mini-bar"><span style={{ width: `${d.completion_pct || 0}%` }} /></span> {pctText(d.completion_pct)}</td><td>{d.tasks_open}</td><td>{d.documents}</td><td>{d.fines_month ? rupee(d.fines_month) : ""}</td></tr>
                 ))}</tbody>
               </table>
             </div>

@@ -627,3 +627,16 @@ button:active:not(:disabled) { transform: scale(.97); }
 .event-row { align-items: center; gap: 12px; }
 .event-day { width: 44px; height: 44px; border-radius: 14px; background: var(--primary-soft); color: var(--primary-dark); display: grid; place-items: center; font-size: 17px; flex-shrink: 0; }
 .event-day.today { background: linear-gradient(135deg, #EE5DAD, #8E3FC4); color: #fff; }
+
+/* Clinic Dashboard polish */
+.live-chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; background: #fff; border: 1px solid var(--line, #f0d9ea); font-size: 13px; font-weight: 600; color: var(--ink-2, #5b4a63); }
+.live-dot { width: 9px; height: 9px; border-radius: 50%; background: #12a56f; box-shadow: 0 0 0 0 rgba(18,165,111,.6); animation: livepulse 1.8s infinite; }
+@keyframes livepulse { 70% { box-shadow: 0 0 0 9px rgba(18,165,111,0); } 100% { box-shadow: 0 0 0 0 rgba(18,165,111,0); } }
+.dash-tabs .pill { display: inline-flex; align-items: center; gap: 6px; }
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.kpi { position: relative; background: #fff; border: 1px solid var(--line, #f0d9ea); border-radius: 18px; padding: 16px; overflow: hidden; }
+.kpi::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--kc); }
+.kpi-ic { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; color: var(--kc); background: color-mix(in srgb, var(--kc) 14%, #fff); margin-bottom: 8px; }
+.kpi-v { font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
+.mini-bar { display: inline-block; width: 60px; height: 6px; border-radius: 4px; background: var(--line, #f0d9ea); overflow: hidden; vertical-align: middle; }
+.mini-bar > span { display: block; height: 100%; background: var(--primary); }
