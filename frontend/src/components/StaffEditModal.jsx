@@ -24,6 +24,7 @@ export default function StaffEditModal({ staff, shiftRoles, managers = [], depar
     name: staff.name || "", departmentName: staff.department || "", roleName: staff.role || "staff",
     designation: staff.designation || "", employeeCode: staff.employee_code || "", employmentType: staff.employment_type || "",
     reportingTo: staff.reporting_to || "", joinedAt: staff.joined_at || "", shiftRole: staff.shift_role || "",
+    shiftStart: staff.shift_start || "", shiftEnd: staff.shift_end || "", lateFineType: staff.late_fine_type || "default", lateFineValue: staff.late_fine_value ?? "",
     phone: staff.phone || "", altPhone: staff.alt_phone || "", email: staff.email || "", birthday: mmddToInput(staff.birthday), gender: staff.gender || "",
     bloodGroup: staff.blood_group || "", address: staff.address || "",
     emergencyContactName: staff.emergency_contact_name || "", emergencyContactPhone: staff.emergency_contact_phone || "",
@@ -35,6 +36,7 @@ export default function StaffEditModal({ staff, shiftRoles, managers = [], depar
       name: f.name.trim() || undefined, departmentName: f.departmentName || undefined, roleName: f.roleName || undefined,
       designation: f.designation || null, employeeCode: f.employeeCode || null, employmentType: f.employmentType || null,
       reportingTo: f.reportingTo || null, joinedAt: f.joinedAt || null, shiftRole: f.shiftRole,
+      shiftStart: f.shiftStart || null, shiftEnd: f.shiftEnd || null, lateFineType: f.lateFineType || "default", lateFineValue: f.lateFineType === "default" ? null : Number(f.lateFineValue) || null,
       phone: f.phone || null, altPhone: f.altPhone || null, email: f.email || null, birthday: inputToMmdd(f.birthday), gender: f.gender || null,
       bloodGroup: f.bloodGroup || null, address: f.address || null,
       emergencyContactName: f.emergencyContactName || null, emergencyContactPhone: f.emergencyContactPhone || null,
@@ -89,6 +91,24 @@ export default function StaffEditModal({ staff, shiftRoles, managers = [], depar
           <div><label className="field-label">Shift checklist role</label>
             <select className="field" value={f.shiftRole} onChange={set("shiftRole")}>
               <option value="">— None —</option>{shiftRoles.map((r) => <option key={r} value={r}>{r}</option>)}</select></div>
+        </div>
+
+        <div className="step-label" style={{ marginTop: 20 }}>Shift timing & late fine</div>
+        <div className="form-grid">
+          <div style={{ gridColumn: "1 / -1" }}><label className="field-label">Quick pick</label>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {[["09:00", "18:30"], ["09:30", "19:00"], ["10:00", "19:30"]].map(([a, b]) => (
+                <button key={a} type="button" className={"chip" + (f.shiftStart === a && f.shiftEnd === b ? " active" : "")} style={{ minHeight: 40 }}
+                  onClick={() => setF((x) => ({ ...x, shiftStart: a, shiftEnd: b }))}>{a} – {b}</button>))}
+            </div></div>
+          <div><label className="field-label">Shift starts</label><input className="field" type="time" value={f.shiftStart} onChange={set("shiftStart")} /></div>
+          <div><label className="field-label">Shift ends</label><input className="field" type="time" value={f.shiftEnd} onChange={set("shiftEnd")} /></div>
+          <div><label className="field-label">Fine for every 3 lates</label>
+            <select className="field" value={f.lateFineType} onChange={set("lateFineType")}>
+              <option value="default">Clinic default amount</option><option value="flat">Fixed ₹ amount</option><option value="day_pct">% of one day's salary</option></select></div>
+          {f.lateFineType !== "default" && <div><label className="field-label">{f.lateFineType === "flat" ? "Amount (₹)" : "Percent of one day's salary"}</label>
+            <input className="field" type="number" inputMode="decimal" value={f.lateFineValue} onChange={set("lateFineValue")} /></div>}
+          <div style={{ gridColumn: "1 / -1", fontSize: 12, color: "var(--muted)" }}>Late = more than 15 minutes after the shift start. Every 3 late days = 1 fine, added to payroll automatically.</div>
         </div>
 
         <div className="step-label" style={{ marginTop: 20 }}>Personal & contact</div>

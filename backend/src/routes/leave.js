@@ -90,10 +90,24 @@ export function lopAmount(userId, month, profile) {
 
 // ---- late arrivals ----------------------------------------------------------------------------
 /** Is arriving at hh:mm on this date late? (more than the grace period after the shift start; falls back to 10:00 with no shift planned) */
+export function shiftWindow(userId, date) {
+  const u = db.prepare("SELECT shift_start, shift_end FROM users WHERE id = ?").get(userId) || {};
+  const st = shiftFor(userId, date), t = (st && getTypes()[st]) || {};
+  return { start: u.shift_start || t.start || process.env.LATE_AFTER_FALLBACK || "10:00", end: u.shift_end || t.end || "19:30" };
+}
 export function isLateArrival(userId, date, hhmm) {
-  const st = shiftFor(userId, date);
-  const start = (st && getTypes()[st]?.start) || process.env.LATE_AFTER_FALLBACK || "10:00";
-  return mins(hhmm) > mins(start) + settings().late_grace_min;
+  return mins(hhmm) > mins(shiftWindow(userId, date).start) + settings().late_grace_min;
+}
+/** Rupees for one auto late fine for this person: the clinic default, a flat amount, or a % of one day's salary. */
+export function fineAmountFor(userId) {
+  const s = settings(), u = db.prepare("SELECT late_fine_type t, late_fine_value v FROM users WHERE id = ?").get(userId) || {};
+  if (u.t === "flat" && u.v > 0) return Math.round(u.v);
+  if (u.t === "day_pct" && u.v > 0) {
+    const p = db.prepare("SELECT basic_salary, other_allowances FROM pay_profiles WHERE user_id = ?").get(userId);
+    const daily = ((p?.basic_salary || 0) + (p?.other_allowances || 0)) / s.salary_divisor;
+    if (daily > 0) return Math.round((daily * u.v) / 100);
+  }
+  return s.late_fine;
 }
 export function lateDays(userId, month) {
   const rows = db.prepare("SELECT mark_date, status, in_time, marked_by FROM attendance_marks WHERE user_id = ? AND substr(mark_date,1,7) = ? AND status IN ('P','L') ORDER BY mark_date").all(userId, month);
@@ -110,9 +124,10 @@ export function syncLateFines(month) {
       if (have.some((h) => h.auto_key === key)) continue;
       const d = late[n * s.late_limit - 1].date;
       db.prepare("INSERT INTO fines (id, user_id, fine_date, category, amount, note, added_by, auto_key) VALUES (?,?,?,?,?,?,NULL,?)")
-        .run(randomUUID(), u.id, d, "late", s.late_fine, `Auto: ${n * s.late_limit} late arrivals this month`, key);
+        .run(randomUUID(), u.id, d, "late", fineAmountFor(u.id), `Auto: ${n * s.late_limit} late arrivals this month`, key);
       made.push({ name: u.name, key });
     }
+    for (const h of have) db.prepare("UPDATE fines SET amount = ? WHERE id = ? AND amount != ?").run(fineAmountFor(u.id), h.id, fineAmountFor(u.id));
     for (const h of have) { const n = Number(h.auto_key.split(":")[2]); if (n > want) db.prepare("DELETE FROM fines WHERE id = ?").run(h.id); }
   }
   return made;

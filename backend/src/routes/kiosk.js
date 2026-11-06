@@ -19,7 +19,7 @@ fs.mkdirSync(SNAP_DIR, { recursive: true });
 const MATCH_DISTANCE = Number(process.env.FACE_MATCH_DISTANCE || 0.5); // lower = stricter
 const UNIQUE_DISTANCE = Number(process.env.FACE_UNIQUE_DISTANCE || 0.45); // two people closer than this are treated as the same face
 const MIN_GAP_MIN = Number(process.env.MIN_STAY_MINUTES || 30);        // a second look within this many minutes is not a logout
-import { isLateArrival, syncLateFines } from "./leave.js";
+import { isLateArrival, syncLateFines, shiftWindow } from "./leave.js";
 // Late = more than the grace minutes (HR rule, default 15) after the start of the person's shift.                   // IST, HH:MM — arrivals after this are marked Late
 const secret = () => process.env.JWT_SECRET;
 const istNow = () => new Date(Date.now() + 19800000);
@@ -135,8 +135,19 @@ router.post("/checkin", requireKiosk, (req, res) => {
   const now = istNow(), date = now.toISOString().slice(0, 10), hhmm = now.toISOString().slice(11, 16);
   const mins = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
   const row = db.prepare("SELECT status, in_time, out_time FROM attendance_marks WHERE user_id = ? AND mark_date = ?").get(best.userId, date);
-  let kind, mark = row?.status, inTime = row?.in_time || null, outTime = row?.out_time || null, already = false;
-  if (!row || !row.in_time) {
+  let kind, mark = row?.status, inTime = row?.in_time || null, outTime = row?.out_time || null, already = false, noIn = false;
+  const win = shiftWindow(best.userId, date);
+  // First scan of the day happens near/after the end of the shift: the person is leaving, not arriving.
+  const leavingOnly = (!row || !row.in_time) && !(row && row.out_time) && mins(hhmm) >= mins(win.end) - 120;
+  if (row && !row.in_time && row.out_time) {
+    kind = "out"; already = true;
+  } else if (leavingOnly) {
+    kind = "out"; outTime = hhmm; noIn = true;
+    db.prepare(`INSERT INTO attendance_marks (user_id, mark_date, status, out_time, note, marked_by) VALUES (?,?,'P',?,?,NULL)
+      ON CONFLICT(user_id, mark_date) DO UPDATE SET out_time = excluded.out_time, updated_at = datetime('now')`)
+      .run(best.userId, date, outTime, `Check-out only ${hhmm} - no morning check-in, HR please verify`);
+    mark = row?.status || "P";
+  } else if (!row || !row.in_time) {
     kind = "in"; inTime = hhmm;
     if (!row || !["P", "L", "H"].includes(row.status)) mark = isLateArrival(best.userId, date, hhmm) ? "L" : "P";
     db.prepare(`INSERT INTO attendance_marks (user_id, mark_date, status, in_time, note, marked_by) VALUES (?,?,?,?,?,NULL)
@@ -155,7 +166,7 @@ router.post("/checkin", requireKiosk, (req, res) => {
     db.prepare("INSERT INTO face_checkins (id, user_id, device_id, distance, mark, kind, snapshot_path) VALUES (?,?,?,?,?,?,?)")
       .run(randomUUID(), best.userId, req.kiosk.id, best.distance, mark, kind, snapPath);
   }
-  res.json({ matched: true, name: best.name, kind, mark, label: MARKS[mark], time: kind === "out" ? outTime : inTime, inTime, outTime, workedMinutes: worked, already });
+  res.json({ matched: true, name: best.name, kind, mark, label: MARKS[mark], time: kind === "out" ? outTime : inTime, inTime, outTime, workedMinutes: worked, already, noMorningCheckin: noIn });
 });
 
 export default router;

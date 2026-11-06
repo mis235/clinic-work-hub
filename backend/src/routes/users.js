@@ -35,7 +35,7 @@ router.get("/full", requireAuth, requirePermission("task:view_all"), (req, res) 
   backfillEmployeeCodes();
   const rows = db
     .prepare(
-      `SELECT u.id, u.name, u.phone, u.email, u.birthday, u.joined_at, u.designation, u.shift_role, u.active, u.employee_code, u.employment_type, u.reporting_to, u.emergency_contact_name, u.emergency_contact_phone, u.alt_phone, u.is_hr, u.leadership, (u.photo_path IS NOT NULL) AS has_photo, u.address, u.blood_group, u.gender, d.name AS department, r.name AS role
+      `SELECT u.id, u.name, u.phone, u.email, u.birthday, u.joined_at, u.designation, u.shift_role, u.active, u.employee_code, u.employment_type, u.reporting_to, u.emergency_contact_name, u.emergency_contact_phone, u.alt_phone, u.is_hr, u.leadership, u.shift_start, u.shift_end, u.late_fine_type, u.late_fine_value, (u.photo_path IS NOT NULL) AS has_photo, u.address, u.blood_group, u.gender, d.name AS department, r.name AS role
        FROM users u
        JOIN roles r ON r.id = u.role_id
        LEFT JOIN departments d ON d.id = u.department_id
@@ -58,6 +58,7 @@ const EXTRA_FIELDS = {
   employeeCode: "employee_code", employmentType: "employment_type", reportingTo: "reporting_to",
   gender: "gender", bloodGroup: "blood_group", address: "address",
   emergencyContactName: "emergency_contact_name", emergencyContactPhone: "emergency_contact_phone", altPhone: "alt_phone",
+  shiftStart: "shift_start", shiftEnd: "shift_end", lateFineType: "late_fine_type", lateFineValue: "late_fine_value",
 };
 export const DOC_CHECKLIST = [
   { key: "id_proof", label: "Government ID (Aadhaar / PAN)" },
@@ -84,8 +85,9 @@ function backfillEmployeeCodes() {
 }
 
 function applyExtras(userId, body) {
+  const bad = (k) => (k === "shiftStart" || k === "shiftEnd") ? body[k] && !/^([01]\d|2[0-3]):[0-5]\d$/.test(body[k]) : k === "lateFineType" ? body[k] && !["default", "flat", "day_pct"].includes(body[k]) : false;
   for (const [key, col] of Object.entries(EXTRA_FIELDS)) {
-    if (body[key] !== undefined) db.prepare(`UPDATE users SET ${col} = ? WHERE id = ?`).run(body[key] || null, userId);
+    if (body[key] !== undefined && !bad(key)) db.prepare(`UPDATE users SET ${col} = ? WHERE id = ?`).run(body[key] || null, userId);
   }
 }
 

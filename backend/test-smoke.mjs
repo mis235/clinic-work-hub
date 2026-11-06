@@ -86,6 +86,10 @@ try {
   // Attendance: staff do not check in; admin marks the register
   const today = new Date(Date.now() + 19800000).toISOString().slice(0, 10);
   ok("staff cannot mark attendance", (await call("PUT", "/api/attendance/mark", { userId: staff.id, date: today, status: "P" }, stoken)).status === 403);
+  { const pr = await call("PATCH", `/api/users/${staff.id}`, { shiftStart: "09:30", shiftEnd: "19:00", lateFineType: "flat", lateFineValue: 250 }, admin);
+    const full = await call("GET", "/api/users/full", null, admin);
+    const me = (full.body || []).find((x) => x.id === staff.id);
+    ok("shift timing and late-fine option are saved", pr.status === 200 && me?.shift_start === "09:30" && me?.shift_end === "19:00" && me?.late_fine_type === "flat" && me?.late_fine_value === 250, JSON.stringify(me)); }
   ok("admin can mark someone late", (await call("PUT", "/api/attendance/mark", { userId: staff.id, date: today, status: "L" }, admin)).status === 200);
   ok("future days cannot be marked", (await call("PUT", "/api/attendance/mark", { userId: staff.id, date: "2999-01-01", status: "P" }, admin)).status === 400);
   ok("unknown status is refused", (await call("PUT", "/api/attendance/mark", { userId: staff.id, date: today, status: "Z" }, admin)).status === 400);

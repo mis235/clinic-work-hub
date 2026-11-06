@@ -468,5 +468,9 @@ ensureColumn("generated_docs", "email_error", "email_error TEXT");
 ensureColumn("face_checkins", "kind", "kind TEXT");
 ensureColumn("attendance", "note", "note TEXT");
 ensureColumn("attendance", "selfie_path", "selfie_path TEXT");
+ensureColumn("users", "shift_start", "shift_start TEXT");
+ensureColumn("users", "shift_end", "shift_end TEXT");
+ensureColumn("users", "late_fine_type", "late_fine_type TEXT");
+ensureColumn("users", "late_fine_value", "late_fine_value REAL");
 
 export default db;
