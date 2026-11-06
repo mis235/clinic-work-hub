@@ -114,53 +114,10 @@ export default function ChecklistDashboard({ user }) {
         </div>
       </div>
 
-      <div className="grid-2">
-        <div className="card">
-          <div className="title" style={{ marginBottom: 6 }}>By role (last {d.trend.length} days)</div>
-          {d.byRole.length === 0 && <div className="empty">No submissions yet.</div>}
-          {d.byRole.map((r) => (
-            <div key={r.role} className="task-row"><div><div className="title">{r.role}</div><div className="meta">{r.submissions} submission{r.submissions === 1 ? "" : "s"}</div></div><span className={`badge ${tone(r.avgPct)}`}>{r.avgPct}%</span></div>
-          ))}
-        </div>
-        <div className="card">
-          <div className="title" style={{ marginBottom: 6 }}>Tasks most often left undone</div>
-          {d.missedMost.length === 0 && <div className="empty">Nothing missed. Great.</div>}
-          {d.missedMost.map((m, i) => (
-            <div key={i} className="task-row"><div><div className="title" style={{ fontWeight: 600 }}>{m.task}</div><div className="meta">{m.role}</div></div><span className="badge overdue">{m.times}×</span></div>
-          ))}
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="title" style={{ marginBottom: 6 }}>Checklists on {d.date}</div>
-        {d.people.length === 0 && <div className="empty">No checklists yet for this day.</div>}
-        {d.people.map((p) => (
-          <div key={p.id}>
-            <div className="task-row" style={{ cursor: "pointer" }} onClick={() => setOpen(open === p.id ? null : p.id)}>
-              <div><div className="title">{p.staffName} <span className="meta">· {p.roleName} · {p.shift}</span></div>
-                <div className="meta">{p.status === "submitted" ? "Submitted" : "In progress"}{p.photos ? ` · ${p.photos} photo${p.photos === 1 ? "" : "s"}` : ""} · {p.source === "sheet" ? "via old form" : "in the app"}</div></div>
-              <span className={`badge ${tone(p.completionPct)}`}>{p.completed}/{p.total} · {p.completionPct}%</span>
-            </div>
-            {open === p.id && (
-              <div style={{ padding: "6px 6px 14px 14px" }}>
-                {p.items.map((i, k) => (
-                  <div key={k} style={{ display: "flex", gap: 8, alignItems: "center", padding: "3px 0", fontSize: 13 }}>
-                    <span>{i.done ? "✅" : "⬜"}</span><span style={{ flex: 1, opacity: i.done ? 1 : 0.7 }}>{i.text}</span>
-                    {i.photoUrl && <a href={assetUrl(i.photoUrl)} target="_blank" rel="noreferrer"><img alt="" src={assetUrl(i.photoUrl)} style={{ width: 36, height: 36, borderRadius: 8, objectFit: "cover" }} /></a>}
-                  </div>
-                ))}
-                {p.photoUrl && <a href={assetUrl(p.photoUrl)} target="_blank" rel="noreferrer"><img alt="Evidence" src={assetUrl(p.photoUrl)} style={{ maxWidth: 160, borderRadius: 12, marginTop: 8 }} /></a>}
-              </div>
-            )}
-          </div>
-        ))}
-        {d.missing.length > 0 && <div className="meta" style={{ paddingTop: 12, borderTop: "1px solid var(--line)", marginTop: 8 }}><b>{d.missing.length}</b> present but not started: {d.missing.map((m) => m.name).join(", ")}</div>}
-      </div>
-
       {canAssign && asg && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div className="title">Who fills each checklist</div>
-          <p className="meta" style={{ margin: "6px 0 10px" }}>Tick everyone who should see a checklist (for example Wednesday or Pharmacy). If you tick two or more people, all of them see it and anyone can submit it. When someone on leave chooses a person to cover, that person automatically gets the colleague's checklist too.</p>
+        <details className="card" style={{ marginBottom: 16 }}>
+          <summary className="title" style={{ cursor: "pointer" }}>⚙ Admin: choose who fills each checklist</summary>
+          <p className="meta" style={{ margin: "6px 0 10px" }}>Tap a checklist name, then tick the people who should fill it.</p>
           {asg.roles.map((r) => (
             <details key={r.roleName} style={{ borderTop: "1px solid var(--line)", padding: "8px 0" }}>
               <summary style={{ cursor: "pointer" }}><b>{r.roleName}</b> <span className="meta">— {[...new Set([...r.own, ...r.assigned])].map((id) => asg.staff.find((x) => x.id === id)?.name).filter(Boolean).join(", ") || "nobody yet"}</span></summary>
@@ -171,7 +128,7 @@ export default function ChecklistDashboard({ user }) {
                   </label>))}
               </div>
             </details>))}
-        </div>)}
+        </details>)}
     </>
   );
 }
