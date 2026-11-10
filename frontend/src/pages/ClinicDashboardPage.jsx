@@ -131,7 +131,7 @@ function PatientDashboard({ user }) {
         </div>)}
       {msg && <div className="meta" style={{ marginBottom: 8 }}>{msg}</div>}
       {src && (() => {
-        const DESIGN = w < 700 ? 900 : 1280, scale = Math.min(1, w / DESIGN), h = full ? Math.max(560, window.innerHeight - 80) : Math.max(560, window.innerHeight - 200);
+        const DESIGN = Math.max(900, w), scale = w / DESIGN, h = full ? Math.max(560, window.innerHeight - 80) : Math.max(560, window.innerHeight - 200);
         return (
           <div ref={wrap} style={{ width: "100%", height: h, overflow: "hidden", borderRadius: 12, flex: full ? 1 : undefined }}>
             <iframe title="Patient Dashboard" src={src} sandbox="allow-scripts"
