@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
 import PageShell from "../components/PageShell.jsx";
 import ChecklistDashboard from "../components/ChecklistDashboard.jsx";
@@ -88,6 +88,13 @@ function PatientDashboard({ user }) {
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [full, setFull] = useState(false);
+  const wrap = useRef(null);
+  const [w, setW] = useState(1280);
+  useEffect(() => {
+    const el = wrap.current; if (!el) return;
+    const ro = new ResizeObserver(() => setW(el.clientWidth || 1280)); ro.observe(el); setW(el.clientWidth || 1280);
+    return () => ro.disconnect();
+  }, [src, full]);
   const auth = () => ({ Authorization: "Bearer " + localStorage.getItem("token") });
   const base = import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? "" : "http://localhost:4000");
   const load = async () => {
@@ -114,7 +121,7 @@ function PatientDashboard({ user }) {
     <div className="card" style={box || undefined}>
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
         <button className="btn btn-primary btn-sm" onClick={() => setFull((f) => !f)}>{full ? "✕ Close full screen" : "⤢ Open full screen"}</button>
-        {!full && <span className="meta">Full screen shows the whole dashboard properly, with all tiles in one row.</span>}
+        {!full && <span className="meta">The dashboard fits the screen. Use full screen for a bigger view.</span>}
       </div>
       {user.role === "admin" && !full && (
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
@@ -123,7 +130,14 @@ function PatientDashboard({ user }) {
           <span className="meta">The patient data stays on your server and is shown only to admin and leadership.</span>
         </div>)}
       {msg && <div className="meta" style={{ marginBottom: 8 }}>{msg}</div>}
-      {src && <iframe title="Patient Dashboard" src={src} sandbox="allow-scripts" style={{ width: "100%", height: full ? "100%" : "calc(100vh - 200px)", flex: full ? 1 : undefined, minHeight: 560, border: 0, borderRadius: 12 }} />}
+      {src && (() => {
+        const DESIGN = w < 700 ? 900 : 1280, scale = Math.min(1, w / DESIGN), h = full ? Math.max(560, window.innerHeight - 80) : Math.max(560, window.innerHeight - 200);
+        return (
+          <div ref={wrap} style={{ width: "100%", height: h, overflow: "hidden", borderRadius: 12, flex: full ? 1 : undefined }}>
+            <iframe title="Patient Dashboard" src={src} sandbox="allow-scripts"
+              style={{ width: DESIGN, height: h / scale, border: 0, transform: `scale(${scale})`, transformOrigin: "top left", display: "block", background: "#fff" }} />
+          </div>);
+      })()}
     </div>
   );
 }
