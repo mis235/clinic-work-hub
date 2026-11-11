@@ -77,8 +77,8 @@ function OfferForm({ onClose, onCreate }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>New offer letter</h3>
-        <label className="field-label">Candidate name</label>
+        <h3>New Offer Letter</h3>
+        <label className="field-label">Candidate Name</label>
         <input className="field" value={candidateName} onChange={(e) => setCandidateName(e.target.value)} />
         <label className="field-label">Role</label>
         <input className="field" value={roleTitle} onChange={(e) => setRoleTitle(e.target.value)} />
@@ -86,7 +86,7 @@ function OfferForm({ onClose, onCreate }) {
         <input className="field" value={department} onChange={(e) => setDepartment(e.target.value)} />
         <label className="field-label">Salary (free text)</label>
         <input className="field" value={salaryText} onChange={(e) => setSalaryText(e.target.value)} placeholder="e.g. ₹25,000/month" />
-        <label className="field-label">Start date</label>
+        <label className="field-label">Start Date</label>
         <input className="field" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
         <div className="actions">
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>

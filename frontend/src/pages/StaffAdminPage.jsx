@@ -161,22 +161,22 @@ function AddStaffModal({ departments, shiftRoles, onClose, onDone }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal wide" onClick={(e) => e.stopPropagation()}>
-        <h3>Add a staff member</h3>
+        <h3>Add a Staff Member</h3>
         <div className="form-grid">
           <div><label className="field-label">Full name *</label><input className="field" value={f.name} onChange={set("name")} /></div>
           <div><label className="field-label">Mobile number *</label><input className="field" value={f.phone} onChange={set("phone")} placeholder="+91XXXXXXXXXX" /></div>
-          <div><label className="field-label">Alternate number</label><input className="field" value={f.altPhone} onChange={set("altPhone")} placeholder="Another number to reach them" /></div>
-          <div><label className="field-label">Profile picture</label><input className="field" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setPhoto(e.target.files[0] || null)} />
+          <div><label className="field-label">Alternate Number</label><input className="field" value={f.altPhone} onChange={set("altPhone")} placeholder="Another number to reach them" /></div>
+          <div><label className="field-label">Profile Picture</label><input className="field" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setPhoto(e.target.files[0] || null)} />
             {photo && <img alt="" src={URL.createObjectURL(photo)} style={{ width: 64, height: 64, borderRadius: "50%", objectFit: "cover", marginTop: 8 }} />}</div>
           <div><label className="field-label">Department *</label><select className="field" value={f.departmentName} onChange={set("departmentName")}>{departments.map((d) => <option key={d}>{d}</option>)}</select></div>
-          <div><label className="field-label">Access level</label><select className="field" value={f.roleName} onChange={set("roleName")}><option value="staff">Staff</option><option value="manager">Manager</option></select></div>
+          <div><label className="field-label">Access Level</label><select className="field" value={f.roleName} onChange={set("roleName")}><option value="staff">Staff</option><option value="manager">Manager</option></select></div>
           <div><label className="field-label">Designation</label><input className="field" value={f.designation} onChange={set("designation")} /></div>
           <div><label className="field-label">Email</label><input className="field" type="email" value={f.email} onChange={set("email")} /></div>
-          <div><label className="field-label">Date of joining</label><input className="field" type="date" value={f.joinedAt} onChange={set("joinedAt")} /></div>
-          <div><label className="field-label">Shift checklist role</label><select className="field" value={f.shiftRole} onChange={set("shiftRole")}><option value="">— None —</option>{shiftRoles.map((r) => <option key={r}>{r}</option>)}</select></div>
+          <div><label className="field-label">Date of Joining</label><input className="field" type="date" value={f.joinedAt} onChange={set("joinedAt")} /></div>
+          <div><label className="field-label">Shift Checklist Role</label><select className="field" value={f.shiftRole} onChange={set("shiftRole")}><option value="">— None —</option>{shiftRoles.map((r) => <option key={r}>{r}</option>)}</select></div>
           <div><label className="field-label">Starting PIN (4 digits)</label><input className="field" maxLength={4} value={f.pin} onChange={set("pin")} /></div>
         </div>
-        <div className="step-label" style={{ marginTop: 20 }}>Face for attendance</div>
+        <div className="step-label" style={{ marginTop: 20 }}>Face for Attendance</div>
         {face ? (
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             {face.photo && <img alt="" src={URL.createObjectURL(face.photo)} style={{ width: 64, height: 64, borderRadius: "50%", objectFit: "cover" }} />}

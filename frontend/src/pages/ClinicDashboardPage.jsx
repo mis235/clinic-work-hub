@@ -52,7 +52,7 @@ export default function ClinicDashboardPage({ user, onLogout, onBack, onNavigate
 
           {trend.length > 0 && (
             <div className="card" style={{ marginBottom: 16 }}>
-              <div className="title" style={{ marginBottom: 8 }}>Checklist completion by day</div>
+              <div className="title" style={{ marginBottom: 8 }}>Checklist Completion by Day</div>
               <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 120 }}>
                 {trend.slice(-30).map((t) => (
                   <div key={t.date} title={`${t.date}: ${t.completion_pct ?? 0}%`} style={{ flex: 1, height: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
@@ -65,7 +65,7 @@ export default function ClinicDashboardPage({ user, onLogout, onBack, onNavigate
           )}
 
           <div className="card">
-            <div className="title" style={{ marginBottom: 6 }}>By department</div>
+            <div className="title" style={{ marginBottom: 6 }}>By Department</div>
             <div style={{ overflowX: "auto" }}>
               <table className="reg-table" style={{ width: "100%" }}>
                 <thead><tr><th style={{ textAlign: "left" }}>Department</th><th>Staff</th><th>In today</th><th>Work done</th><th>Open tasks</th><th>Docs</th><th>Fines</th></tr></thead>

@@ -120,7 +120,7 @@ function AddDocModal({ isAdmin, departments, defaultDept, onClose, onDone }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Add a document</h3>
+        <h3>Add a Document</h3>
         <div className="tab-switch" style={{ margin: "12px 0" }}>
           <button className={mode === "file" ? "active" : ""} onClick={() => setMode("file")}>Upload a file</button>
           <button className={mode === "link" ? "active" : ""} onClick={() => setMode("link")}>Paste a link</button>
@@ -133,7 +133,7 @@ function AddDocModal({ isAdmin, departments, defaultDept, onClose, onDone }) {
         <label className="field-label">Type</label>
         <select className="field" value={category} onChange={(e) => setCategory(e.target.value)}>{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select>
         {isAdmin && (<>
-          <label className="field-label">Department folder</label>
+          <label className="field-label">Department Folder</label>
           <select className="field" value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
             <option value="">— None —</option>{departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select></>)}

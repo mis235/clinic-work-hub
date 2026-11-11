@@ -4,6 +4,7 @@ import Login from "./pages/Login.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import StaffDashboard from "./pages/StaffDashboard.jsx";
 import PoliciesPage from "./pages/PoliciesPage.jsx";
+import OnboardingPage from "./pages/OnboardingPage.jsx";
 import ReportsPage from "./pages/ReportsPage.jsx";
 import AboutPage from "./pages/AboutPage.jsx";
 import LearningPage from "./pages/LearningPage.jsx";
@@ -26,10 +27,11 @@ import DepartmentsPage from "./pages/DepartmentsPage.jsx";
 import DocumentsPage from "./pages/DocumentsPage.jsx";
 import KioskPage from "./pages/KioskPage.jsx";
 import LumiFloat from "./components/LumiFloat.jsx";
+import NoteBanner from "./components/NoteBanner.jsx";
 import ChangePinModal from "./components/ChangePinModal.jsx";
 
 const VIEW_KEY = {
-  "Dashboard": "dashboard", "AI Advisors": "assistant", "Policies": "policies", "Reports": "reports",
+  "Dashboard": "dashboard", "AI Advisors": "assistant", "Policies": "policies", "SOPs": "sops", "Reports": "reports",
   "About": "about", "Learning": "learning", "Events": "events", "HR": "hr", "Payroll": "payroll", "Staff": "staff",
   "Assistant": "assistant", "Tracker": "tracker", "Shift Checklist": "shiftchecklist", "Shift Logs": "dashboards", "Onboarding": "onboarding", "System": "system", "Attendance": "attendance", "Clinic Assistant": "clinicassistant", "Dashboards": "dashboards", "Documents": "documents", "Departments": "departments", "Roster": "roster", "Exits": "exits", "Leave": "leave", "My Profile": "myprofile",
 };
@@ -80,7 +82,7 @@ function MainApp() {
     setUser(next);
   }
   const pinGate = user.mustChangePin ? <ChangePinModal forced onDone={pinChanged} /> : null;
-  return <>{pinGate}{renderApp()}{user && view !== "clinicassistant" && <LumiFloat user={user} />}</>;
+  return <>{pinGate}<NoteBanner />{renderApp()}{user && view !== "clinicassistant" && <LumiFloat user={user} />}</>;
 
   function renderApp() {
   if (user.role === "admin" || user.role === "manager") {
@@ -98,6 +100,8 @@ function MainApp() {
     if (view === "myprofile") return <StaffProfilePage user={user} staffId="me" onLogout={logout} onBack={navigate} />;
     if (view === "staffprofile" && profile) return <StaffProfilePage user={user} staffId={profile.id} backLabel={profile.from} onLogout={logout} onBack={navigate} />;
     if (view === "policies") return <PoliciesPage user={user} onLogout={logout} onBack={navigate} />;
+    if (view === "sops") return <PoliciesPage user={user} mode="sops" onLogout={logout} onBack={navigate} />;
+    if (view === "onboarding" && (user.role === "admin" || user.isHr)) return <OnboardingPage user={user} onLogout={logout} onBack={navigate} onOpenProfile={(id) => openProfile(id, "Onboarding")} />;
     if (view === "reports") return <ReportsPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "about") return <AboutPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "learning") return <LearningPage user={user} onLogout={logout} onBack={navigate} />;

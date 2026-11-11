@@ -52,7 +52,7 @@ export default function KioskPage() {
             const out = r.kind === "out";
             setState({ phase: "result", ok: true,
               text: r.already ? `Already ${out ? "logged out" : "logged in"}, ${r.name}` : out ? `Goodbye, ${r.name}` : `Welcome, ${r.name}`,
-              sub: r.already ? `${out ? "Out" : "In"} at ${r.time}` : out ? `Logged out ${r.time}${r.workedMinutes ? ` · worked ${hm(r.workedMinutes)}` : ""}` : `Logged in ${r.time} · ${r.label}` });
+              sub: r.already ? `${out ? "Out" : "In"} at ${r.time}` : out ? `Logged out ${r.time}${r.workedMinutes ? ` · worked ${hm(r.workedMinutes)}` : ""}${r.message ? ` · ${r.message}` : ""}` : `Logged in ${r.time} · ${r.label}` });
           } else setState({ phase: "result", ok: false, text: r.ambiguous ? "Please try again" : "Face not recognised", sub: r.ambiguous ? "Stand alone in front of the camera." : "Face the light and look straight at the camera. Ask the admin if it keeps happening." });
           setTimeout(() => setState((s) => (s.phase === "result" ? { phase: "look", text: "Look at the camera" } : s)), 4000);
         }

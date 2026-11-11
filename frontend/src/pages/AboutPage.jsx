@@ -83,7 +83,7 @@ export default function AboutPage({ user, onLogout, onBack }) {
             </div>
             <div className="grid-2" style={{ marginTop: 22 }}>
               <div>
-                <div className="step-label">Qualifications & training</div>
+                <div className="step-label">Qualifications & Training</div>
                 <ul className="tick-list">{f.qualifications.map((q, i) => <li key={i}>{q}</li>)}</ul>
               </div>
               <div>
@@ -96,7 +96,7 @@ export default function AboutPage({ user, onLogout, onBack }) {
 
         {about?.services && (
           <>
-            <div className="section-head"><h2>What we do</h2><span className="sub">Skin, hair and aesthetic care</span></div>
+            <div className="section-head"><h2>What We Do</h2><span className="sub">Skin, hair and aesthetic care</span></div>
             <div className="grid-3">
               {about.services.map((sv) => (
                 <div key={sv.name} className="card" style={{ marginBottom: 0 }}>
@@ -154,7 +154,7 @@ function TeamForm({ onClose, onAdd }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Add a team profile</h3>
+        <h3>Add a Team Profile</h3>
         <label className="field-label">Name</label>
         <input className="field" value={name} onChange={(e) => setName(e.target.value)} />
         <label className="field-label">Title</label>

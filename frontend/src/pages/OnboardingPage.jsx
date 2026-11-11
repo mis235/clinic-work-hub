@@ -113,7 +113,7 @@ export default function OnboardingPage({ user, onLogout, onBack, onOpenProfile }
 
               {open === p.id && (
                 <div style={{ marginTop: 10, borderTop: "1px solid var(--line)", paddingTop: 14 }}>
-                  <div className="step-label">Documents collected</div>
+                  <div className="step-label">Documents Collected</div>
                   <div className="doc-grid">
                     {data.docChecklist.map((d) => (
                       <button key={d.key} className={`doc ${p.docs[d.key] ? "on" : ""}`} onClick={() => toggleDoc(p, d.key)}>
@@ -231,10 +231,10 @@ function WizardModal({ shiftRoles, managers, departments, onClose, onOpenProfile
             <div className="full"><label className="field-label">Full name *</label><input className="field" value={f.name} onChange={set("name")} autoFocus /></div>
             <div><label className="field-label">WhatsApp / mobile *</label><input className="field" value={f.phone} onChange={set("phone")} placeholder="+91XXXXXXXXXX" /></div>
             <div><label className="field-label">Email</label><input className="field" type="email" value={f.email} onChange={set("email")} /></div>
-            <div><label className="field-label">Date of birth</label><input className="field" type="date" value={f.birthday} onChange={set("birthday")} /></div>
+            <div><label className="field-label">Date of Birth</label><input className="field" type="date" value={f.birthday} onChange={set("birthday")} /></div>
             <div><label className="field-label">Gender</label><select className="field" value={f.gender} onChange={set("gender")}>{["", "Female", "Male", "Other"].map((t) => <option key={t} value={t}>{t || "— Select —"}</option>)}</select></div>
-            <div><label className="field-label">Blood group</label><select className="field" value={f.bloodGroup} onChange={set("bloodGroup")}>{["", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map((t) => <option key={t} value={t}>{t || "— Select —"}</option>)}</select></div>
-            <div className="full"><label className="field-label">Home address</label><textarea className="field" style={{ minHeight: 56 }} value={f.address} onChange={set("address")} /></div>
+            <div><label className="field-label">Blood Group</label><select className="field" value={f.bloodGroup} onChange={set("bloodGroup")}>{["", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map((t) => <option key={t} value={t}>{t || "— Select —"}</option>)}</select></div>
+            <div className="full"><label className="field-label">Home Address</label><textarea className="field" style={{ minHeight: 56 }} value={f.address} onChange={set("address")} /></div>
           </div>
         )}
         {step === 1 && (
@@ -244,23 +244,23 @@ function WizardModal({ shiftRoles, managers, departments, onClose, onOpenProfile
               <datalist id="dept-list">{departments.map((d) => <option key={d} value={d} />)}</datalist></div>
             <div><label className="field-label">Access level *</label>
               <select className="field" value={f.roleName} onChange={set("roleName")}><option value="staff">Staff</option><option value="manager">Manager</option></select></div>
-            <div><label className="field-label">Designation / job title</label><input className="field" value={f.designation} onChange={set("designation")} /></div>
-            <div><label className="field-label">Employment type</label><select className="field" value={f.employmentType} onChange={set("employmentType")}>{["Full-time", "Part-time", "Contract", "Intern"].map((t) => <option key={t}>{t}</option>)}</select></div>
-            <div><label className="field-label">Date of joining</label><input className="field" type="date" value={f.joinedAt} onChange={set("joinedAt")} /></div>
+            <div><label className="field-label">Designation / Job Title</label><input className="field" value={f.designation} onChange={set("designation")} /></div>
+            <div><label className="field-label">Employment Type</label><select className="field" value={f.employmentType} onChange={set("employmentType")}>{["Full-time", "Part-time", "Contract", "Intern"].map((t) => <option key={t}>{t}</option>)}</select></div>
+            <div><label className="field-label">Date of Joining</label><input className="field" type="date" value={f.joinedAt} onChange={set("joinedAt")} /></div>
             <div><label className="field-label">Reports to</label><select className="field" value={f.reportingTo} onChange={set("reportingTo")}><option value="">— Select —</option>{managers.map((m) => <option key={m}>{m}</option>)}</select></div>
           </div>
         )}
         {step === 2 && (
           <div>
             <p className="lead">Pick the daily Opening / During-the-day / End-of-day checklist this person will fill in. Leave empty if their role has no shift checklist.</p>
-            <label className="field-label">Shift checklist role</label>
+            <label className="field-label">Shift Checklist Role</label>
             <select className="field" value={f.shiftRole} onChange={set("shiftRole")}><option value="">— None —</option>{shiftRoles.map((r) => <option key={r} value={r}>{r}</option>)}</select>
           </div>
         )}
         {step === 3 && (
           <div className="form-grid">
-            <div><label className="field-label">Emergency contact name & relation</label><input className="field" value={f.emergencyContactName} onChange={set("emergencyContactName")} /></div>
-            <div><label className="field-label">Emergency contact phone</label><input className="field" value={f.emergencyContactPhone} onChange={set("emergencyContactPhone")} /></div>
+            <div><label className="field-label">Emergency Contact Name & Relation</label><input className="field" value={f.emergencyContactName} onChange={set("emergencyContactName")} /></div>
+            <div><label className="field-label">Emergency Contact Phone</label><input className="field" value={f.emergencyContactPhone} onChange={set("emergencyContactPhone")} /></div>
             <div className="full"><label className="field-label">Temporary sign-in PIN (4 digits)</label>
               <input className="field" inputMode="numeric" maxLength={4} value={f.pin} onChange={(e) => setF((x) => ({ ...x, pin: e.target.value.replace(/\D/g, "") }))} />
               <div className="login-hint">Suggested at random. The person must change it at first sign-in.</div></div>

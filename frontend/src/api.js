@@ -113,6 +113,10 @@ export const api = {
   // One-tap attendance
   attendanceToday: () => req("/api/attendance/today"),
   attendancePunch: (payload) => req("/api/attendance/punch", { method: "POST", body: payload }),
+  myMessages: () => req("/api/messages/mine"),
+  readMessage: (id) => req(`/api/messages/${id}/read`, { method: "POST" }),
+  listMessages: () => req("/api/messages"),
+  setMessagesOn: (enabled) => req("/api/messages/settings", { method: "PUT", body: { enabled } }),
   attendanceBoard: (date) => req(`/api/attendance/board${date ? `?date=${date}` : ""}`),
   attendanceMonth: (month) => req(`/api/attendance/month${month ? `?month=${month}` : ""}`),
   markAttendance: (userId, date, status) => req("/api/attendance/mark", { method: "PUT", body: { userId, date, status } }),

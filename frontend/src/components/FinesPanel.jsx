@@ -43,7 +43,7 @@ export default function FinesPanel({ month, isAdmin, preset, onChanged }) {
   return (
     <>
       <form className="card" onSubmit={save} style={{ display: "grid", gap: 10, marginBottom: 16 }}>
-        <div className="title">Add a fine</div>
+        <div className="title">Add a Fine</div>
         <select className="field" required value={form.userId} onChange={(e) => set("userId", e.target.value)}>
           <option value="">Choose staff member…</option>
           {(summary?.rows || []).map((r) => <option key={r.id} value={r.id}>{r.name}{r.department ? ` — ${r.department}` : ""}</option>)}
@@ -58,7 +58,7 @@ export default function FinesPanel({ month, isAdmin, preset, onChanged }) {
         <input className="field" placeholder="Note (e.g. came at 10:40, no ID card)" value={form.note} onChange={(e) => set("note", e.target.value)} />
         <div className="row" style={{ justifyContent: "space-between" }}>
           <span className="meta">{msg}</span>
-          <button className="btn btn-primary" type="submit">Add fine</button>
+          <button className="btn btn-primary" type="submit">Add Fine</button>
         </div>
       </form>
 

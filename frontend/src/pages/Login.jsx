@@ -90,7 +90,7 @@ export default function Login({ onLoggedIn }) {
       <div className="login-panel">
         <div className="login-card">
           <div className="login-eyebrow">Staff sign-in</div>
-          <h1>Welcome back</h1>
+          <h1>Welcome Back</h1>
           <p className="sub">Sign in to see your tasks, checklists and what's happening at the clinic today.</p>
 
           <div className="tab-switch">
@@ -109,7 +109,7 @@ export default function Login({ onLoggedIn }) {
             </>
           ) : (
             <>
-              <label className="field-label">Your name</label>
+              <label className="field-label">Your Name</label>
               <input className="field" style={{ fontSize: 16 }} value={find} onChange={(e) => setFind(e.target.value)} placeholder="Type your name to search" autoComplete="off" autoCapitalize="off" />
               <div style={{ maxHeight: 190, overflowY: "auto", margin: "8px 0", border: "1px solid var(--line, #eed)", borderRadius: 14 }}>
                 {roster.filter((u) => !find.trim() || u.name.toLowerCase().includes(find.trim().toLowerCase())).map((u) => (

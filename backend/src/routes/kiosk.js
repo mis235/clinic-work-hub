@@ -20,6 +20,7 @@ const MATCH_DISTANCE = Number(process.env.FACE_MATCH_DISTANCE || 0.5); // lower 
 const UNIQUE_DISTANCE = Number(process.env.FACE_UNIQUE_DISTANCE || 0.45); // two people closer than this are treated as the same face
 const MIN_GAP_MIN = Number(process.env.MIN_STAY_MINUTES || 30);        // a second look within this many minutes is not a logout
 import { isLateArrival, syncLateFines, shiftWindow } from "./leave.js";
+import { engage } from "../engage.js";
 // Late = more than the grace minutes (HR rule, default 15) after the start of the person's shift.                   // IST, HH:MM — arrivals after this are marked Late
 const secret = () => process.env.JWT_SECRET;
 const istNow = () => new Date(Date.now() + 19800000);
@@ -159,6 +160,13 @@ router.post("/checkin", requireKiosk, (req, res) => {
   } else { kind = outTime ? "out" : "in"; already = true; }
   if (kind === "in" && !already) { try { syncLateFines(date.slice(0, 7)); } catch (e) { console.error("late fines:", e.message); } }
   const worked = inTime && outTime ? mins(outTime) - mins(inTime) : null;
+  // A kind note to the person: leaving early, staying late, or leaving with no morning check-in.
+  let note = null;
+  if (kind === "out" && !already) {
+    if (noIn) note = engage(best.userId, "no_morning_checkin", date);
+    else if (worked !== null && worked >= 120 && mins(hhmm) < mins(win.end) - 15) note = engage(best.userId, "early_leave", date);
+    else if (mins(hhmm) >= mins(win.end) + 60) note = engage(best.userId, "stayed_late", date);
+  }
   if (!already) {
     let snapPath = null;
     const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(snapshot || "");
@@ -166,7 +174,7 @@ router.post("/checkin", requireKiosk, (req, res) => {
     db.prepare("INSERT INTO face_checkins (id, user_id, device_id, distance, mark, kind, snapshot_path) VALUES (?,?,?,?,?,?,?)")
       .run(randomUUID(), best.userId, req.kiosk.id, best.distance, mark, kind, snapPath);
   }
-  res.json({ matched: true, name: best.name, kind, mark, label: MARKS[mark], time: kind === "out" ? outTime : inTime, inTime, outTime, workedMinutes: worked, already, noMorningCheckin: noIn });
+  res.json({ matched: true, name: best.name, kind, mark, label: MARKS[mark], time: kind === "out" ? outTime : inTime, inTime, outTime, workedMinutes: worked, already, noMorningCheckin: noIn, message: note ? note.body : null });
 });
 
 export default router;

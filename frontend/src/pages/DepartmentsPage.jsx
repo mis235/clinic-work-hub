@@ -63,7 +63,7 @@ export default function DepartmentsPage({ user, onLogout, onBack, onOpenProfile 
             ))}
           </div>}
           {tab === "docs" && <div className="card">
-            <div className="title" style={{ marginBottom: 6 }}>Documents uploaded by this department</div>
+            <div className="title" style={{ marginBottom: 6 }}>Documents Uploaded by This Department</div>
             {detail.documents.length === 0 && <div className="empty">Nothing uploaded yet. Staff can add their work documents from the Documents page.</div>}
             {detail.documents.map((d) => (
               <div key={d.id} className="task-row">

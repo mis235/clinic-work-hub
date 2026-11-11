@@ -109,13 +109,13 @@ function UploadModal({ kind, companies, onClose, onDone }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Upload a template</h3>
+        <h3>Upload a Template</h3>
         <p className="lead">A Word (.docx) file with placeholders such as {"{name}"}.</p>
         <input className="field" type="file" accept=".docx" onChange={(e) => { const f = e.target.files[0]; setFile(f || null); if (f && !name) setName(f.name.replace(/\.docx$/i, "")); }} />
-        <label className="field-label">Template name</label>
+        <label className="field-label">Template Name</label>
         <input className="field" value={name} onChange={(e) => setName(e.target.value)} />
         {kind === "payslip" && (<>
-          <label className="field-label">Company this template is for</label>
+          <label className="field-label">Company This Template is for</label>
           <select className="field" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
             <option value="">All companies</option>{companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select></>)}
@@ -160,7 +160,7 @@ function GenerateModal({ kind, template, roster, onClose, onDone }) {
       <div className="modal wide" onClick={(e) => e.stopPropagation()}>
         <h3>Generate from “{template.name}”</h3>
         {!review ? (<>
-          {isPay && (<><label className="field-label">Pay month</label><input className="field" type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
+          {isPay && (<><label className="field-label">Pay Month</label><input className="field" type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
             <p className="lead" style={{ marginTop: 8 }}>{template.company ? `Only staff whose salary is set under ${template.company}.` : "Every staff member who has salary details."}</p></>)}
           <div className="tab-switch" style={{ margin: "14px 0" }}>
             <button className={pick === null ? "active" : ""} onClick={() => setPick(null)}>Everyone</button>

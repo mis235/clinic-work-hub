@@ -38,7 +38,7 @@ export default function RosterPage({ user, onLogout, onBack }) {
   return (
     <PageShell user={user} active="Roster" title="Shift roster" onLogout={onLogout} onBack={onBack}>
       <div className="page-head row">
-        <div><div className="eyebrow">People</div><h1>Shift roster</h1>
+        <div><div className="eyebrow">People</div><h1>Shift Roster</h1>
           <p>Choose each person's shift for the week. Staff see their own shift on their home screen, and "late" is counted from the shift start.</p></div>
         <div style={{ display: "flex", gap: 8 }}>
           <button className="btn btn-ghost btn-sm" onClick={() => setStart(addDays(data?.start || start, -7))}>← Last week</button>
@@ -52,7 +52,7 @@ export default function RosterPage({ user, onLogout, onBack }) {
       </div>
       {panel && (
         <div className="card" style={{ marginBottom: 14 }}>
-          <div className="title" style={{ marginBottom: 6 }}>Your shifts</div>
+          <div className="title" style={{ marginBottom: 6 }}>Your Shifts</div>
           {Object.entries(types).filter(([, t]) => t.start).map(([k, t]) => (
             <div key={k} className="task-row"><div className="title">{t.label}</div><button className="btn btn-ghost btn-sm" onClick={() => delType(k)}>Remove</button></div>
           ))}
@@ -60,7 +60,7 @@ export default function RosterPage({ user, onLogout, onBack }) {
             <label className="meta">Starts</label><input className="field" type="time" style={{ width: 130 }} value={nw.start} onChange={(e) => setNw({ ...nw, start: e.target.value })} required />
             <label className="meta">Ends</label><input className="field" type="time" style={{ width: 130 }} value={nw.end} onChange={(e) => setNw({ ...nw, end: e.target.value })} required />
             <input className="field" style={{ width: 170 }} placeholder="Name (optional)" value={nw.label} onChange={(e) => setNw({ ...nw, label: e.target.value })} />
-            <button className="btn btn-primary btn-sm" type="submit">Add shift</button>
+            <button className="btn btn-primary btn-sm" type="submit">Add Shift</button>
           </form>
         </div>
       )}

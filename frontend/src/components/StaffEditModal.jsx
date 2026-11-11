@@ -62,11 +62,11 @@ export default function StaffEditModal({ staff, shiftRoles, managers = [], depar
         </div>
         <div className="step-label" style={{ marginTop: 14 }}>Basics</div>
         <div className="form-grid">
-          <div><label className="field-label">Full name</label><input className="field" value={f.name} onChange={set("name")} /></div>
+          <div><label className="field-label">Full Name</label><input className="field" value={f.name} onChange={set("name")} /></div>
           <div><label className="field-label">Department</label>
             <select className="field" value={f.departmentName} onChange={set("departmentName")}>
               {[...new Set([f.departmentName, ...departments].filter(Boolean))].map((d) => <option key={d}>{d}</option>)}</select></div>
-          <div><label className="field-label">Access level</label>
+          <div><label className="field-label">Access Level</label>
             <select className="field" value={f.roleName} onChange={set("roleName")}>
               <option value="staff">Staff</option><option value="manager">Manager (sees all, assigns tasks)</option>{(canAdmin || staff.role === "admin") && <option value="admin">Admin (full control)</option>}</select></div>
         </div>
@@ -80,29 +80,29 @@ export default function StaffEditModal({ staff, shiftRoles, managers = [], depar
 
         <div className="step-label" style={{ marginTop: 20 }}>Employment</div>
         <div className="form-grid">
-          <div><label className="field-label">Designation / job title</label><input className="field" value={f.designation} onChange={set("designation")} placeholder="e.g. Front Desk Executive" /></div>
-          <div><label className="field-label">Employee code</label><input className="field" value={f.employeeCode} onChange={set("employeeCode")} /></div>
-          <div><label className="field-label">Employment type</label>
+          <div><label className="field-label">Designation / Job Title</label><input className="field" value={f.designation} onChange={set("designation")} placeholder="e.g. Front Desk Executive" /></div>
+          <div><label className="field-label">Employee Code</label><input className="field" value={f.employeeCode} onChange={set("employeeCode")} /></div>
+          <div><label className="field-label">Employment Type</label>
             <select className="field" value={f.employmentType} onChange={set("employmentType")}>{TYPES.map((t) => <option key={t} value={t}>{t || "— Select —"}</option>)}</select></div>
           <div><label className="field-label">Reports to</label>
             <select className="field" value={f.reportingTo} onChange={set("reportingTo")}>
               <option value="">— Select —</option>{managers.map((m) => <option key={m} value={m}>{m}</option>)}</select></div>
-          <div><label className="field-label">Date of joining</label><input className="field" type="date" value={f.joinedAt} onChange={set("joinedAt")} /></div>
-          <div><label className="field-label">Shift checklist role</label>
+          <div><label className="field-label">Date of Joining</label><input className="field" type="date" value={f.joinedAt} onChange={set("joinedAt")} /></div>
+          <div><label className="field-label">Shift Checklist Role</label>
             <select className="field" value={f.shiftRole} onChange={set("shiftRole")}>
               <option value="">— None —</option>{shiftRoles.map((r) => <option key={r} value={r}>{r}</option>)}</select></div>
         </div>
 
-        <div className="step-label" style={{ marginTop: 20 }}>Shift timing & late fine</div>
+        <div className="step-label" style={{ marginTop: 20 }}>Shift Timing & Late Fine</div>
         <div className="form-grid">
-          <div style={{ gridColumn: "1 / -1" }}><label className="field-label">Quick pick</label>
+          <div style={{ gridColumn: "1 / -1" }}><label className="field-label">Quick Pick</label>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {[["09:00", "18:30"], ["09:30", "19:00"], ["10:00", "19:30"]].map(([a, b]) => (
                 <button key={a} type="button" className={"chip" + (f.shiftStart === a && f.shiftEnd === b ? " active" : "")} style={{ minHeight: 40 }}
                   onClick={() => setF((x) => ({ ...x, shiftStart: a, shiftEnd: b }))}>{a} – {b}</button>))}
             </div></div>
-          <div><label className="field-label">Shift starts</label><input className="field" type="time" value={f.shiftStart} onChange={set("shiftStart")} /></div>
-          <div><label className="field-label">Shift ends</label><input className="field" type="time" value={f.shiftEnd} onChange={set("shiftEnd")} /></div>
+          <div><label className="field-label">Shift Starts</label><input className="field" type="time" value={f.shiftStart} onChange={set("shiftStart")} /></div>
+          <div><label className="field-label">Shift Ends</label><input className="field" type="time" value={f.shiftEnd} onChange={set("shiftEnd")} /></div>
           <div><label className="field-label">Fine for every 3 lates</label>
             <select className="field" value={f.lateFineType} onChange={set("lateFineType")}>
               <option value="default">Clinic default amount</option><option value="flat">Fixed ₹ amount</option><option value="day_pct">% of one day's salary</option></select></div>
@@ -111,23 +111,23 @@ export default function StaffEditModal({ staff, shiftRoles, managers = [], depar
           <div style={{ gridColumn: "1 / -1", fontSize: 12, color: "var(--muted)" }}>Late = more than 15 minutes after the shift start. Every 3 late days = 1 fine, added to payroll automatically.</div>
         </div>
 
-        <div className="step-label" style={{ marginTop: 20 }}>Personal & contact</div>
+        <div className="step-label" style={{ marginTop: 20 }}>Personal & Contact</div>
         <div className="form-grid">
-          <div><label className="field-label">WhatsApp / mobile</label><input className="field" value={f.phone} onChange={set("phone")} placeholder="+91XXXXXXXXXX" /></div>
-          <div><label className="field-label">Alternate number</label><input className="field" value={f.altPhone} onChange={set("altPhone")} /></div>
+          <div><label className="field-label">WhatsApp / Mobile</label><input className="field" value={f.phone} onChange={set("phone")} placeholder="+91XXXXXXXXXX" /></div>
+          <div><label className="field-label">Alternate Number</label><input className="field" value={f.altPhone} onChange={set("altPhone")} /></div>
           <div><label className="field-label">Email</label><input className="field" type="email" value={f.email} onChange={set("email")} /></div>
           <div><label className="field-label">Date of birth (day & month used)</label><input className="field" type="date" value={f.birthday} onChange={set("birthday")} /></div>
           <div><label className="field-label">Gender</label>
             <select className="field" value={f.gender} onChange={set("gender")}>{["", "Female", "Male", "Other"].map((t) => <option key={t} value={t}>{t || "— Select —"}</option>)}</select></div>
-          <div><label className="field-label">Blood group</label>
+          <div><label className="field-label">Blood Group</label>
             <select className="field" value={f.bloodGroup} onChange={set("bloodGroup")}>{BLOOD.map((t) => <option key={t} value={t}>{t || "— Select —"}</option>)}</select></div>
-          <div className="full"><label className="field-label">Home address</label><textarea className="field" style={{ minHeight: 56 }} value={f.address} onChange={set("address")} /></div>
+          <div className="full"><label className="field-label">Home Address</label><textarea className="field" style={{ minHeight: 56 }} value={f.address} onChange={set("address")} /></div>
         </div>
 
-        <div className="step-label" style={{ marginTop: 20 }}>Emergency contact</div>
+        <div className="step-label" style={{ marginTop: 20 }}>Emergency Contact</div>
         <div className="form-grid">
-          <div><label className="field-label">Contact name & relation</label><input className="field" value={f.emergencyContactName} onChange={set("emergencyContactName")} placeholder="e.g. Ramesh (Father)" /></div>
-          <div><label className="field-label">Contact phone</label><input className="field" value={f.emergencyContactPhone} onChange={set("emergencyContactPhone")} /></div>
+          <div><label className="field-label">Contact Name & Relation</label><input className="field" value={f.emergencyContactName} onChange={set("emergencyContactName")} placeholder="e.g. Ramesh (Father)" /></div>
+          <div><label className="field-label">Contact Phone</label><input className="field" value={f.emergencyContactPhone} onChange={set("emergencyContactPhone")} /></div>
         </div>
 
         <div className="actions">

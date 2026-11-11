@@ -57,6 +57,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
         <button className={`pill ${tab === "register" ? "active" : ""}`} onClick={() => setTab("register")}>Month register</button>
         <button className={`pill ${tab === "face" ? "active" : ""}`} onClick={() => setTab("face")}>Face check-in</button>
         {user.role === "admin" && <button className={`pill ${tab === "fines" ? "active" : ""}`} onClick={() => setTab("fines")}>Fines</button>}
+        <button className={`pill ${tab === "notes" ? "active" : ""}`} onClick={() => setTab("notes")}>Staff Messages</button>
       </div>
 
       {tab === "day" && (!board ? <div className="empty">Loading…</div> : (
@@ -109,6 +110,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
       ))}
 
       {tab === "face" && <FacePanel date={date} people={board?.rows || []} isAdmin={user.role === "admin"} flash={flash} />}
+      {tab === "notes" && <MessagesPanel flash={flash} />}
       {tab === "fines" && <FinesPanel month={month} isAdmin={user.role === "admin"} preset={preset} onChanged={load} />}
       {toast && <div className="toast">{toast}</div>}
     </PageShell>
@@ -140,13 +142,13 @@ function FacePanel({ date, people, isAdmin, flash }) {
   return (
     <>
       <div className="card">
-        <div className="title">How it works</div>
+        <div className="title">How It Works</div>
         <p className="meta" style={{ margin: "6px 0 0", lineHeight: 1.6 }}>Register each person's face once. Leave the clinic phone open on the check-in screen. The <b>first</b> time someone looks at the camera each day is their <b>login</b> (marked Present, or Late after 10:30 AM). Looking again later (at least 30 minutes after) records their <b>logout</b>. One face can belong to only one person. A picture of each check-in is saved below for you to review.</p>
       </div>
 
       {isAdmin && (
         <div className="card">
-          <div className="title">Setting up the clinic phone</div>
+          <div className="title">Setting Up the Clinic Phone</div>
           <ol className="meta" style={{ lineHeight: 1.8, paddingLeft: 18 }}>
             <li>Use the clinic phone (any Android phone or iPhone with Chrome or Safari). It works on Wi-Fi or mobile data.</li>
             <li>Press <b>Create phone link</b> below, send that link to the phone (WhatsApp it to yourself) and open it there.</li>
@@ -167,7 +169,7 @@ function FacePanel({ date, people, isAdmin, flash }) {
 
       {isAdmin && (
         <div className="card">
-          <div className="title" style={{ marginBottom: 6 }}>Registered faces</div>
+          <div className="title" style={{ marginBottom: 6 }}>Registered Faces</div>
           {people.map((p) => (
             <div key={p.id} className="task-row">
               <div><div className="title">{p.name}</div><div className="meta">{p.department}</div></div>
@@ -195,5 +197,30 @@ function FacePanel({ date, people, isAdmin, flash }) {
       </div>
       {enrolling && <FaceEnrollModal person={enrolling} onClose={() => setEnrolling(null)} onDone={(m) => { setEnrolling(null); flash(m); load(); }} />}
     </>
+  );
+}
+
+const KIND = { early_leave: "Left early", stayed_late: "Stayed late", no_morning_checkin: "No morning check-in" };
+function MessagesPanel({ flash }) {
+  const [d, setD] = useState(null);
+  const load = () => api.listMessages().then(setD).catch((e) => { setD({ messages: [], enabled: true }); flash(e.message); });
+  useEffect(() => { load(); }, []);
+  if (!d) return <div className="empty">Loading…</div>;
+  return (
+    <div className="card">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div><div className="title">Kind Notes Sent to Staff</div>
+          <div className="meta">When someone leaves early, stays late or checks out with no morning check-in, they get a warm note in the app and by email.</div></div>
+        <label className="pill" style={{ cursor: "pointer" }}><input type="checkbox" checked={d.enabled} onChange={async (e) => { await api.setMessagesOn(e.target.checked); load(); }} /> Send Automatically</label>
+      </div>
+      {d.messages.length === 0 && <div className="empty">No notes sent yet.</div>}
+      {d.messages.map((m) => (
+        <div key={m.id} className="task-row">
+          <div><div className="title">{m.name} <span className="meta">· {KIND[m.kind] || m.kind} · {m.date}</span></div>
+            <div className="meta">{m.body}</div>
+            <div className="meta">In the app: {m.readAt ? "Read" : "Waiting"} · Email: {m.emailStatus || "—"}</div></div>
+          {m.whatsappUrl && <a className="btn btn-outline btn-sm" href={m.whatsappUrl} target="_blank" rel="noreferrer">Send on WhatsApp</a>}
+        </div>))}
+    </div>
   );
 }

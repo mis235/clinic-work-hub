@@ -26,7 +26,7 @@ export default function ExitsPage({ user, onLogout, onBack }) {
   return (
     <PageShell user={user} active="Exits" title="Staff exits" onLogout={onLogout} onBack={onBack}>
       <div className="page-head row">
-        <div><div className="eyebrow">People</div><h1>Staff exits</h1>
+        <div><div className="eyebrow">People</div><h1>Staff Exits</h1>
           <p>When someone leaves: record it, follow the steps, settle their dues, then issue the relieving letter and experience certificate.</p></div>
         <div style={{ display: "flex", gap: 8 }}>
           <button className="btn btn-outline" onClick={() => setWording((x) => !x)}>Letter wording</button>
@@ -68,7 +68,7 @@ function StartModal({ onClose, onDone }) {
   }
   return (
     <div className="modal-backdrop" onClick={onClose}><div className="modal" onClick={(e) => e.stopPropagation()}>
-      <h3>Start an exit</h3>
+      <h3>Start an Exit</h3>
       <label className="field-label">Who is leaving?</label>
       <select className="field" value={f.userId} onChange={(e) => set("userId", e.target.value)}>
         <option value="">Choose…</option>{staff.filter((s) => s.active !== 0).map((s) => <option key={s.id} value={s.id}>{s.name}{s.department ? ` — ${s.department}` : ""}</option>)}
@@ -77,7 +77,7 @@ function StartModal({ onClose, onDone }) {
       <select className="field" value={f.reasonType} onChange={(e) => set("reasonType", e.target.value)}>
         <option value="resignation">Resignation</option><option value="termination">Termination</option><option value="contract_end">End of contract</option>
       </select>
-      <label className="field-label">Date of resignation / notice</label>
+      <label className="field-label">Date of Resignation / Notice</label>
       <input className="field" type="date" value={f.resignationDate} onChange={(e) => pickDate(e.target.value)} />
       <label className="field-label">Last working day (30 days is filled in; change it if agreed otherwise)</label>
       <input className="field" type="date" value={f.lastWorkingDay} onChange={(e) => { setLwdEdited(true); set("lastWorkingDay", e.target.value); }} />
@@ -143,7 +143,7 @@ function ExitDetail({ id, flash, onClose }) {
       </div>
 
       <div className="card" style={{ marginBottom: 14 }}>
-        <div className="title" style={{ marginBottom: 2 }}>Full & final settlement</div>
+        <div className="title" style={{ marginBottom: 2 }}>Full & Final Settlement</div>
         <div className="meta" style={{ marginBottom: 10 }}>{s.has_pay_profile ? `Monthly pay ${rupee(s.monthly_gross)} → ${rupee(s.per_day)} per day (30-day month). Leave is counted on basic.` : "⚠ No salary details for this person yet — add them under Payroll so amounts are worked out."}</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 10 }}>
           {num("unpaid_days", "Unpaid working days", `= ${rupee(s.pending_salary)}`)}
@@ -200,7 +200,7 @@ function WordingCard({ flash }) {
   }
   return (
     <div className="card" style={{ marginBottom: 14 }}>
-      <div className="title" style={{ marginBottom: 4 }}>Letter wording</div>
+      <div className="title" style={{ marginBottom: 4 }}>Letter Wording</div>
       <div className="meta" style={{ marginBottom: 8 }}>By default the app writes the standard sentences. To use your own letterhead and wording, download the sample, edit it in Word (keep the {"{placeholders}"}), and upload it here.</div>
       {LETTERS.map((l) => {
         const mine = tpls.filter((t) => t.kind === l.kind);
@@ -208,7 +208,7 @@ function WordingCard({ flash }) {
           <div key={l.kind} className="task-row" style={{ alignItems: "flex-start" }}>
             <div><div className="title">{l.label}</div>
               <div className="meta">{mine.length ? `Using your file: ${mine[0].name}` : "Using the standard wording"}</div>
-              <details><summary className="meta" style={{ cursor: "pointer" }}>Placeholders you can use</summary>
+              <details><summary className="meta" style={{ cursor: "pointer" }}>Placeholders You Can Use</summary>
                 <div style={{ fontSize: 12, columnCount: 2 }}>{(fields[l.kind] || []).map((f) => <div key={f.key}><code>{`{${f.key}}`}</code> {f.label}</div>)}</div></details></div>
             <div className="right" style={{ gap: 8, flexWrap: "wrap" }}>
               <button className="btn btn-ghost btn-sm" onClick={() => api.downloadSampleTemplate(l.kind).catch((e) => flash(e.message))}>Sample</button>

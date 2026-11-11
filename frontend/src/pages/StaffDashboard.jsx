@@ -54,8 +54,8 @@ export default function StaffDashboard({ user, onLogout }) {
 
   const shiftSummary = [...shiftToday].sort((x, y) => (y.status === "in_progress") - (x.status === "in_progress"))[0] || null;
   const NAV_ITEMS = navItemsFor(user);
-  const ACTIVE_LABEL = { checklist: "My checklist", shiftchecklist: "Shift Checklist", tracker: "Tracker", profile: "My Profile", leave: "Leave", workspace: "My Workspace", assistant: "Assistant", policies: "Policies", documents: "Documents", learning: "Learning", clinicassistant: "Clinic Assistant" };
-  const VIEW_FOR_LABEL = { "My checklist": "checklist", "Shift Checklist": "shiftchecklist", "Tracker": "tracker", "My Profile": "profile", "Leave": "leave", "My Workspace": "workspace", "Assistant": "assistant", "Policies": "policies", "Documents": "documents", "Learning": "learning", "Clinic Assistant": "clinicassistant" };
+  const ACTIVE_LABEL = { checklist: "My checklist", shiftchecklist: "Shift Checklist", tracker: "Tracker", profile: "My Profile", leave: "Leave", workspace: "My Workspace", assistant: "Assistant", policies: "Policies", sops: "SOPs", documents: "Documents", learning: "Learning", clinicassistant: "Clinic Assistant" };
+  const VIEW_FOR_LABEL = { "My checklist": "checklist", "Shift Checklist": "shiftchecklist", "Tracker": "tracker", "My Profile": "profile", "Leave": "leave", "My Workspace": "workspace", "Assistant": "assistant", "Policies": "policies", "SOPs": "sops", "Documents": "documents", "Learning": "learning", "Clinic Assistant": "clinicassistant" };
 
   return (
     <div className="app-shell">
@@ -70,7 +70,9 @@ export default function StaffDashboard({ user, onLogout }) {
       />
       <main className="main" style={{ maxWidth: 760 }}>
         <MobileTopBar title={ACTIVE_LABEL[view]} onOpenMenu={() => setMobileOpen(true)} />
-        {view === "policies" ? (
+        {view === "sops" ? (
+          <PoliciesPage user={user} mode="sops" isStaffLayout />
+        ) : view === "policies" ? (
           <PoliciesPage user={user} isStaffLayout />
         ) : view === "tracker" ? (
           <TrackerPage user={user} isStaffLayout />

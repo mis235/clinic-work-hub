@@ -162,7 +162,7 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
         </div>
 
         <div className="section-head">
-          <div><h2>Task board</h2><div className="sub">Assigned work across the team, updated live</div></div>
+          <div><h2>Task Board</h2><div className="sub">Assigned work across the team, updated live</div></div>
         </div>
         <div className="stat-grid">
           {Object.keys(STATUS).filter((k) => k !== "extension_requested" && k !== "issue_reported").map((k) => (
@@ -199,7 +199,7 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
           <div className="empty">{tasks.length === 0 ? "No tasks yet. Assign the first task to get the board moving." : "No tasks in this view."}</div>
         )}
 
-        <div className="section-head"><h2>Today's attendance</h2><button className="btn btn-ghost btn-sm" onClick={() => onNavigate("Attendance")}>Full board</button></div>
+        <div className="section-head"><h2>Today's Attendance</h2><button className="btn btn-ghost btn-sm" onClick={() => onNavigate("Attendance")}>Full board</button></div>
         {!board || !board.rows || board.rows.every((r) => !r.mark) ? (
           <div className="empty">Attendance is not marked for today yet. Open Attendance to mark it.</div>
         ) : (
@@ -275,9 +275,9 @@ function AssignModal({ roster, onClose, onAssign }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Assign a task</h3>
+        <h3>Assign a Task</h3>
 
-        <label className="field-label">Team member</label>
+        <label className="field-label">Team Member</label>
         <select className="field" value={userId} onChange={(e) => setUserId(e.target.value)}>
           {roster.map((s) => <option key={s.id} value={s.id}>{s.name} — {s.department}</option>)}
         </select>
@@ -296,7 +296,7 @@ function AssignModal({ roster, onClose, onAssign }) {
           </>
         )}
 
-        <label className="field-label">Task / checklist item</label>
+        <label className="field-label">Task / Checklist Item</label>
         <input className="field" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Confirm tomorrow's appointment list" />
 
         <label className="field-label">Category</label>

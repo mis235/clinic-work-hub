@@ -27,7 +27,7 @@ export default function StaffListImport({ onClose, onDone }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 820, width: "96vw", maxHeight: "92vh", overflow: "auto" }} onClick={(e) => e.stopPropagation()}>
-        <h3>Paste staff list</h3>
+        <h3>Paste Staff List</h3>
         {!data ? (
           <>
             <p className="lead">One person per line: <b>Name - Designation</b>. People already in the app are updated (name, designation, department); new people are added with PIN 1234 and must change it on first login.</p>

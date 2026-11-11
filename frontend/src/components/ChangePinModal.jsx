@@ -27,7 +27,7 @@ export default function ChangePinModal({ forced, onDone, onClose }) {
         <input className="field" type="password" inputMode="numeric" value={cur} onChange={digits(setCur)} />
         <label className="field-label">New PIN (4 digits, not 1234)</label>
         <input className="field" type="password" inputMode="numeric" value={pin} onChange={digits(setPin)} />
-        <label className="field-label">Confirm new PIN</label>
+        <label className="field-label">Confirm New PIN</label>
         <input className="field" type="password" inputMode="numeric" value={again} onChange={digits(setAgain)} />
         {err && <div className="login-error">{err}</div>}
         <div className="actions">

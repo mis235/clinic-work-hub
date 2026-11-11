@@ -127,13 +127,13 @@ function ProfileForm({ roster, companies, initial, onClose, onSave }) {
             <select className="field" value={userId} onChange={(e) => setUserId(e.target.value)}>{roster.map((r) => <option key={r.id} value={r.id}>{r.name} — {r.department}</option>)}</select></div>}
           <div><label className="field-label">Company (who pays this person)</label>
             <select className="field" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>{companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-          <div><label className="field-label">Employee code</label><input className="field" value={f.employeeCode} onChange={set("employeeCode")} /></div>
-          <div><label className="field-label">Position on payslip</label><input className="field" value={f.position} onChange={set("position")} /></div>
+          <div><label className="field-label">Employee Code</label><input className="field" value={f.employeeCode} onChange={set("employeeCode")} /></div>
+          <div><label className="field-label">Position on Payslip</label><input className="field" value={f.position} onChange={set("position")} /></div>
           <div><label className="field-label">PAN</label><input className="field" value={f.pan} onChange={set("pan")} /></div>
         </div>
-        <div className="step-label" style={{ marginTop: 16 }}>Monthly earnings</div>
+        <div className="step-label" style={{ marginTop: 16 }}>Monthly Earnings</div>
         <div className="form-grid">{num("basicSalary", "Basic salary")}{num("leaveBonus", "Leave bonus")}{num("overtime", "Overtime")}{num("otherAllowances", "Other allowances")}</div>
-        <div className="step-label" style={{ marginTop: 16 }}>Monthly deductions</div>
+        <div className="step-label" style={{ marginTop: 16 }}>Monthly Deductions</div>
         <div className="form-grid">{num("pf", "PF")}{num("tds", "TDS")}{num("otherDeductions", "Other deductions")}{num("retention", "Retention")}</div>
         <p className="lead" style={{ marginTop: 12 }}>Net payable: <strong>₹{(gross - ded).toLocaleString("en-IN")}</strong></p>
         <div className="actions">

@@ -4,12 +4,13 @@ import { api } from "../api.js";
 import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
 
-export default function PoliciesPage({ user, isStaffLayout, onLogout, onBack }) {
+export default function PoliciesPage({ user, isStaffLayout, onLogout, onBack, mode = "policies" }) {
+  const isSop = mode === "sops", label = isSop ? "SOPs" : "Policies";
   const [policies, setPolicies] = useState(null);
   const [open, setOpen] = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const refresh = () => api.listPolicies().then(setPolicies).catch(() => setPolicies([]));
+  const refresh = () => api.listPolicies().then((all) => setPolicies(all.filter((x) => /sop|procedure/i.test(x.category + " " + x.title) === isSop))).catch(() => setPolicies([]));
   useEffect(() => { refresh(); }, []);
 
   async function acknowledge(id) {
@@ -22,11 +23,12 @@ export default function PoliciesPage({ user, isStaffLayout, onLogout, onBack }) 
   const body = (
     <>
       <div className="page-head">
-        <h1>Policies & SOPs</h1>
-        <p>{unread > 0 ? `${unread} ${unread === 1 ? "policy needs" : "policies need"} your acknowledgment.` : "You're up to date on all current policies."}</p>
+        <h1>{label}</h1>
+        <p>{unread > 0 ? `${unread} ${unread === 1 ? "document needs" : "documents need"} your acknowledgement.` : `You are up to date on all current ${label}.`}</p>
       </div>
 
       {policies === null && <div className="empty">Loading…</div>}
+      {policies?.length === 0 && <div className="empty">{isSop ? "No SOPs have been added yet. Add a document with the category \"SOP\" and it will appear here." : "No policies have been added yet."}</div>}
 
       {policies?.map((p) => (
         <div key={p.id} className="card">
@@ -35,13 +37,13 @@ export default function PoliciesPage({ user, isStaffLayout, onLogout, onBack }) 
               <span style={{ fontWeight: 700, fontSize: 14 }}>{p.title}</span>
               <span style={{ fontSize: 11.5, color: "var(--ink-soft)", marginLeft: 8 }}>{p.category} · v{p.version}</span>
             </div>
-            <span className={`badge ${p.acknowledgedByMe ? "done" : "sent"}`}>{p.acknowledgedByMe ? "Acknowledged" : "Needs review"}</span>
+            <span className={`badge ${p.acknowledgedByMe ? "done" : "sent"}`}>{p.acknowledgedByMe ? "Acknowledged" : "Needs Review"}</span>
           </div>
           {open === p.id && (
             <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
               <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", fontSize: 13, lineHeight: 1.6, margin: 0 }}>{p.body}</pre>
               {!p.acknowledgedByMe && (
-                <button className="btn btn-primary btn-sm" style={{ marginTop: 14 }} onClick={() => acknowledge(p.id)}>I've read this</button>
+                <button className="btn btn-primary btn-sm" style={{ marginTop: 14 }} onClick={() => acknowledge(p.id)}>I Have Read This</button>
               )}
             </div>
           )}
@@ -57,12 +59,12 @@ export default function PoliciesPage({ user, isStaffLayout, onLogout, onBack }) 
 
   return (
     <div className="app-shell">
-      <Sidebar items={navItemsFor(user)} active="Policies"
-        onSelect={(item) => item !== "Policies" && onBack(item)}
+      <Sidebar items={navItemsFor(user)} active={label}
+        onSelect={(item) => item !== label && onBack(item)}
         who={`${user.name} · ${user.role === "admin" ? "Admin" : "Manager"}`} onLogout={onLogout}
         mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
       <div className="main">
-        <MobileTopBar title="Policies" onOpenMenu={() => setMobileOpen(true)} />
+        <MobileTopBar title={label} onOpenMenu={() => setMobileOpen(true)} />
         {body}
       </div>
     </div>

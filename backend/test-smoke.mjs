@@ -351,7 +351,8 @@ try {
   const cki = await call("POST", "/api/kiosk/checkin", { descriptor: fdesc(1) }, kdev.body.key);
   ok("the right face is recognised and marked", cki.body?.matched === true && cki.body.name === "Photo Person" && ["P", "L"].includes(cki.body.mark), JSON.stringify(cki.body));
   ok("checking in twice does not duplicate", (await call("POST", "/api/kiosk/checkin", { descriptor: fdesc(1) }, kdev.body.key)).body?.already === true);
-  ok("the first look is the login", cki.body?.kind === "in" && /^\d\d:\d\d$/.test(cki.body.inTime));
+  { const ist = new Date(Date.now() + 19800000), late = ist.getUTCHours() * 60 + ist.getUTCMinutes() >= 17 * 60 + 30;   // from 17:30 a first scan means leaving
+    ok(late ? "a first look late in the day is a check-out, not a login" : "the first look is the login", late ? cki.body?.kind === "out" && cki.body.noMorningCheckin === true : cki.body?.kind === "in" && /^\d\d:\d\d$/.test(cki.body.inTime)); }
   ok("a stranger is not recognised", (await call("POST", "/api/kiosk/checkin", { descriptor: fdesc(50) }, kdev.body.key)).body?.matched === false);
   const brd2 = (await call("GET", "/api/attendance/board", null, admin)).body;
   ok("the face check-in shows on the attendance board", ["P", "L"].includes(brd2.rows.find((r) => r.id === mkd.body.id)?.mark));

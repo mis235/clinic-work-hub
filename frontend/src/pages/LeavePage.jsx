@@ -70,7 +70,7 @@ function Mine({ cfg }) {
         </div>
       )}
       <div className="card">
-        <div className="title" style={{ marginBottom: 4 }}>Apply for leave</div>
+        <div className="title" style={{ marginBottom: 4 }}>Apply for Leave</div>
         <p className="meta" style={{ marginTop: 0 }}>Only casual leave. You get {cfg.settings.casual_per_month} free day{cfg.settings.casual_per_month === 1 ? "" : "s"} a month — each extra day cuts one day's salary. It is shown on your payslip.</p>
         <div className="form-grid">
           <div><label className="field-label">From</label><input className="field" type="date" value={f.fromDate} onChange={(e) => setF({ ...f, fromDate: e.target.value, toDate: e.target.value > f.toDate ? e.target.value : f.toDate })} /></div>
@@ -92,7 +92,7 @@ function Mine({ cfg }) {
         <button className="btn btn-primary" style={{ marginTop: 12 }} disabled={busy} onClick={apply}>{busy ? "Sending…" : `Send to HR (${days} day${days === 1 ? "" : "s"})`}</button>
       </div>
       <div className="card">
-        <div className="title" style={{ marginBottom: 6 }}>My requests</div>
+        <div className="title" style={{ marginBottom: 6 }}>My Requests</div>
         {d && d.requests.length === 0 && <div className="empty">No requests yet.</div>}
         {d?.requests.map((r) => (
           <div key={r.id} className="task-row">
@@ -236,7 +236,7 @@ function ToSign() {
           </div>
         </div>
       ))}
-      {d.done.length > 0 && <div className="card"><div className="title" style={{ marginBottom: 6 }}>Signed by me</div>
+      {d.done.length > 0 && <div className="card"><div className="title" style={{ marginBottom: 6 }}>Signed by Me</div>
         {d.done.map((r) => <div key={r.id} className="task-row"><div><div className="title">{r.staff_name}</div><div className="meta">{range(r)}</div></div><button className="btn btn-ghost btn-sm" onClick={() => api.openLeaveLetter(r.id)}>Letter</button></div>)}</div>}
     </>
   );
@@ -249,7 +249,7 @@ function MySignature() {
   async function save(dataUrl) { try { await api.saveLeaveSignature(dataUrl); setMsg({ ok: true, t: "Signature saved." }); load(); } catch (e) { setMsg({ ok: false, t: e.message }); } }
   return (
     <div className="card">
-      <div className="title" style={{ marginBottom: 4 }}>My signature</div>
+      <div className="title" style={{ marginBottom: 4 }}>My Signature</div>
       <p className="meta" style={{ marginTop: 0 }}>Draw it once with your finger or mouse. It is put on leave letters only when you approve, and on your own leave letters.</p>
       {sig?.has && !editing && <><img src={sig.dataUrl} alt="My signature" style={{ background: "#fff", border: "1px solid var(--line, #ddd)", borderRadius: 8, maxWidth: 300, width: "100%" }} />
         <div style={{ marginTop: 10 }}><button className="btn btn-outline btn-sm" onClick={() => setEditing(true)}>Draw again</button></div></>}

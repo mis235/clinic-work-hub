@@ -14,9 +14,9 @@ function PasswordCard() {
     <div className="card" style={{ marginTop: 16 }}>
       <div className="card-head"><div><span className="name">Change my password</span><span className="dept">For the admin sign-in. No file editing needed.</span></div></div>
       <div className="form-grid">
-        <div><label className="field-label">Current password</label><input className="field" type="password" value={cur} onChange={(e) => setCur(e.target.value)} autoComplete="current-password" /></div>
+        <div><label className="field-label">Current Password</label><input className="field" type="password" value={cur} onChange={(e) => setCur(e.target.value)} autoComplete="current-password" /></div>
         <div><label className="field-label">New password (8+ characters)</label><input className="field" type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="new-password" /></div>
-        <div><label className="field-label">New password again</label><input className="field" type="password" value={again} onChange={(e) => setAgain(e.target.value)} autoComplete="new-password" /></div>
+        <div><label className="field-label">New Password Again</label><input className="field" type="password" value={again} onChange={(e) => setAgain(e.target.value)} autoComplete="new-password" /></div>
       </div>
       {msg && <div className={msg.ok ? "note" : "login-error"} style={{ marginTop: 10 }}>{msg.t}</div>}
       <button className="btn btn-primary" style={{ marginTop: 12 }} disabled={!cur || !pw} onClick={save}>Save password</button>
@@ -50,7 +50,7 @@ function EmailCard({ onChanged }) {
         <li>Paste the address and those 16 letters below, press Save, then Send test email.</li>
       </ol>
       <div className="form-grid">
-        <div><label className="field-label">Gmail address</label><input className="field" value={user} onChange={(e) => setUser(e.target.value)} placeholder="payroll@drnishitaranka.com" /></div>
+        <div><label className="field-label">Gmail Address</label><input className="field" value={user} onChange={(e) => setUser(e.target.value)} placeholder="payroll@drnishitaranka.com" /></div>
         <div><label className="field-label">App password {cur?.hasPassword && "(saved — leave empty to keep)"}</label><input className="field" type="password" value={pass} onChange={(e) => setPass(e.target.value)} placeholder="16 letters" autoComplete="new-password" /></div>
         <div><label className="field-label">Send the test to (optional)</label><input className="field" value={to} onChange={(e) => setTo(e.target.value)} placeholder="your own email" /></div>
       </div>
@@ -246,7 +246,7 @@ export default function SystemPage({ user, onLogout, onBack }) {
         <EmailCard onChanged={load} />
         <ImportCard onDone={load} />
 
-        <div className="section-head"><h2>Activity log</h2><span className="sub">Latest 100 actions</span></div>
+        <div className="section-head"><h2>Activity Log</h2><span className="sub">Latest 100 actions</span></div>
         <div className="card" style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
             <thead><tr style={{ textAlign: "left", color: "var(--text-muted, #64748b)" }}><th style={{ padding: "6px 8px" }}>When</th><th>Who</th><th>What</th><th>Result</th></tr></thead>
