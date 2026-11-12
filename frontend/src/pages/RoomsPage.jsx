@@ -17,8 +17,9 @@ export default function RoomsPage({ user, isStaffLayout, onLogout, onBack }) {
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(null);          // last saved entry -> WhatsApp share
   const [mobileOpen, setMobileOpen] = useState(false);
-  const load = () => api.listRooms().then(setData).catch((e) => setError(e.message));
-  useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, []);
+  const [date, setDate] = useState("");
+  const load = () => api.listRooms(date).then(setData).catch((e) => setError(e.message));
+  useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, [date]);
 
   const start = async () => {
     setBusy(true); setError("");
@@ -86,7 +87,10 @@ export default function RoomsPage({ user, isStaffLayout, onLogout, onBack }) {
       )}
       {data && (
         <div className="card" style={{ marginTop: 16, overflowX: "auto" }}>
-          <h3 style={{ marginTop: 0 }}>Today's Log</h3>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+            <h3 style={{ margin: 0 }}>{date && date !== data.nowDate ? `Log For ${date}` : "Today's Log"}</h3>
+            <label className="muted" style={{ fontSize: 12 }}>Day <input type="date" value={date || data.date} max={data.nowDate} onChange={(e) => setDate(e.target.value)} /></label>
+          </div>
           {data.sessions.length === 0 ? <p className="muted">No entries yet.</p> : (
             <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
               <thead><tr style={{ textAlign: "left" }}><th>Room</th><th>Patient</th><th>Procedure</th><th>Therapist</th><th>Doctor</th><th>In</th><th>Out</th><th></th></tr></thead>

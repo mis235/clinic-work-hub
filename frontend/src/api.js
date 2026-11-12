@@ -119,7 +119,7 @@ export const api = {
   unseenTasks: () => req("/api/tasks/unseen"),
   markTasksSeen: () => req("/api/tasks/seen", { method: "POST" }),
   taskProof: (id, file) => { const fd = new FormData(); fd.append("photo", file); return reqForm(`/api/tasks/${id}/proof`, fd); },
-  listRooms: () => req("/api/rooms"),
+  listRooms: (date) => req(`/api/rooms${date ? `?date=${date}` : ""}`),
   startRoom: (room, body) => req(`/api/rooms/${room}/start`, { method: "POST", body }),
   finishRoom: (id, body) => req(`/api/rooms/sessions/${id}/finish`, { method: "POST", body }),
   readMessage: (id) => req(`/api/messages/${id}/read`, { method: "POST" }),

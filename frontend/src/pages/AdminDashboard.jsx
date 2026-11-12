@@ -1,6 +1,7 @@
 import AskLumiBar from "../components/AskLumiBar.jsx";
 import Lumi from "../components/Lumi.jsx";
 import HrOverview from "../components/HrOverview.jsx";
+import RoomsCard from "../components/RoomsCard.jsx";
 import { useEffect, useState, useCallback } from "react";
 import { navItemsFor } from "../navItems.js";
 import { api } from "../api.js";
@@ -129,6 +130,7 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
         </div>
 
         <HrOverview user={user} onNavigate={onNavigate} />
+        <RoomsCard onNavigate={onNavigate} />
 
         <div className="grid-2">
           <div className="card" style={{ marginBottom: 0 }}>

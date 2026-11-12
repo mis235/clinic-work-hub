@@ -52,7 +52,7 @@ router.get("/", requireAuth, (req, res) => {
   const rows = db.prepare("SELECT * FROM room_sessions WHERE work_date = ? ORDER BY check_in, created_at").all(date).map(ser);
   const names = db.prepare("SELECT name FROM users WHERE active = 1 ORDER BY name").all().map((u) => u.name);
   res.json({
-    date, canRecord: canRecord(req), staffNames: names, nowTime: nowHHMM(),
+    date, nowDate: today(), canRecord: canRecord(req), staffNames: names, nowTime: nowHHMM(),
     rooms: ROOMS.map((r) => ({ ...r, current: date === today() ? rows.find((s) => s.room === r.key && !s.checkOut) || null : null, count: rows.filter((s) => s.room === r.key).length })),
     sessions: rows,
   });
