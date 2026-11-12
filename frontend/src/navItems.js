@@ -6,6 +6,7 @@ export const NAV = {
   "Shift Checklist":  { label: "My Shift Checklist",  icon: "clipboard" },
   "Tracker":          { label: "My Progress",         icon: "tasks" },
   "Attendance":       { label: "Attendance",          icon: "clock" },
+  "Procedure Rooms":  { label: "Procedure Rooms",     icon: "clipboard" },
   "Departments":      { label: "Departmental Workspaces", icon: "users" },
   "My Workspace":     { label: "My Workspace",        icon: "file" },
   "Exits":            { label: "Staff Exit Process",  icon: "userplus" },
@@ -30,7 +31,7 @@ export const NAV = {
 // One place for each job. Admin sees: Home / People / Insights / Knowledge / Assistants / Admin.
 export const NAV_GROUPS = [
   { title: "Home",            keys: ["Dashboard", "My checklist"] },
-  { title: "Daily Work",      keys: ["Shift Checklist", "Tracker", "Attendance"] },
+  { title: "Daily Work",      keys: ["Shift Checklist", "Tracker", "Attendance", "Procedure Rooms"] },
   { title: "Workspaces",      keys: ["Departments", "My Workspace"] },
   { title: "Staff",           keys: ["Staff", "Exits", "My Profile"] },
   { title: "Leave & Payroll", keys: ["Leave", "Payroll", "HR"] },
@@ -43,7 +44,7 @@ export const NAV_GROUPS = [
 export function navItemsFor(user) {
   // Insights, Knowledge and the Clinic Chatbot are for the leadership team only (admin + people the admin ticks: MIS, COS, COE, doctors).
   const lead = user.role === "admin" || !!user.leadership;
-  if (user.role === "admin") return ["Dashboard", "Attendance", "Dashboards", "Departments", "Staff", "Exits", "Leave", "Payroll", "HR", "Documents", "Policies", "SOPs", "Learning", "Events", "Clinic Assistant", "Assistant", "System"];
-  if (user.role === "manager") return ["Dashboard", "Shift Checklist", ...(user.isHr ? ["Attendance", "Staff", "Payroll", "HR", "Exits", "Events"] : []), "Dashboards", "Departments", "Leave", ...(lead ? ["Reports", "Documents", "Policies", "SOPs", "Learning", ...(user.isHr ? [] : ["Events"]), "Clinic Assistant"] : []), "Assistant"];
-  return ["My checklist", "Shift Checklist", "Tracker", "My Workspace", "My Profile", "Leave", ...(lead ? ["Dashboards", "Reports", "Documents", "Policies", "SOPs", "Learning", "Events", "Clinic Assistant"] : []), "Assistant"];
+  if (user.role === "admin") return ["Dashboard", "Attendance", "Procedure Rooms", "Dashboards", "Departments", "Staff", "Exits", "Leave", "Payroll", "HR", "Documents", "Policies", "SOPs", "Learning", "Events", "Clinic Assistant", "Assistant", "System"];
+  if (user.role === "manager") return ["Dashboard", "Shift Checklist", "Procedure Rooms", ...(user.isHr ? ["Attendance", "Staff", "Payroll", "HR", "Exits", "Events"] : []), "Dashboards", "Departments", "Leave", ...(lead ? ["Reports", "Documents", "Policies", "SOPs", "Learning", ...(user.isHr ? [] : ["Events"]), "Clinic Assistant"] : []), "Assistant"];
+  return ["My checklist", "Shift Checklist", ...(user.roomsAccess ? ["Procedure Rooms"] : []), "Tracker", "My Workspace", "My Profile", "Leave", ...(lead ? ["Dashboards", "Reports", "Documents", "Policies", "SOPs", "Learning", "Events", "Clinic Assistant"] : []), "Assistant"];
 }

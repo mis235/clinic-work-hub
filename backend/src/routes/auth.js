@@ -23,6 +23,7 @@ function userWithRole(row) {
     mustChangePin: !!row.must_change_pin,
     ...accessFor(row.id, role?.name),
     designation: row.designation || null,
+    roomsAccess: /3rd floor|procedure/i.test(row.shift_role || ""),
   };
 }
 

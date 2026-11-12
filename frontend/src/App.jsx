@@ -14,6 +14,7 @@ import PayrollPage from "./pages/PayrollPage.jsx";
 import StaffAdminPage from "./pages/StaffAdminPage.jsx";
 import AssistantPage from "./pages/AssistantPage.jsx";
 import TrackerPage from "./pages/TrackerPage.jsx";
+import RoomsPage from "./pages/RoomsPage.jsx";
 import ShiftChecklistPage from "./pages/ShiftChecklistPage.jsx";
 import StaffProfilePage from "./pages/StaffProfilePage.jsx";
 import SystemPage from "./pages/SystemPage.jsx";
@@ -32,7 +33,7 @@ import ChangePinModal from "./components/ChangePinModal.jsx";
 const VIEW_KEY = {
   "Dashboard": "dashboard", "AI Advisors": "assistant", "Policies": "policies", "SOPs": "sops", "Reports": "reports",
   "About": "about", "Learning": "learning", "Events": "events", "HR": "hr", "Payroll": "payroll", "Staff": "staff",
-  "Assistant": "assistant", "Tracker": "tracker", "Shift Checklist": "shiftchecklist", "Shift Logs": "dashboards", "Onboarding": "onboarding", "System": "system", "Attendance": "attendance", "Clinic Assistant": "clinicassistant", "Dashboards": "dashboards", "Documents": "documents", "Departments": "departments", "Roster": "roster", "Exits": "exits", "Leave": "leave", "My Profile": "myprofile",
+  "Assistant": "assistant", "Tracker": "tracker", "Shift Checklist": "shiftchecklist", "Procedure Rooms": "rooms", "Shift Logs": "dashboards", "Onboarding": "onboarding", "System": "system", "Attendance": "attendance", "Clinic Assistant": "clinicassistant", "Dashboards": "dashboards", "Documents": "documents", "Departments": "departments", "Roster": "roster", "Exits": "exits", "Leave": "leave", "My Profile": "myprofile",
 };
 
 export default function App() {
@@ -95,6 +96,7 @@ function MainApp() {
     if (view === "documents") return <DocumentsPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "assistant") return <AssistantPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "tracker") return <TrackerPage user={user} onLogout={logout} onBack={navigate} />;
+    if (view === "rooms") return <RoomsPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "shiftchecklist") return <ShiftChecklistPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "myprofile") return <StaffProfilePage user={user} staffId="me" onLogout={logout} onBack={navigate} />;
     if (view === "staffprofile" && profile) return <StaffProfilePage user={user} staffId={profile.id} backLabel={profile.from} onLogout={logout} onBack={navigate} />;
