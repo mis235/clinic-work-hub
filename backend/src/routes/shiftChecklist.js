@@ -382,7 +382,15 @@ export function importChecklistCsv(text, { mapping = {}, dryRun = false } = {}) 
   const ix = { at: col("Submitted At"), name: col("Staff Name"), role: col("Role"), date: col("Date"), shift: col("Shift"), done: col("Completed"), total: col("Total"), detail: col("Checklist Detail"), metrics: col("Metrics") };
   if (ix.name < 0 || ix.date < 0 || ix.detail < 0) { const e = new Error("This does not look like the checklist log (needs Staff Name, Date and Checklist Detail columns)."); e.status = 400; throw e; }
 
-  const users = db.prepare("SELECT id, name FROM users WHERE active = 1").all();
+  const users = db.prepare("SELECT id, name, shift_role FROM users WHERE active = 1").all();
+  // Checklists that belong to a role (Wednesday, Pharmacy...) rather than one person go to the people assigned to that role.
+  const roleNames = [...new Set([...users.map((u) => u.shift_role).filter(Boolean), ...db.prepare("SELECT role_name FROM checklist_assignments").all().map((r) => r.role_name)])];
+  const canonRole = (r) => roleNames.find((n) => norm(n) === norm(r)) || roleNames.find((n) => norm(r).length > 6 && (norm(n).startsWith(norm(r)) || norm(r).startsWith(norm(n)))) || null;
+  const ownerOfRole = (r) => {
+    const c = canonRole(r); if (!c) return null;
+    const ids = db.prepare("SELECT user_id FROM checklist_assignments WHERE role_name = ?").all(c).map((x) => x.user_id);
+    return users.find((u) => ids.includes(u.id)) || users.find((u) => u.shift_role === c) || null;
+  };
   const resolve = (sheetName) => {
     if (mapping[sheetName] === "skip") return null;
     if (mapping[sheetName]) return users.find((u) => u.id === mapping[sheetName]) || null;
@@ -412,7 +420,9 @@ export function importChecklistCsv(text, { mapping = {}, dryRun = false } = {}) 
   const run = db.transaction(() => {
     for (const { r } of latest.values()) {
       const sheetName = (r[ix.name] || "").trim();
-      const u = resolve(sheetName);
+      let u = resolve(sheetName);
+      const sheetRole = (r[ix.role] || "").trim(), canon = canonRole(sheetRole);
+      if (!u && canon) u = ownerOfRole(sheetRole);
       if (!u) { unmatched.set(sheetName, (unmatched.get(sheetName) || 0) + 1); continue; }
       const items = []; let section = "";
       for (const line of (r[ix.detail] || "").split("\n")) {
@@ -430,7 +440,9 @@ export function importChecklistCsv(text, { mapping = {}, dryRun = false } = {}) 
       const [dd, mm, rest] = (r[ix.at] || "").split(/[\/ ]/);
       const when = r[ix.at] && rest ? `${rest}-${mm}-${dd} ${r[ix.at].split(" ")[1] || "00:00:00"}` : null;
       if (!dryRun) {
-        const info = insert.run(randomUUID(), u.id, (r[ix.role] || "").trim() || "Imported", r[ix.shift] || "Morning", r[ix.date],
+        const shiftName = r[ix.shift] || "Morning";
+        const stored = canon && u.shift_role !== canon ? `${shiftName}${KEY_SEP}${canon}` : shiftName;   // someone else's checklist: kept separate from their own
+        const info = insert.run(randomUUID(), u.id, canon || sheetRole || "Imported", stored, r[ix.date],
           JSON.stringify(items), Object.keys(metrics).length ? JSON.stringify(metrics) : null, completed, items.length,
           Math.round((completed / items.length) * 100), when || new Date().toISOString().replace("T", " ").slice(0, 19), when);
         if (info.changes) imported++; else existing++;
@@ -476,7 +488,7 @@ export async function syncChecklistSheet() {
     if (!r.ok) throw new Error(`The sheet link answered with an error (${r.status}). The sheet is probably private: in Google Sheets press Share → General access → “Anyone with the link” → Viewer (or use File → Share → Publish to web).`);
     if (/<html/i.test(text.slice(0, 500))) throw new Error("Google asked for a sign-in, so the sheet is private. In Google Sheets press Share → General access → “Anyone with the link” → Viewer, then press Sync again. (Or use File → Share → Publish to web → CSV.)");
     const out = importChecklistCsv(text, { mapping: JSON.parse(getSetting("checklist_name_map") || "{}") });
-    set({ ok: true, imported: out.imported, unmatched: out.unmatched.length, rows: out.rowsInFile });
+    set({ ok: true, imported: out.imported, unmatched: out.unmatched.length, unmatchedNames: out.unmatched.map((x) => x.name).slice(0, 8), rows: out.rowsInFile });
     return { ok: true, ...out };
   } catch (e) { set({ ok: false, error: e.message }); return { ok: false, error: e.message }; }
 }
@@ -554,6 +566,8 @@ router.get("/dashboard", requireAuth, requirePermission("shiftchecklist:view_all
       photos: dayRows.reduce((n, r) => n + photosIn(r), 0), fromSheet: dayRows.filter((r) => r.source === "sheet").length, fromApp: dayRows.filter((r) => r.source !== "sheet").length,
     },
     trend, roster,
+    recent: db.prepare(`SELECT s.role_name AS roleName, s.shift, s.work_date AS date, s.completion_pct AS pct, s.completed, s.total, s.source, s.updated_at AS at, u.name AS staffName
+      FROM shift_checklist_submissions s JOIN users u ON u.id = s.user_id ORDER BY COALESCE(s.updated_at, s.submitted_at) DESC LIMIT 10`).all().map((r) => ({ ...r, shift: String(r.shift).split(KEY_SEP)[0] })),
     byRole: Object.entries(byRole).map(([role, v]) => ({ role, avgPct: avg(v), submissions: v.length })).sort((a, b) => a.avgPct - b.avgPct),
     missedMost: [...missedCount].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, n]) => ({ role: k.split("|||")[0], task: k.split("|||")[1], times: n })),
     people: dayRows.map((r) => ({ ...serializeSubmission(r), source: r.source || "app", photos: photosIn(r) })).sort((a, b) => a.staffName.localeCompare(b.staffName)),

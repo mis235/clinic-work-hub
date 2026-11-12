@@ -73,6 +73,23 @@ router.post("/", requireAuth, requirePermission("policies:manage"), (req, res) =
   res.status(201).json({ id, title, category, version: 1 });
 });
 
+// POST /api/policies/bulk — { items: [{ category, title, url }] }: one entry per Drive document; skips titles already there.
+router.post("/bulk", requireAuth, requirePermission("policies:manage"), (req, res) => {
+  const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, 500) : [];
+  let added = 0, skipped = 0;
+  const has = db.prepare("SELECT 1 FROM policies WHERE title = ? AND category = ?");
+  const ins = db.prepare("INSERT INTO policies (id, title, category, body, version) VALUES (?, ?, ?, ?, 1)");
+  db.transaction(() => {
+    for (const it of items) {
+      const category = String(it?.category || "").trim().slice(0, 60), title = String(it?.title || "").trim().slice(0, 160), url = String(it?.url || "").trim();
+      if (!category || !title || !/^https?:\/\//i.test(url) || has.get(title, category)) { skipped++; continue; }
+      ins.run(randomUUID(), title, category, `Open the full document:\n${url}\n\nPlease read it carefully, then tap "I Have Read This".`);
+      added++;
+    }
+  })();
+  res.json({ added, skipped });
+});
+
 // PATCH /api/policies/:id — admin edits; bumps the version, which resets everyone's
 // acknowledgment for this policy (they need to re-read and re-acknowledge).
 router.patch("/:id", requireAuth, requirePermission("policies:manage"), (req, res) => {

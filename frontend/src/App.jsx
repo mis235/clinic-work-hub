@@ -4,7 +4,6 @@ import Login from "./pages/Login.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import StaffDashboard from "./pages/StaffDashboard.jsx";
 import PoliciesPage from "./pages/PoliciesPage.jsx";
-import OnboardingPage from "./pages/OnboardingPage.jsx";
 import ReportsPage from "./pages/ReportsPage.jsx";
 import AboutPage from "./pages/AboutPage.jsx";
 import LearningPage from "./pages/LearningPage.jsx";
@@ -101,7 +100,6 @@ function MainApp() {
     if (view === "staffprofile" && profile) return <StaffProfilePage user={user} staffId={profile.id} backLabel={profile.from} onLogout={logout} onBack={navigate} />;
     if (view === "policies") return <PoliciesPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "sops") return <PoliciesPage user={user} mode="sops" onLogout={logout} onBack={navigate} />;
-    if (view === "onboarding" && (user.role === "admin" || user.isHr)) return <OnboardingPage user={user} onLogout={logout} onBack={navigate} onOpenProfile={(id) => openProfile(id, "Onboarding")} />;
     if (view === "reports") return <ReportsPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "about") return <AboutPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "learning") return <LearningPage user={user} onLogout={logout} onBack={navigate} />;

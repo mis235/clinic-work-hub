@@ -59,7 +59,7 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <input className="field" style={{ width: 200 }} placeholder="Search by name…" value={q} onChange={(e) => setQ(e.target.value)} />
             <button className="btn btn-outline" onClick={() => setPasting(true)}>Paste staff list</button>
-            <button className="btn btn-primary" onClick={() => setAdding(true)}><Icon name="userplus" size={16} /> Add staff</button>
+            <button className="btn btn-primary" onClick={() => setAdding(true)}><Icon name="userplus" size={16} /> Onboard Staff</button>
           </div>
         </div>
 
@@ -199,7 +199,7 @@ function AddStaffModal({ departments, shiftRoles, onClose, onDone }) {
         </div>
         {err && <div className="login-error" style={{ marginTop: 12 }}>{err}</div>}
         <div className="actions"><button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" disabled={busy || !f.name.trim() || !f.phone.trim() || !/^\d{4}$/.test(f.pin)} onClick={save}>{busy ? "Adding…" : "Add staff"}</button></div>
+          <button className="btn btn-primary" disabled={busy || !f.name.trim() || !f.phone.trim() || !/^\d{4}$/.test(f.pin)} onClick={save}>{busy ? "Onboarding…" : "Onboard Staff"}</button></div>
       </div>
     </div>
   );

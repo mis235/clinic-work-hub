@@ -32,7 +32,7 @@ export const NAV_GROUPS = [
   { title: "Home",            keys: ["Dashboard", "My checklist"] },
   { title: "Daily Work",      keys: ["Shift Checklist", "Tracker", "Attendance"] },
   { title: "Workspaces",      keys: ["Departments", "My Workspace"] },
-  { title: "Staff",           keys: ["Staff", "Onboarding", "Exits", "My Profile"] },
+  { title: "Staff",           keys: ["Staff", "Exits", "My Profile"] },
   { title: "Leave & Payroll", keys: ["Leave", "Payroll", "HR"] },
   { title: "Insights",        keys: ["Reports", "Dashboards"] },
   { title: "Knowledge",       keys: ["Documents", "Policies", "SOPs", "Learning", "Events"] },
@@ -43,7 +43,7 @@ export const NAV_GROUPS = [
 export function navItemsFor(user) {
   // Insights, Knowledge and the Clinic Chatbot are for the leadership team only (admin + people the admin ticks: MIS, COS, COE, doctors).
   const lead = user.role === "admin" || !!user.leadership;
-  if (user.role === "admin") return ["Dashboard", "Attendance", "Dashboards", "Departments", "Staff", "Onboarding", "Exits", "Leave", "Payroll", "HR", "Documents", "Policies", "SOPs", "Learning", "Events", "Clinic Assistant", "Assistant", "System"];
-  if (user.role === "manager") return ["Dashboard", "Shift Checklist", ...(user.isHr ? ["Attendance", "Staff", "Onboarding", "Payroll", "HR", "Exits", "Events"] : []), "Dashboards", "Departments", "Leave", ...(lead ? ["Reports", "Documents", "Policies", "SOPs", "Learning", ...(user.isHr ? [] : ["Events"]), "Clinic Assistant"] : []), "Assistant"];
+  if (user.role === "admin") return ["Dashboard", "Attendance", "Dashboards", "Departments", "Staff", "Exits", "Leave", "Payroll", "HR", "Documents", "Policies", "SOPs", "Learning", "Events", "Clinic Assistant", "Assistant", "System"];
+  if (user.role === "manager") return ["Dashboard", "Shift Checklist", ...(user.isHr ? ["Attendance", "Staff", "Payroll", "HR", "Exits", "Events"] : []), "Dashboards", "Departments", "Leave", ...(lead ? ["Reports", "Documents", "Policies", "SOPs", "Learning", ...(user.isHr ? [] : ["Events"]), "Clinic Assistant"] : []), "Assistant"];
   return ["My checklist", "Shift Checklist", "Tracker", "My Workspace", "My Profile", "Leave", ...(lead ? ["Dashboards", "Reports", "Documents", "Policies", "SOPs", "Learning", "Events", "Clinic Assistant"] : []), "Assistant"];
 }

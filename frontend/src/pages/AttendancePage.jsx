@@ -200,7 +200,7 @@ function FacePanel({ date, people, isAdmin, flash }) {
   );
 }
 
-const KIND = { early_leave: "Left early", stayed_late: "Stayed late", no_morning_checkin: "No morning check-in" };
+const KIND = { announcement: "Announcement", early_leave: "Left early", stayed_late: "Stayed late", no_morning_checkin: "No morning check-in" };
 function MessagesPanel({ flash }) {
   const [d, setD] = useState(null);
   const load = () => api.listMessages().then(setD).catch((e) => { setD({ messages: [], enabled: true }); flash(e.message); });
@@ -213,14 +213,53 @@ function MessagesPanel({ flash }) {
           <div className="meta">When someone leaves early, stays late or checks out with no morning check-in, they get a warm note in the app and by email.</div></div>
         <label className="pill" style={{ cursor: "pointer" }}><input type="checkbox" checked={d.enabled} onChange={async (e) => { await api.setMessagesOn(e.target.checked); load(); }} /> Send Automatically</label>
       </div>
+      <Announce flash={flash} onSent={load} />
       {d.messages.length === 0 && <div className="empty">No notes sent yet.</div>}
       {d.messages.map((m) => (
         <div key={m.id} className="task-row">
-          <div><div className="title">{m.name} <span className="meta">· {KIND[m.kind] || m.kind} · {m.date}</span></div>
+          <div><div className="title">{m.name} <span className="meta">· {m.kind.startsWith("announce") ? "Announcement" : KIND[m.kind] || m.kind} · {m.date}</span></div>
             <div className="meta">{m.body}</div>
             <div className="meta">In the app: {m.readAt ? "Read" : "Waiting"} · Email: {m.emailStatus || "—"}</div></div>
           {m.whatsappUrl && <a className="btn btn-outline btn-sm" href={m.whatsappUrl} target="_blank" rel="noreferrer">Send on WhatsApp</a>}
         </div>))}
+    </div>
+  );
+}
+
+function Announce({ flash, onSent }) {
+  const [title, setTitle] = useState(""), [body, setBody] = useState(""), [busy, setBusy] = useState(false), [res, setRes] = useState(null);
+  async function send() {
+    setBusy(true);
+    try { const r = await api.sendAnnouncement(title, body); setRes(r); setTitle(""); setBody(""); onSent(); flash(`Sent to ${r.sent} staff in the app${r.emailed ? ` and ${r.emailed} by email` : ""}.`); }
+    catch (e) { flash(e.message); }
+    setBusy(false);
+  }
+  async function contacts() {
+    const rows = await api.staffContacts();
+    const q = (x) => `"${String(x).replace(/"/g, '""')}"`;
+    const csv = ["Name,Designation,Clinic Number,Personal Number,Email", ...rows.map((r) => [r.name, r.designation, r.phone, r.altPhone, r.email].map(q).join(","))].join("\n");
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = "staff-contacts.csv"; a.click();
+  }
+  return (
+    <div style={{ background: "var(--bg-soft, #faf5fb)", borderRadius: 12, padding: 14, margin: "14px 0" }}>
+      <div className="title">New Announcement</div>
+      <div className="meta" style={{ marginBottom: 8 }}>Goes to every staff member as a banner in the app and by email. You can then send it on WhatsApp below.</div>
+      <input className="field" placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
+      <textarea className="field" rows={4} placeholder="Message" value={body} onChange={(e) => setBody(e.target.value)} style={{ marginTop: 8 }} />
+      <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+        <button className="btn btn-primary" disabled={busy || !title.trim() || !body.trim()} onClick={send}>{busy ? "Sending…" : "Send to All Staff"}</button>
+        <button className="btn btn-outline" onClick={contacts}>Download Contacts for TeleCRM</button>
+      </div>
+      {res && <div style={{ marginTop: 12 }}>
+        <div className="meta" style={{ marginBottom: 6 }}>Send on WhatsApp (tap a number to open WhatsApp with the message ready):</div>
+        <button className="btn btn-ghost btn-sm" onClick={() => navigator.clipboard?.writeText(res.text)}>Copy Message</button>
+        {res.recipients.map((r) => (
+          <div key={r.name} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", flexWrap: "wrap" }}>
+            <span style={{ minWidth: 130 }}>{r.name}</span>
+            {r.whatsappUrl ? <a className="btn btn-outline btn-sm" href={r.whatsappUrl} target="_blank" rel="noreferrer">Clinic Number</a> : <span className="meta">No number</span>}
+            {r.whatsappUrl2 && <a className="btn btn-outline btn-sm" href={r.whatsappUrl2} target="_blank" rel="noreferrer">Personal Number</a>}
+          </div>))}
+      </div>}
     </div>
   );
 }

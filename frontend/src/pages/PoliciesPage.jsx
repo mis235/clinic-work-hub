@@ -4,10 +4,15 @@ import { api } from "../api.js";
 import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
 
+function linkify(text) {
+  return String(text).split(/(https?:\/\/\S+)/g).map((part, i) => /^https?:\/\//.test(part) ? <a key={i} href={part} target="_blank" rel="noreferrer" style={{ color: "var(--primary)", fontWeight: 600 }}>Open Document ↗</a> : part);
+}
+
 export default function PoliciesPage({ user, isStaffLayout, onLogout, onBack, mode = "policies" }) {
   const isSop = mode === "sops", label = isSop ? "SOPs" : "Policies";
   const [policies, setPolicies] = useState(null);
   const [open, setOpen] = useState(null);
+  const [bulk, setBulk] = useState(false), [bulkText, setBulkText] = useState(""), [bulkMsg, setBulkMsg] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const refresh = () => api.listPolicies().then((all) => setPolicies(all.filter((x) => /sop|procedure/i.test(x.category + " " + x.title) === isSop))).catch(() => setPolicies([]));
@@ -24,6 +29,17 @@ export default function PoliciesPage({ user, isStaffLayout, onLogout, onBack, mo
     <>
       <div className="page-head">
         <h1>{label}</h1>
+        {user.role === "admin" && <button className="btn btn-outline btn-sm" style={{ float: "right" }} onClick={() => setBulk((b) => !b)}>Bulk Add From List</button>}
+        {bulk && (
+          <div className="card" style={{ margin: "12px 0" }}>
+            <div className="meta" style={{ marginBottom: 6 }}>One document per line: <b>Category | Title | Link</b>. Use a category such as "SOP — Front Desk" for SOPs. Existing titles are skipped.</div>
+            <textarea className="field" rows={8} value={bulkText} onChange={(e) => setBulkText(e.target.value)} style={{ fontFamily: "monospace", fontSize: 13 }} placeholder="SOP — Front Desk | Appointment Rescheduling SOP | https://drive.google.com/file/d/…/view" />
+            <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
+              <button className="btn btn-primary" onClick={async () => {
+                const items = bulkText.split("\n").map((l) => l.split("|").map((x) => x.trim())).filter((p) => p.length >= 3 && /^https?:\/\//i.test(p[2])).map(([category, title, url]) => ({ category, title, url }));
+                try { const r = await api.bulkAddPolicies(items); setBulkMsg(`${r.added} added, ${r.skipped} skipped.`); setBulkText(""); refresh(); } catch (e) { setBulkMsg(e.message); }
+              }}>Add Documents</button><span className="meta">{bulkMsg}</span></div>
+          </div>)}
         <p>{unread > 0 ? `${unread} ${unread === 1 ? "document needs" : "documents need"} your acknowledgement.` : `You are up to date on all current ${label}.`}</p>
       </div>
 
@@ -41,7 +57,7 @@ export default function PoliciesPage({ user, isStaffLayout, onLogout, onBack, mo
           </div>
           {open === p.id && (
             <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
-              <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", fontSize: 13, lineHeight: 1.6, margin: 0 }}>{p.body}</pre>
+              <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", fontSize: 13, lineHeight: 1.6, margin: 0 }}>{linkify(p.body)}</pre>
               {!p.acknowledgedByMe && (
                 <button className="btn btn-primary btn-sm" style={{ marginTop: 14 }} onClick={() => acknowledge(p.id)}>I Have Read This</button>
               )}

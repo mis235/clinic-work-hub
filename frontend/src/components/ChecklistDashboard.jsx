@@ -103,6 +103,14 @@ export default function ChecklistDashboard({ user }) {
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="title">Recent Updates</div>
+          {sheet?.status && <div className="meta" style={{ margin: "4px 0 8px" }}>Google Sheet last checked {new Date(sheet.status.at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })} — {sheet.status.ok ? `${sheet.status.rows} rows read` : "could not be read"}{sheet.status.unmatchedNames?.length ? `. Names not matched: ${sheet.status.unmatchedNames.join(", ")}` : ""}</div>}
+          {(d.recent || []).length === 0 && <div className="empty">No updates yet.</div>}
+          {(d.recent || []).map((r, i) => (
+            <div key={i} className="task-row"><div><b>{r.staffName}</b> <span className="meta">· {r.roleName} · {r.shift} · {r.date}</span></div>
+              <div className="meta">{r.completed}/{r.total} tasks · {r.pct}% · {r.source === "sheet" ? "Google Form" : "App"}</div></div>))}
+        </div>
         <div className="title" style={{ marginBottom: 8 }}>Last {d.trend.length} days — checklists submitted and average completion</div>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 120 }}>
           {d.trend.map((t) => (
