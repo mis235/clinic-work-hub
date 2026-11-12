@@ -156,6 +156,24 @@ router.post("/training-videos", requireAuth, requirePermission("staff:manage"), 
   res.status(201).json({ id });
 });
 
+// Add many link-videos at once: { items: [{ department, folder, title, url }] } (used by "Bulk Add" in the Training Library).
+router.post("/training-videos/bulk", requireAuth, requirePermission("staff:manage"), (req, res) => {
+  const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, 500) : [];
+  let added = 0, skipped = 0;
+  const has = db.prepare("SELECT 1 FROM training_videos WHERE url = ?");
+  const nextOrder = db.prepare("SELECT COALESCE(MAX(sort_order),0)+1 AS n FROM training_videos WHERE department = ?");
+  const ins = db.prepare("INSERT INTO training_videos (id, department, folder, kind, file_name, title, url, description, file_path, mime, sort_order) VALUES (?, ?, ?, 'video', NULL, ?, ?, NULL, NULL, NULL, ?)");
+  db.transaction(() => {
+    for (const it of items) {
+      const department = String(it?.department || "").trim(), title = String(it?.title || "").trim(), url = String(it?.url || "").trim();
+      if (!department || !title || !/^https?:\/\//i.test(url) || has.get(url)) { skipped++; continue; }
+      ins.run(randomUUID(), department, String(it.folder || "").trim().slice(0, 60) || null, title.slice(0, 160), url, nextOrder.get(department).n);
+      added++;
+    }
+  })();
+  res.json({ added, skipped });
+});
+
 router.patch("/training-videos/:id", requireAuth, requirePermission("staff:manage"), (req, res) => {
   const v = db.prepare("SELECT * FROM training_videos WHERE id = ?").get(req.params.id);
   if (!v) return res.status(404).json({ error: "Not found" });

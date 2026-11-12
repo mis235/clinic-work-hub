@@ -113,6 +113,7 @@ export const api = {
   // One-tap attendance
   attendanceToday: () => req("/api/attendance/today"),
   attendancePunch: (payload) => req("/api/attendance/punch", { method: "POST", body: payload }),
+  bulkAddTrainingVideos: (items) => req("/api/hr/training-videos/bulk", { method: "POST", body: { items } }),
   myMessages: () => req("/api/messages/mine"),
   readMessage: (id) => req(`/api/messages/${id}/read`, { method: "POST" }),
   listMessages: () => req("/api/messages"),

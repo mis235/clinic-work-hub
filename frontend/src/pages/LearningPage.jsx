@@ -16,6 +16,7 @@ const embedUrl = (u = "") => {
 export default function LearningPage({ user, isStaffLayout, onLogout, onBack }) {
   const [videos, setVideos] = useState(null);
   const [form, setForm] = useState(null); // null | {} (new) | video (edit)
+  const [bulk, setBulk] = useState(false);
   const [playing, setPlaying] = useState(null);
   const [toast, setToast] = useState("");
   const canManage = user.role === "admin";
@@ -50,7 +51,9 @@ export default function LearningPage({ user, isStaffLayout, onLogout, onBack }) 
       <div className="page-head row">
         <div><div className="eyebrow">Knowledge</div><h1>Training Library</h1>
           <p>Training videos and files, organised in folders by department. {canManage ? "Add a video, a PDF, slides or a sheet (or paste a YouTube / Google Drive link), put it in a folder, then reorder, edit or remove as you like." : "Open what is meant for your department, then tick it off."}</p></div>
-        {canManage && <button className="btn btn-primary" onClick={() => setForm({})}><Icon name="plus" size={16} /> Add video / file</button>}
+        {canManage && <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button className="btn btn-outline" onClick={() => setBulk(true)}>Bulk Add From List</button>
+          <button className="btn btn-primary" onClick={() => setForm({})}><Icon name="plus" size={16} /> Add Video / File</button></div>}
       </div>
 
       {videos === null && <div className="empty">Loading…</div>}
@@ -107,6 +110,7 @@ export default function LearningPage({ user, isStaffLayout, onLogout, onBack }) 
         </div>
       )}
       {form && <VideoForm initial={form} departments={departments} existingFolders={[...new Set((videos || []).map((v) => v.folder).filter(Boolean))]} onClose={() => setForm(null)} onDone={(m) => { setForm(null); flash(m); refresh(); }} />}
+      {bulk && <BulkModal onClose={() => setBulk(false)} onDone={(m) => { setBulk(false); flash(m); refresh(); }} />}
       {toast && <div className="toast">{toast}</div>}
     </PageShell>
   );
@@ -169,6 +173,31 @@ function VideoForm({ initial, departments, existingFolders = [], onClose, onDone
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" disabled={busy || !title.trim() || !department.trim()} onClick={save}>{busy ? "Saving…" : editing ? "Save" : "Add video"}</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function BulkModal({ onClose, onDone }) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const rows = text.split("\n").map((l) => l.split("|").map((x) => x.trim())).filter((p) => p.length >= 4 && /^https?:\/\//i.test(p[3]))
+    .map(([department, folder, title, url]) => ({ department, folder, title, url }));
+  async function go() {
+    setBusy(true); setErr("");
+    try { const r = await api.bulkAddTrainingVideos(rows); onDone(`${r.added} added${r.skipped ? `, ${r.skipped} skipped (already there or incomplete)` : ""}.`); }
+    catch (e) { setErr(e.message); setBusy(false); }
+  }
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 720 }} onClick={(e) => e.stopPropagation()}>
+        <h3>Bulk Add From List</h3>
+        <p className="meta">One video per line, in this order: <b>Department | Folder | Title | Link</b>. Videos already in the library are skipped.</p>
+        <textarea className="field" rows={12} value={text} onChange={(e) => setText(e.target.value)} placeholder="Therapist | LT | LT 1 | https://drive.google.com/file/d/…/view" style={{ fontSize: 13, fontFamily: "monospace" }} />
+        <div className="meta" style={{ marginTop: 6 }}>{rows.length} valid line{rows.length === 1 ? "" : "s"} found.</div>
+        {err && <div className="meta" style={{ color: "var(--danger, #c00)" }}>{err}</div>}
+        <div className="actions"><button className="btn btn-ghost" onClick={onClose}>Cancel</button><button className="btn btn-primary" disabled={busy || !rows.length} onClick={go}>{busy ? "Adding…" : `Add ${rows.length} Videos`}</button></div>
       </div>
     </div>
   );
