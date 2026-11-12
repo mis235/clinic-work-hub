@@ -38,6 +38,22 @@ const wa = (phone, text) => {
   return `https://wa.me/${d}?text=${encodeURIComponent(text)}`;
 };
 
+const MOOD = { early_leave: "worried and caring: they left earlier than usual, so check gently that all is well", stayed_late: "grateful and warm: they stayed late, so thank them and tell them to rest", no_morning_checkin: "polite and gentle: no morning check-in was found, HR will confirm timings" };
+/** Ask Claude to write the note in a human way for this mood. Returns null if no key or any problem (the ready wording is used). */
+async function aiBody(kind, name, fallback, outTime) {
+  const key = process.env.ANTHROPIC_API_KEY; if (!key || !MOOD[kind]) return null;
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST", headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" }, signal: AbortSignal.timeout(15000),
+      body: JSON.stringify({ model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5", max_tokens: 160,
+        system: "You write short, kind messages from Dr. Nishita's Clinic to a staff member. Simple English, 2 to 3 sentences, no emojis, no quotes, no judgement, never mention fines or salary. Start with Hi and the first name. Reply with the message only.",
+        messages: [{ role: "user", content: `Staff first name: ${name}. Tone: ${MOOD[kind]}.${outTime ? ` They checked out at ${outTime}.` : ""} Example of the idea: ${fallback}` }] }),
+    });
+    const d = await r.json(); const t = d?.content?.filter((b) => b.type === "text").map((b) => b.text).join(" ").trim();
+    return r.ok && t && t.length < 600 ? t : null;
+  } catch { return null; }
+}
+
 /** Create the note (once per person, per day, per kind), then email it if possible. Never throws. */
 export function engage(userId, kind, date) {
   try {
@@ -47,12 +63,16 @@ export function engage(userId, kind, date) {
     const id = randomUUID();
     const r = db.prepare("INSERT OR IGNORE INTO staff_messages (id, user_id, kind, msg_date, title, body) VALUES (?,?,?,?,?,?)").run(id, userId, kind, date, m.title, m.body);
     if (!r.changes) return null;
-    if (u.email && isEmailConfigured()) {
-      const html = `<p>${m.body}</p><p style="color:#666">Dr. Nishita's Clinic — Work Hub</p>`;
-      sendEmail({ to: u.email, subject: m.title, html })
-        .then(() => db.prepare("UPDATE staff_messages SET email_status = 'sent' WHERE id = ?").run(id))
-        .catch((e) => db.prepare("UPDATE staff_messages SET email_status = ? WHERE id = ?").run("failed: " + String(e.message).slice(0, 80), id));
-    } else db.prepare("UPDATE staff_messages SET email_status = ? WHERE id = ?").run(u.email ? "email not set up" : "no email address", id);
+    (async () => {   // wording by AI when a key is set, then the email
+      const ai = await aiBody(kind, String(u.name || "").trim().split(/\s+/)[0] || "there", m.body, null);
+      if (ai) { m.body = ai; db.prepare("UPDATE staff_messages SET body = ? WHERE id = ?").run(ai, id); }
+      if (u.email && isEmailConfigured()) {
+        const html = `<p>${m.body}</p><p style="color:#666">Dr. Nishita's Clinic — Work Hub</p>`;
+        await sendEmail({ to: u.email, subject: m.title, html })
+          .then(() => db.prepare("UPDATE staff_messages SET email_status = 'sent' WHERE id = ?").run(id))
+          .catch((e) => db.prepare("UPDATE staff_messages SET email_status = ? WHERE id = ?").run("failed: " + String(e.message).slice(0, 80), id));
+      } else db.prepare("UPDATE staff_messages SET email_status = ? WHERE id = ?").run(u.email ? "email not set up" : "no email address", id);
+    })().catch(() => {});
     return { id, ...m };
   } catch (e) { console.error("engage:", e.message); return null; }
 }

@@ -28,6 +28,7 @@ import DocumentsPage from "./pages/DocumentsPage.jsx";
 import KioskPage from "./pages/KioskPage.jsx";
 import LumiFloat from "./components/LumiFloat.jsx";
 import NoteBanner from "./components/NoteBanner.jsx";
+import TaskPopup from "./components/TaskPopup.jsx";
 import ChangePinModal from "./components/ChangePinModal.jsx";
 
 const VIEW_KEY = {
@@ -82,7 +83,7 @@ function MainApp() {
     setUser(next);
   }
   const pinGate = user.mustChangePin ? <ChangePinModal forced onDone={pinChanged} /> : null;
-  return <>{pinGate}<NoteBanner />{renderApp()}{user && view !== "clinicassistant" && <LumiFloat user={user} />}</>;
+  return <>{pinGate}<NoteBanner />{user && <TaskPopup onOpen={() => navigate(user.role === "staff" ? "My checklist" : "Dashboard")} />}{renderApp()}{user && view !== "clinicassistant" && <LumiFloat user={user} />}</>;
 
   function renderApp() {
   if (user.role === "admin" || user.role === "manager") {

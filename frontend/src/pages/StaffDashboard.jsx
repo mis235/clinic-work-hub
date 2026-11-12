@@ -1,7 +1,7 @@
 import AskLumiBar from "../components/AskLumiBar.jsx";
 import Lumi from "../components/Lumi.jsx";
 import { useEffect, useState, useCallback } from "react";
-import { api } from "../api.js";
+import { api, assetUrl } from "../api.js";
 import { STATUS, effectiveStatus } from "../constants.js";
 import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
@@ -142,6 +142,13 @@ export default function StaffDashboard({ user, onLogout }) {
 
 function TaskCard({ task, onSet }) {
   const st = STATUS[effectiveStatus(task)];
+  const [asking, setAsking] = useState(false);   // "Done" asks for an optional photo first
+  const [file, setFile] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const finish = async () => {
+    setBusy(true);
+    try { if (file) await api.taskProof(task.id, file); await onSet(task.id, "done"); setAsking(false); setFile(null); } finally { setBusy(false); }
+  };
   return (
     <div className="card">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -152,11 +159,20 @@ function TaskCard({ task, onSet }) {
         </div>
         <span className={`badge ${st.cls}`}>{st.label}</span>
       </div>
-      {task.status !== "done" && (
+      {task.proof_photo && <a href={assetUrl(task.proof_photo)} target="_blank" rel="noreferrer"><img src={assetUrl(task.proof_photo)} alt="Proof" style={{ marginTop: 8, maxWidth: 140, maxHeight: 100, borderRadius: 8, border: "1px solid var(--line)" }} /></a>}
+      {asking && task.status !== "done" && (
+        <div style={{ marginTop: 12, padding: 12, background: "var(--bg-soft, #f6f7f9)", borderRadius: 10 }}>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>Add a photo of the finished work (optional)</div>
+          <input type="file" accept="image/*" capture="environment" onChange={(e) => setFile(e.target.files?.[0] || null)} style={{ margin: "8px 0", display: "block" }} />
+          <button className="btn btn-primary btn-sm" disabled={busy} onClick={finish}>{busy ? "Saving…" : file ? "Mark Done With Photo" : "Mark Done Without Photo"}</button>{" "}
+          <button className="btn btn-ghost btn-sm" onClick={() => { setAsking(false); setFile(null); }}>Cancel</button>
+        </div>
+      )}
+      {task.status !== "done" && !asking && (
         <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
           <button className="btn btn-outline btn-sm" onClick={() => onSet(task.id, "accepted")}>Accept</button>
           <button className="btn btn-outline btn-sm" onClick={() => onSet(task.id, "in_progress")}>Start</button>
-          <button className="btn btn-primary btn-sm" onClick={() => onSet(task.id, "done")}><Icon name="check" size={14} strokeWidth={3} /> Done</button>
+          <button className="btn btn-primary btn-sm" onClick={() => setAsking(true)}><Icon name="check" size={14} strokeWidth={3} /> Done</button>
           <button className="btn btn-ghost btn-sm" onClick={() => onSet(task.id, "extension_requested")}>Request extension</button>
           <button className="btn btn-danger btn-sm" onClick={() => onSet(task.id, "issue_reported")}>Report issue</button>
         </div>

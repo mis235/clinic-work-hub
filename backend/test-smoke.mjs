@@ -646,6 +646,14 @@ try {
     const ex = await fetch(base + `/api/attendance/export?from=${y.slice(0, 7)}&to=${y.slice(0, 7)}`, { headers: { Authorization: `Bearer ${admin}` } });
     ok("Excel export works for a range of months", ex.status === 200 && (await ex.arrayBuffer()).byteLength > 1000);
   }
+  { // task popup + proof photo
+    const mk = await call("POST", "/api/tasks", { userId: staff.id, title: "Popup test task", category: "General" }, admin);
+    const un = await call("GET", "/api/tasks/unseen", null, stoken);
+    ok("new task shows in the staff popup list", un.status === 200 && un.body.some((t) => t.title === "Popup test task"), JSON.stringify(un.body));
+    await call("POST", "/api/tasks/seen", {}, stoken);
+    ok("popup shows a task only once", ((await call("GET", "/api/tasks/unseen", null, stoken)).body || []).length === 0);
+    ok("proof photo rejects a non-image", (await call("POST", `/api/tasks/${mk.body.id}/proof`, {}, stoken)).status === 400);
+  }
   { // procedure rooms
     const r0 = await call("GET", "/api/rooms", null, admin);
     ok("rooms list: 5 rooms (1 on 1st floor, 4 on 3rd)", r0.body?.rooms?.length === 5 && r0.body.rooms.filter((x) => x.floor === "3rd Floor").length === 4);
