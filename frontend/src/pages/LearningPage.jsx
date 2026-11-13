@@ -36,7 +36,12 @@ export default function LearningPage({ user, isStaffLayout, onLogout, onBack }) 
     refresh();
   }
 
-  const grouped = (videos || []).reduce((acc, v) => { (acc[v.department] ||= []).push(v); return acc; }, {});
+  const [q, setQ] = useState(""), [deptF, setDeptF] = useState("");
+  const all = videos || [];
+  const ql = q.trim().toLowerCase();
+  const shown = all.filter((v) => (!deptF || v.department === deptF) && (!ql || `${v.title} ${v.folder || ""} ${v.department} ${v.description || ""}`.toLowerCase().includes(ql)));
+  const stat = (list) => ({ n: list.length, done: list.filter((v) => v.watchedByMe).length });
+  const grouped = shown.reduce((acc, v) => { (acc[v.department] ||= []).push(v); return acc; }, {});
   const foldersOf = (vids) => vids.reduce((acc, v) => { (acc[v.folder || ""] ||= []).push(v); return acc; }, {});
   const [openFolders, setOpenFolders] = useState({});
   const toggle = (k) => setOpenFolders((o) => ({ ...o, [k]: o[k] === false ? true : false }));
@@ -56,6 +61,29 @@ export default function LearningPage({ user, isStaffLayout, onLogout, onBack }) 
           <button className="btn btn-primary" onClick={() => setForm({})}><Icon name="plus" size={16} /> Add Video / File</button></div>}
       </div>
 
+      {videos?.length > 0 && (() => {
+        const me = stat(all), pct = me.n ? Math.round((me.done / me.n) * 100) : 0, nVid = all.filter((v) => v.kind !== "file").length;
+        const tile = (num, label) => <div style={{ flex: "1 1 130px", background: "#fff", border: "1px solid var(--line)", borderRadius: 14, padding: "12px 14px" }}><div style={{ fontSize: 24, fontWeight: 800 }}>{num}</div><div className="meta">{label}</div></div>;
+        return (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              {tile(all.length, "Total Items")}{tile(nVid, "Videos")}{tile(all.length - nVid, "Files & Documents")}{tile(departments.length, "Departments")}
+              <div style={{ flex: "2 1 220px", background: "#fff", border: "1px solid var(--line)", borderRadius: 14, padding: "12px 14px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}><b>My Progress</b><b>{pct}%</b></div>
+                <div style={{ height: 8, borderRadius: 99, background: "var(--surface-sunk, #f1f5f9)", margin: "8px 0 4px", overflow: "hidden" }}><div style={{ width: pct + "%", height: "100%", background: "var(--primary, #be185d)" }} /></div>
+                <div className="meta">{me.done} of {me.n} watched or read</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "12px 0 8px" }}>
+              <input className="field" style={{ flex: "1 1 220px", maxWidth: 360, margin: 0 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search videos, folders, topics…" />
+              <button className={`btn btn-sm ${deptF ? "btn-outline" : "btn-primary"}`} onClick={() => setDeptF("")}>All</button>
+              {departments.map((d) => { const st = stat(all.filter((v) => v.department === d)); return (
+                <button key={d} className={`btn btn-sm ${deptF === d ? "btn-primary" : "btn-outline"}`} onClick={() => setDeptF(deptF === d ? "" : d)}>{d} · {st.done}/{st.n}</button>); })}
+            </div>
+            {shown.length === 0 && <div className="empty">Nothing matches. Clear the search or choose All.</div>}
+          </div>);
+      })()}
+
       {videos === null && <div className="empty">Loading…</div>}
       {videos?.length === 0 && <div className="empty">Nothing in the library yet.{canManage ? " Click “Add video” to start." : ""}</div>}
 
@@ -63,7 +91,7 @@ export default function LearningPage({ user, isStaffLayout, onLogout, onBack }) 
         <div key={dept} className="card">
           <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10 }}>📁 {dept} <span className="meta">· {vids.length} item{vids.length === 1 ? "" : "s"}</span></div>
           {Object.entries(foldersOf(vids)).sort(([a], [b]) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b))).map(([folder, items]) => {
-            const key = dept + "/" + folder, onlyOne = Object.keys(foldersOf(vids)).length === 1, isOpen = openFolders[key] === undefined ? onlyOne : openFolders[key] !== false;
+            const key = dept + "/" + folder, onlyOne = Object.keys(foldersOf(vids)).length === 1, isOpen = openFolders[key] === undefined ? (onlyOne || !!ql) : openFolders[key] !== false;
             return (
               <div key={key} style={{ marginBottom: 8 }}>
                 {(folder || Object.keys(foldersOf(vids)).length > 1) && (
