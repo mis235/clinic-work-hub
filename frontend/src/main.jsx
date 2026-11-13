@@ -3,13 +3,9 @@ import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import "./theme.css";
 
-// After an app update, drop any old sign-in so nobody is stuck on a stale login ("Invalid or expired token").
-try {
-  if (localStorage.getItem("buildId") !== __BUILD_ID__) {
-    localStorage.removeItem("token"); localStorage.removeItem("user"); // the clinic phone key (kioskKey) is deliberately kept
-    localStorage.setItem("buildId", __BUILD_ID__);
-  }
-} catch {}
+// Stay signed in across updates and reopen. (An old version wiped the sign-in after every update; that is gone.)
+// If a saved sign-in is ever truly invalid, the server says so (401) and the app asks to sign in once.
+try { localStorage.setItem("buildId", __BUILD_ID__); navigator.storage?.persist?.(); } catch {}
 
 class ErrorBoundary extends React.Component {
   state = { error: null };
@@ -19,13 +15,13 @@ class ErrorBoundary extends React.Component {
     return (
       <div style={{ maxWidth: 480, margin: "80px auto", padding: 24, fontFamily: "system-ui, sans-serif", textAlign: "center" }}>
         <h2>Something Went Wrong</h2>
-        <p style={{ color: "#555" }}>Please reset and sign in again. Your data is safe.</p>
+        <p style={{ color: "#555" }}>Please reset the app. You stay signed in and your data is safe.</p>
         <button style={{ padding: "12px 20px", fontSize: 15, cursor: "pointer" }}
           onClick={async () => {
-            localStorage.clear();
+            try { localStorage.removeItem("buildId"); } catch {}
             try { (await navigator.serviceWorker?.getRegistrations())?.forEach((r) => r.unregister()); (await caches.keys()).forEach((k) => caches.delete(k)); } catch {}
             window.location.reload();
-          }}>Reset and sign in again</button>
+          }}>Reset the app</button>
       </div>
     );
   }
