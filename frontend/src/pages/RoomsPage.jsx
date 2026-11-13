@@ -5,8 +5,22 @@ import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
 
 const waLink = (text) => `https://wa.me/?text=${encodeURIComponent(text)}`;
-const msgFor = (s, out) => [out ? "✅ Procedure Completed" : "🟢 Procedure Started", `Room: ${s.roomLabel}`, `Patient: ${s.patient}`, `Procedure: ${s.procedure}`,
+const msgFor = (s, out) => [out ? "PROCEDURE COMPLETED" : "PROCEDURE STARTED", `Room: ${s.roomLabel}`, `Patient: ${s.patient}`, `Procedure: ${s.procedure}`,
   s.therapist && `Therapist: ${s.therapist}`, s.doctor && `Doctor: ${s.doctor}`, `Check-in: ${s.checkIn}`, out && `Check-out: ${s.checkOut}`].filter(Boolean).join("\n");
+// One message for every room: who is in each room now, and which rooms are free.
+const boardText = (data) => {
+  const t = new Date(Date.now() + 19800000), hhmm = t.toISOString().slice(11, 16), dd = t.toISOString().slice(0, 10).split("-").reverse().join("/");
+  const lines = [`PROCEDURE ROOMS STATUS - ${dd}, ${hhmm}`, ""];
+  let floor = "";
+  for (const r of data.rooms) {
+    if (r.floor !== floor) { floor = r.floor; if (lines.length > 2) lines.push(""); lines.push(floor.toUpperCase()); }
+    const c = r.current;
+    lines.push(c ? `${r.name}: ${c.patient} | ${c.procedure}${c.therapist ? ` | Therapist: ${c.therapist}` : ""}${c.doctor ? ` | Doctor: ${c.doctor}` : ""} | In: ${c.checkIn}` : `${r.name}: Free`);
+  }
+  const done = data.sessions.filter((s) => s.checkOut);
+  if (done.length) { lines.push("", "COMPLETED TODAY"); done.forEach((s) => lines.push(`${s.roomLabel}: ${s.patient} | ${s.procedure} | ${s.checkIn} - ${s.checkOut}`)); }
+  return lines.join("\n");
+};
 const EMPTY = { patient: "", procedure: "", therapist: "", doctor: "", checkIn: "" };
 
 export default function RoomsPage({ user, isStaffLayout, onLogout, onBack }) {
@@ -39,11 +53,13 @@ export default function RoomsPage({ user, isStaffLayout, onLogout, onBack }) {
       <h2 style={{ margin: "8px 0 4px" }}>Procedure Rooms</h2>
       <p className="muted" style={{ marginTop: 0 }}>{can ? "Tap a room to add a patient. Tap Check Out when the procedure is finished." : "Live room status. Only the 3rd floor coordinator can add entries."}</p>
       {error && <div className="card" style={{ color: "#b91c1c" }}>{error}</div>}
+      {data && <div style={{ margin: "6px 0 10px" }}><a className="btn btn-outline btn-sm" href={waLink(boardText(data))} target="_blank" rel="noreferrer">Share All Rooms Status To WhatsApp</a></div>}
       {sent && (
         <div className="card" style={{ borderLeft: "4px solid #16a34a" }}>
           <b>Saved.</b> Send it to the WhatsApp group:
           <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", fontSize: 13, margin: "8px 0" }}>{msgFor(sent.s, sent.out)}</pre>
-          <a className="btn btn-primary btn-sm" href={waLink(msgFor(sent.s, sent.out))} target="_blank" rel="noreferrer">Share To WhatsApp Group</a>{" "}
+          <a className="btn btn-primary btn-sm" href={waLink(msgFor(sent.s, sent.out))} target="_blank" rel="noreferrer">Share This Room</a>{" "}
+          {data && <a className="btn btn-outline btn-sm" href={waLink(boardText(data))} target="_blank" rel="noreferrer">Share All Rooms</a>}{" "}
           <button className="btn btn-light btn-sm" onClick={() => setSent(null)}>Close</button>
         </div>
       )}
@@ -94,7 +110,7 @@ export default function RoomsPage({ user, isStaffLayout, onLogout, onBack }) {
           {data.sessions.length === 0 ? <p className="muted">No entries yet.</p> : (
             <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
               <thead><tr style={{ textAlign: "left" }}><th>Room</th><th>Patient</th><th>Procedure</th><th>Therapist</th><th>Doctor</th><th>In</th><th>Out</th><th></th></tr></thead>
-              <tbody>{data.sessions.map((s) => (
+              <tbody>{[...data.sessions].sort((a, b) => a.room.localeCompare(b.room) || a.checkIn.localeCompare(b.checkIn)).map((s) => (
                 <tr key={s.id}><td>{s.roomLabel}</td><td>{s.patient}</td><td>{s.procedure}</td><td>{s.therapist}</td><td>{s.doctor}</td><td>{s.checkIn}</td><td>{s.checkOut || "—"}</td>
                   <td><a href={waLink(msgFor(s, !!s.checkOut))} target="_blank" rel="noreferrer">Share</a></td></tr>
               ))}</tbody>

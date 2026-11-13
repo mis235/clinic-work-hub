@@ -63,7 +63,7 @@ export default function LearningPage({ user, isStaffLayout, onLogout, onBack }) 
         <div key={dept} className="card">
           <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10 }}>📁 {dept} <span className="meta">· {vids.length} item{vids.length === 1 ? "" : "s"}</span></div>
           {Object.entries(foldersOf(vids)).sort(([a], [b]) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b))).map(([folder, items]) => {
-            const key = dept + "/" + folder, isOpen = openFolders[key] !== false;
+            const key = dept + "/" + folder, onlyOne = Object.keys(foldersOf(vids)).length === 1, isOpen = openFolders[key] === undefined ? onlyOne : openFolders[key] !== false;
             return (
               <div key={key} style={{ marginBottom: 8 }}>
                 {(folder || Object.keys(foldersOf(vids)).length > 1) && (
@@ -72,20 +72,26 @@ export default function LearningPage({ user, isStaffLayout, onLogout, onBack }) 
                     {canManage && folder && <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); renameFolder(dept, folder); }}>Rename</button>}
                   </div>)}
                 {isOpen && items.map((v, i) => (
-                  <div key={v.id} className="task-row">
-                    <div>
-                      <span className="link" style={{ fontSize: 13.5, fontWeight: 600 }} onClick={() => (v.kind === "file" || (!v.is_upload && !embedUrl(v.url) && false)) ? window.open(videoStreamUrl(v.id), "_blank") : setPlaying(v)}>{v.kind === "file" ? "📄" : "▶"} {v.title}</span>
+                  <div key={v.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 6px", borderBottom: "1px solid var(--line)" }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--surface-sunk, #f1f5f9)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 16 }}>{v.kind === "file" ? "📄" : "▶"}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="link" style={{ fontSize: 14, fontWeight: 600, whiteSpace: "normal", wordBreak: "break-word" }} onClick={() => (v.kind === "file" || (!v.is_upload && !embedUrl(v.url) && false)) ? window.open(videoStreamUrl(v.id), "_blank") : setPlaying(v)}>{v.title}</div>
                       {v.description && <div className="meta">{v.description}</div>}
                       {v.kind === "file" && v.file_name && <div className="meta">{v.file_name}</div>}
                     </div>
-                    <div className="right" style={{ gap: 6 }}>
-                      {canManage && <>
-                        <button className="btn btn-ghost btn-sm" title="Move up" disabled={i === 0} onClick={() => move(items, i, -1)}>↑</button>
-                        <button className="btn btn-ghost btn-sm" title="Move down" disabled={i === items.length - 1} onClick={() => move(items, i, 1)}>↓</button>
-                        <button className="btn btn-ghost btn-sm" onClick={() => setForm(v)}>Edit</button>
-                        <button className="btn btn-ghost btn-sm" onClick={() => remove(v)}>Remove</button></>}
-                      {v.watchedByMe ? <span className="badge done">{v.kind === "file" ? "Read" : "Watched"}</span>
-                        : <button className="btn btn-outline btn-sm" onClick={() => markWatched(v.id)}>{v.kind === "file" ? "Mark read" : "Mark watched"}</button>}
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                      {v.watchedByMe ? <span className="badge done">✓ {v.kind === "file" ? "Read" : "Watched"}</span>
+                        : <button className="btn btn-outline btn-sm" onClick={() => markWatched(v.id)}>{v.kind === "file" ? "Mark Read" : "Mark Watched"}</button>}
+                      {canManage && (
+                        <details style={{ position: "relative" }}>
+                          <summary className="btn btn-ghost btn-sm" style={{ listStyle: "none", cursor: "pointer" }}>⋯</summary>
+                          <div style={{ position: "absolute", right: 0, top: "110%", zIndex: 20, background: "#fff", border: "1px solid var(--line)", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,.12)", padding: 6, display: "grid", gap: 2, minWidth: 120 }}>
+                            <button className="btn btn-ghost btn-sm" disabled={i === 0} onClick={() => move(items, i, -1)}>↑ Move Up</button>
+                            <button className="btn btn-ghost btn-sm" disabled={i === items.length - 1} onClick={() => move(items, i, 1)}>↓ Move Down</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => setForm(v)}>Edit</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => remove(v)}>Remove</button>
+                          </div>
+                        </details>)}
                     </div>
                   </div>
                 ))}

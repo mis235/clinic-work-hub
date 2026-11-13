@@ -658,7 +658,7 @@ try {
     const r0 = await call("GET", "/api/rooms", null, admin);
     ok("rooms list: 5 rooms (1 on 1st floor, 4 on 3rd)", r0.body?.rooms?.length === 5 && r0.body.rooms.filter((x) => x.floor === "3rd Floor").length === 4);
     const st = await call("POST", "/api/rooms/f3-r2/start", { patient: "Test Patient", procedure: "Hydrafacial", therapist: "A", doctor: "B", checkIn: "11:00" }, admin);
-    ok("room check-in saved + WhatsApp text", st.status === 201 && /Procedure Started/.test(st.body.text));
+    ok("room check-in saved + WhatsApp text", st.status === 201 && /PROCEDURE STARTED/.test(st.body.text));
     ok("same room cannot be double-booked", (await call("POST", "/api/rooms/f3-r2/start", { patient: "X", procedure: "Y" }, admin)).status === 409);
     ok("staff without 3rd-floor role cannot record", (await call("POST", "/api/rooms/f3-r3/start", { patient: "X", procedure: "Y" }, stoken)).status === 403);
     const fin = await call("POST", `/api/rooms/sessions/${st.body.id}/finish`, { checkOut: "12:00" }, admin);

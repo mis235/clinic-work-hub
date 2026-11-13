@@ -34,7 +34,7 @@ function canRecord(req) {
 const ser = (r) => ({ id: r.id, room: r.room_key, roomLabel: roomLabel(r.room_key), date: r.work_date, patient: r.patient, procedure: r.procedure_name, therapist: r.therapist || "", doctor: r.doctor || "", checkIn: r.check_in, checkOut: r.check_out || null });
 
 export function messageFor(s, event) {
-  const head = event === "out" ? "✅ Procedure Completed" : "🟢 Procedure Started";
+  const head = event === "out" ? "PROCEDURE COMPLETED" : "PROCEDURE STARTED";
   return [head, `Room: ${s.roomLabel}`, `Patient: ${s.patient}`, `Procedure: ${s.procedure}`, s.therapist && `Therapist: ${s.therapist}`, s.doctor && `Doctor: ${s.doctor}`,
     `Check-in: ${s.checkIn}`, event === "out" && `Check-out: ${s.checkOut}`].filter(Boolean).join("\n");
 }
