@@ -8,5 +8,6 @@ const put = (k, v) => db.prepare("INSERT INTO app_settings (key, value) VALUES (
 const [what, a, b] = process.argv.slice(2);
 if (what === "sheet" && /^https?:\/\//.test(a || "")) { put("checklist_sheet_csv", a); console.log("Done. Sheet link saved:", normalizeSheetUrl(a)); }
 else if (what === "push" && /^https:\/\/script\.google\.com\/\S+\/exec$/.test(a || "") && b) { put("checklist_push_url", a); put("checklist_push_key", b); console.log("Done. Checklists will also be added to the Google Sheet."); }
+else if (what === "telecrm" && /^https:\/\/\S+/.test(a || "")) { put("telecrm_webhook", a); console.log("Done. Announcements will also be sent as WhatsApp messages through TeleCRM."); }
 else if (what === "rooms" && /^https:\/\/\S+/.test(a || "")) { put("rooms_webhook", a); console.log("Done. Each procedure room entry will also be sent to the WhatsApp group through n8n."); }
 else { console.log('Usage: set-setting.mjs sheet "<link>"  |  set-setting.mjs push "<…/exec link>" "<secret word>"'); process.exit(1); }

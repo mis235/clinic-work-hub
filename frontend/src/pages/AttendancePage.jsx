@@ -230,7 +230,7 @@ function Announce({ flash, onSent }) {
   const [title, setTitle] = useState(""), [body, setBody] = useState(""), [busy, setBusy] = useState(false), [res, setRes] = useState(null);
   async function send() {
     setBusy(true);
-    try { const r = await api.sendAnnouncement(title, body); setRes(r); setTitle(""); setBody(""); onSent(); flash(`Sent to ${r.sent} staff in the app${r.emailed ? ` and ${r.emailed} by email` : ""}.`); }
+    try { const r = await api.sendAnnouncement(title, body); setRes(r); setTitle(""); setBody(""); onSent(); flash(`Sent to ${r.sent} staff in the app${r.emailed ? `, ${r.emailed} by email` : ""}${r.viaWhatsapp ? `, ${r.viaWhatsapp} by WhatsApp (TeleCRM)` : ""}.`); }
     catch (e) { flash(e.message); }
     setBusy(false);
   }

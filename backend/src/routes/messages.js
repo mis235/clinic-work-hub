@@ -1,4 +1,5 @@
 // In-app notes to staff (see engage.js). Everyone reads their own; HR and admin see what was sent.
+import { sendViaTelecrm, telecrmUrl } from "../telecrm.js";
 import { Router } from "express";
 import db from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -48,7 +49,9 @@ router.post("/announce", requireAuth, (req, res) => {
     if (u.email && isEmailConfigured()) emailed++;
   }
   const text = `${title}\n\n${body}\n\n— Dr. Nishita's Clinic`;
-  res.status(201).json({ sent: people.length, emailed, text, recipients: people.map((u) => ({ name: u.name, whatsappUrl: waUrl(u.phone, text), whatsappUrl2: waUrl(u.alt_phone, text) })) });
+  let viaWhatsapp = 0;   // sent automatically through TeleCRM when it is connected
+  for (const u of people) { if (sendViaTelecrm({ name: u.name, phone: u.phone, message: `${title}: ${body}` })) viaWhatsapp++; }
+  res.status(201).json({ sent: people.length, viaWhatsapp, telecrm: !!telecrmUrl(), emailed, text, recipients: people.map((u) => ({ name: u.name, whatsappUrl: waUrl(u.phone, text), whatsappUrl2: waUrl(u.alt_phone, text) })) });
 });
 
 // Names and numbers (clinic and personal) for importing into TeleCRM as a "Staff" list.
