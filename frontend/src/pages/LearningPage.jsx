@@ -69,7 +69,6 @@ export default function LearningPage({ user, isStaffLayout, onLogout, onBack }) 
                 {(folder || Object.keys(foldersOf(vids)).length > 1) && (
                   <div className="folder-head" onClick={() => toggle(key)}>
                     <span>{isOpen ? "▾" : "▸"} {folder ? "📂 " + folder : "Not in a folder"} <span className="meta">· {items.length}</span></span>
-                    {canManage && folder && <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); renameFolder(dept, folder); }}>Rename</button>}
                   </div>)}
                 {isOpen && items.map((v, i) => (
                   <div key={v.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 6px", borderBottom: "1px solid var(--line)" }}>

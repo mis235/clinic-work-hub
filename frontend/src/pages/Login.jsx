@@ -10,12 +10,12 @@ function detectDeviceLabel() {
 }
 
 export default function Login({ onLoggedIn }) {
-  const [tab, setTab] = useState("password"); // 'password' (admin/manager) | 'pin' (staff, mobile-friendly)
+  const [tab, setTab] = useState(() => { try { return localStorage.getItem("lastTab") || "password"; } catch { return "password"; } }); // 'password' (admin/manager) | 'pin' (staff, mobile-friendly)
   const [roster, setRoster] = useState([]);
   const [userId, setUserId] = useState("");
   const [pin, setPin] = useState("");
   const [find, setFind] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => { try { return localStorage.getItem("lastEmail") || ""; } catch { return ""; } });
   const [password, setPassword] = useState("");
   const [error, setError] = useState(() => { try { const m = sessionStorage.getItem("sessionMsg"); sessionStorage.removeItem("sessionMsg"); return m || ""; } catch { return ""; } });
   const [busy, setBusy] = useState(false);
@@ -23,7 +23,8 @@ export default function Login({ onLoggedIn }) {
   useEffect(() => {
     api.listRoster().then((rows) => {
       setRoster(rows);
-      if (rows[0]) setUserId(rows[0].id);
+      let last = ""; try { last = localStorage.getItem("lastUserId") || ""; } catch {}
+      setUserId(rows.find((r) => r.id === last)?.id || rows[0]?.id || "");
     }).catch(() => setError("Couldn't reach the server. Is the backend running?"));
   }, []);
 
@@ -35,6 +36,7 @@ export default function Login({ onLoggedIn }) {
         ? { email, password, deviceLabel: detectDeviceLabel(), channel: "web" }
         : { userId, pin, deviceLabel: detectDeviceLabel(), channel: "web" };
       const data = await api.login(body);
+      try { localStorage.setItem("lastTab", tab); if (tab === "password") localStorage.setItem("lastEmail", email); else localStorage.setItem("lastUserId", userId); } catch {}
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       onLoggedIn(data.user);
@@ -103,9 +105,9 @@ export default function Login({ onLoggedIn }) {
           {tab === "password" ? (
             <>
               <label className="field-label">Email</label>
-              <input className="field" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@drnishitaranka.com" />
+              <input className="field" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@drnishitaranka.com" autoComplete="username" />
               <label className="field-label">Password</label>
-              <input className="field" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <input className="field" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
             </>
           ) : (
             <>

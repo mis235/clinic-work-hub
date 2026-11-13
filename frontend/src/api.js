@@ -8,7 +8,7 @@ function authHeaders() {
 }
 
 function sessionExpired() {
-  try { sessionStorage.setItem("sessionMsg", "Your sign-in ended (for safety it lasts a few days). Please sign in again."); } catch {}
+  try { sessionStorage.setItem("sessionMsg", "Your sign-in ended (for safety it lasts about 3 months). Please sign in again."); } catch {}
   localStorage.removeItem("token"); localStorage.removeItem("user");
   window.location.reload();
 }
@@ -152,6 +152,7 @@ export const api = {
   setShiftBulk: (userId, dates, shift) => req("/api/roster/bulk", { method: "PUT", body: { userId, dates, shift } }),
   rosterMe: () => req("/api/roster/me"),
   portalMe: () => req("/api/portal/me"),
+  refreshSession: () => req("/api/auth/refresh", { method: "POST" }),
   manualAttendance: (userId, type) => req("/api/attendance/manual", { method: "POST", body: { userId, type } }),
 
   // Staff management
@@ -216,6 +217,12 @@ export const api = {
   getEvents: (month) => req("/api/hr/events" + (month ? `?month=${month}` : "")),
   updateEvent: (id, payload) => req(`/api/hr/events/${id}`, { method: "PUT", body: payload }),
   deleteEvent: (id) => req(`/api/hr/events/${id}`, { method: "DELETE" }),
+  uploadEventMedia: (id, files) => { const f = new FormData(); [...files].forEach((x) => f.append("files", x)); return reqForm(`/api/hr/events/${id}/media`, f); },
+  deleteEventMedia: (id, mid) => req(`/api/hr/events/${id}/media/${mid}`, { method: "DELETE" }),
+  listAutoMessages: () => req("/api/auto-messages"),
+  saveAutoMessage: (id, payload) => req(id ? `/api/auto-messages/${id}` : "/api/auto-messages", { method: id ? "PUT" : "POST", body: payload }),
+  deleteAutoMessage: (id) => req(`/api/auto-messages/${id}`, { method: "DELETE" }),
+  testAutoMessage: (id) => req(`/api/auto-messages/${id}/test`, { method: "POST" }),
   addEvent: (payload) => req("/api/hr/events", { method: "POST", body: payload }),
   getSystemStatus: () => req("/api/admin/status"),
   getAuditLog: (limit = 100) => req(`/api/admin/audit?limit=${limit}`),

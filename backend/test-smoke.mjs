@@ -654,6 +654,16 @@ try {
     ok("popup shows a task only once", ((await call("GET", "/api/tasks/unseen", null, stoken)).body || []).length === 0);
     ok("proof photo rejects a non-image", (await call("POST", `/api/tasks/${mk.body.id}/proof`, {}, stoken)).status === 400);
   }
+  { // auto messages + stay signed in
+    const rf = await call("POST", "/api/auth/refresh", {}, admin);
+    ok("sign-in refresh gives a new token", !!rf.body?.token);
+    const am = await call("POST", "/api/auto-messages", { title: "Hi {name}", body: "Happy day {name}", trigger: "daily", time: "00:00" }, admin);
+    ok("auto message can be created", am.status === 201);
+    ok("auto message appears in list", (await call("GET", "/api/auto-messages", null, admin)).body?.messages?.some((m) => m.id === am.body.id));
+    ok("weekly needs a day", (await call("POST", "/api/auto-messages", { title: "a", body: "b", trigger: "weekly" }, admin)).status === 400);
+    ok("test-to-me works", (await call("POST", `/api/auto-messages/${am.body.id}/test`, {}, admin)).status === 200);
+    await call("DELETE", `/api/auto-messages/${am.body.id}`, null, admin);
+  }
   { // procedure rooms
     const r0 = await call("GET", "/api/rooms", null, admin);
     ok("rooms list: 5 rooms (1 on 1st floor, 4 on 3rd)", r0.body?.rooms?.length === 5 && r0.body.rooms.filter((x) => x.floor === "3rd Floor").length === 4);

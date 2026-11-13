@@ -247,6 +247,31 @@ const pad2 = (n) => String(n).padStart(2, "0");
 const istMonth = () => new Date(Date.now() + 19800000).toISOString().slice(0, 7);
 // One month at a time: ?month=YYYY-MM (default this month). Birthdays and work anniversaries are worked out from
 // the staff records; festivals / dates are the ones the admin typed in (yearly ones repeat every year).
+db.exec(`CREATE TABLE IF NOT EXISTS event_media (
+  id TEXT PRIMARY KEY, event_id TEXT NOT NULL, kind TEXT NOT NULL, file TEXT NOT NULL, name TEXT, created_at TEXT DEFAULT (datetime('now'))
+)`);
+const EVENT_DIR = path.join(process.env.DATA_DIR || path.join(path.dirname(fileURLToPath(import.meta.url)), "..", ".."), "uploads", "events");
+fs.mkdirSync(EVENT_DIR, { recursive: true });
+const eventUpload = multer({
+  storage: multer.diskStorage({ destination: (req, f, cb) => cb(null, EVENT_DIR), filename: (req, f, cb) => cb(null, `${randomUUID()}${path.extname(f.originalname || "").toLowerCase().replace(/[^.a-z0-9]/g, "")}`) }),
+  limits: { fileSize: 200 * 1024 * 1024, files: 12 },
+  fileFilter: (req, f, cb) => cb(null, /^(image\/(png|jpeg|webp|gif)|video\/(mp4|webm|quicktime))$/.test(f.mimetype || "")),
+});
+const mediaOf = (id) => db.prepare("SELECT id, kind, file, name FROM event_media WHERE event_id = ? ORDER BY created_at").all(id).map((m) => ({ id: m.id, kind: m.kind, name: m.name, url: `/uploads/events/${m.file}` }));
+router.post("/events/:id/media", requireAuth, requirePermission("staff:manage"), eventUpload.array("files", 12), (req, res) => {
+  if (!db.prepare("SELECT 1 FROM clinic_events WHERE id = ?").get(req.params.id)) return res.status(404).json({ error: "Event not found" });
+  if (!req.files?.length) return res.status(400).json({ error: "Choose photos (JPG, PNG) or videos (MP4)" });
+  const ins = db.prepare("INSERT INTO event_media (id, event_id, kind, file, name) VALUES (?, ?, ?, ?, ?)");
+  for (const f of req.files) ins.run(randomUUID(), req.params.id, f.mimetype.startsWith("video/") ? "video" : "image", f.filename, (f.originalname || "").slice(0, 120));
+  res.status(201).json({ media: mediaOf(req.params.id) });
+});
+router.delete("/events/:id/media/:mid", requireAuth, requirePermission("staff:manage"), (req, res) => {
+  const m = db.prepare("SELECT * FROM event_media WHERE id = ? AND event_id = ?").get(req.params.mid, req.params.id);
+  if (!m) return res.status(404).json({ error: "Not found" });
+  db.prepare("DELETE FROM event_media WHERE id = ?").run(m.id);
+  try { fs.unlinkSync(path.join(EVENT_DIR, m.file)); } catch {}
+  res.json({ ok: true });
+});
 router.get("/events", requireAuth, (req, res) => {
   const month = /^\d{4}-\d{2}$/.test(req.query.month || "") ? req.query.month : istMonth();
   const [yy, mm] = month.split("-").map(Number);
@@ -256,7 +281,7 @@ router.get("/events", requireAuth, (req, res) => {
     let day = null;
     if (/^\d{4}-\d{2}-\d{2}$/.test(d)) { if (d.slice(0, 7) === month) day = Number(d.slice(8)); }
     else if (/^\d{2}-\d{2}$/.test(d)) { if (Number(d.slice(0, 2)) === mm) day = Number(d.slice(3)); }
-    if (day) items.push({ kind: "event", id: e.id, day, title: e.title, eventType: e.event_type, eventDate: d, yearly: /^\d{2}-\d{2}$/.test(d) });
+    if (day) items.push({ kind: "event", id: e.id, day, title: e.title, eventType: e.event_type, eventDate: d, yearly: /^\d{2}-\d{2}$/.test(d), media: mediaOf(e.id) });
   }
   for (const u of db.prepare("SELECT name, birthday FROM users WHERE active = 1 AND birthday IS NOT NULL").all()) {
     const d = new Date(u.birthday);
@@ -293,6 +318,8 @@ router.put("/events/:id", requireAuth, requirePermission("staff:manage"), (req, 
   res.json({ ok: true });
 });
 router.delete("/events/:id", requireAuth, requirePermission("staff:manage"), (req, res) => {
+  for (const m of db.prepare("SELECT file FROM event_media WHERE event_id = ?").all(req.params.id)) { try { fs.unlinkSync(path.join(EVENT_DIR, m.file)); } catch {} }
+  db.prepare("DELETE FROM event_media WHERE event_id = ?").run(req.params.id);
   const r = db.prepare("DELETE FROM clinic_events WHERE id = ?").run(req.params.id);
   if (!r.changes) return res.status(404).json({ error: "Event not found" });
   res.json({ ok: true });

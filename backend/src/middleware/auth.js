@@ -11,7 +11,7 @@ const secret = () => {
 };
 
 export function signToken(payload) {
-  return jwt.sign(payload, secret(), { expiresIn: "7d" });
+  return jwt.sign(payload, secret(), { expiresIn: "90d" });
 }
 
 // Verifies the token and attaches { userId, roleId, roleName, departmentId } to req.user.

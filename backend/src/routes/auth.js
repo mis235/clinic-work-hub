@@ -83,4 +83,12 @@ router.post("/login", loginThrottle, (req, res) => {
   res.json({ token, user });
 });
 
+// Keeps a person signed in: the app calls this when it opens and swaps in a fresh 90-day sign-in.
+router.post("/refresh", requireAuth, (req, res) => {
+  const row = db.prepare("SELECT * FROM users WHERE id = ? AND active = 1").get(req.user.userId);
+  if (!row) return res.status(401).json({ error: "This account is no longer active" });
+  const user = userWithRole(row);
+  res.json({ token: signToken({ userId: row.id, roleId: row.role_id, roleName: user.role, departmentId: row.department_id }), user });
+});
+
 export default router;

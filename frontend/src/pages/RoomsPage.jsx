@@ -5,22 +5,31 @@ import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
 
 const waLink = (text) => `https://wa.me/?text=${encodeURIComponent(text)}`;
-const msgFor = (s, out) => [out ? "PROCEDURE COMPLETED" : "PROCEDURE STARTED", `Room: ${s.roomLabel}`, `Patient: ${s.patient}`, `Procedure: ${s.procedure}`,
-  s.therapist && `Therapist: ${s.therapist}`, s.doctor && `Doctor: ${s.doctor}`, `Check-in: ${s.checkIn}`, out && `Check-out: ${s.checkOut}`].filter(Boolean).join("\n");
-// One message for every room: who is in each room now, and which rooms are free.
+const mins = (t) => { const m = /^(\d{1,2}):(\d{2})$/.exec(t || ""); return m ? +m[1] * 60 + +m[2] : null; };
+// "45 min" or "1 hr 5 min"; an open session counts up to the current time.
+const dur = (inT, outT, nowT) => { const a = mins(inT), b = mins(outT || nowT); if (a == null || b == null || b < a) return ""; const d = b - a; return d >= 60 ? `${Math.floor(d / 60)} hr${d % 60 ? ` ${d % 60} min` : ""}` : `${d} min`; };
+const t12 = (t) => { const m = mins(t); if (m == null) return t || ""; const h = Math.floor(m / 60); return `${((h + 11) % 12) + 1}:${String(m % 60).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
+const nowIst = () => { const d = new Date(Date.now() + 19800000); return { hhmm: d.toISOString().slice(11, 16), date: d.toISOString().slice(0, 10) }; };
+const prettyDate = (iso) => new Date(iso + "T00:00:00Z").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+const detail = (s, nowT) => [`   🧑 Patient: ${s.patient}`, `   💆 Procedure: ${s.procedure}`, s.therapist && `   👩‍⚕️ Therapist: ${s.therapist}`, s.doctor && `   🩺 Doctor: ${s.doctor}`,
+  `   🕐 Check-in: ${t12(s.checkIn)}`, s.checkOut ? `   🕑 Check-out: ${t12(s.checkOut)}` : null, dur(s.checkIn, s.checkOut, nowT) && `   ⏱️ Duration: ${dur(s.checkIn, s.checkOut, nowT)}${s.checkOut ? "" : " (running)"}`].filter(Boolean);
+const msgFor = (s, out) => { const n = nowIst().hhmm; return [out ? "✅ *PROCEDURE COMPLETED*" : "🟢 *PROCEDURE STARTED*", `🏥 ${s.roomLabel}`, ...detail(s, n).map((l) => l.trim())].join("\n"); };
+// One professional message for every room: who is in each room now (with timings), which rooms are empty, and what finished today.
 const boardText = (data) => {
-  const t = new Date(Date.now() + 19800000), hhmm = t.toISOString().slice(11, 16), dd = t.toISOString().slice(0, 10).split("-").reverse().join("/");
-  const lines = [`PROCEDURE ROOMS STATUS - ${dd}, ${hhmm}`, ""];
+  const n = nowIst(), lines = ["🏥 *PROCEDURE ROOMS STATUS*", `📅 ${prettyDate(n.date)}  |  🕐 ${t12(n.hhmm)}`, ""];
   let floor = "";
   for (const r of data.rooms) {
-    if (r.floor !== floor) { floor = r.floor; if (lines.length > 2) lines.push(""); lines.push(floor.toUpperCase()); }
-    const c = r.current;
-    lines.push(c ? `${r.name}: ${c.patient} | ${c.procedure}${c.therapist ? ` | Therapist: ${c.therapist}` : ""}${c.doctor ? ` | Doctor: ${c.doctor}` : ""} | In: ${c.checkIn}` : `${r.name}: Free`);
+    if (r.floor !== floor) { floor = r.floor; lines.push("━━━━━━━━━━━━━━", `*${floor.toUpperCase()}*`); }
+    if (r.current) { lines.push(`🔴 *${r.name} - IN USE*`, ...detail(r.current, n.hhmm), ""); }
+    else lines.push(`⚪ *${r.name} - EMPTY*`, "");
   }
   const done = data.sessions.filter((s) => s.checkOut);
-  if (done.length) { lines.push("", "COMPLETED TODAY"); done.forEach((s) => lines.push(`${s.roomLabel}: ${s.patient} | ${s.procedure} | ${s.checkIn} - ${s.checkOut}`)); }
+  const busy = data.rooms.filter((r) => r.current).length;
+  lines.push("━━━━━━━━━━━━━━", `📊 In use: ${busy}  |  Empty: ${data.rooms.length - busy}  |  Completed today: ${done.length}`);
+  if (done.length) { lines.push("", "✅ *COMPLETED TODAY*"); done.forEach((s, i) => lines.push(`${i + 1}. ${s.roomLabel}: ${s.patient} - ${s.procedure}`, `   🕐 ${t12(s.checkIn)} → ${t12(s.checkOut)}  (⏱️ ${dur(s.checkIn, s.checkOut) || "-"})`)); }
   return lines.join("\n");
 };
+const copyText = async (text, done) => { try { await navigator.clipboard.writeText(text); done("Copied. Paste it in WhatsApp."); } catch { done("Could not copy. Use the Share button."); } };
 const EMPTY = { patient: "", procedure: "", therapist: "", doctor: "", checkIn: "" };
 
 export default function RoomsPage({ user, isStaffLayout, onLogout, onBack }) {
@@ -32,6 +41,7 @@ export default function RoomsPage({ user, isStaffLayout, onLogout, onBack }) {
   const [sent, setSent] = useState(null);          // last saved entry -> WhatsApp share
   const [mobileOpen, setMobileOpen] = useState(false);
   const [date, setDate] = useState("");
+  const [note, setNote] = useState("");
   const load = () => api.listRooms(date).then(setData).catch((e) => setError(e.message));
   useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, [date]);
 
@@ -53,13 +63,14 @@ export default function RoomsPage({ user, isStaffLayout, onLogout, onBack }) {
       <h2 style={{ margin: "8px 0 4px" }}>Procedure Rooms</h2>
       <p className="muted" style={{ marginTop: 0 }}>{can ? "Tap a room to add a patient. Tap Check Out when the procedure is finished." : "Live room status. Only the 3rd floor coordinator can add entries."}</p>
       {error && <div className="card" style={{ color: "#b91c1c" }}>{error}</div>}
-      {data && <div style={{ margin: "6px 0 10px" }}><a className="btn btn-outline btn-sm" href={waLink(boardText(data))} target="_blank" rel="noreferrer">Share All Rooms Status To WhatsApp</a></div>}
+      {data && <div style={{ margin: "6px 0 10px", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}><a className="btn btn-outline btn-sm" href={waLink(boardText(data))} target="_blank" rel="noreferrer">Share All Rooms Status To WhatsApp</a><button className="btn btn-light btn-sm" onClick={() => copyText(boardText(data), setNote)}>Copy Message</button>{note && <span className="muted" style={{ fontSize: 12 }}>{note}</span>}</div>}
       {sent && (
         <div className="card" style={{ borderLeft: "4px solid #16a34a" }}>
           <b>Saved.</b> Send it to the WhatsApp group:
           <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", fontSize: 13, margin: "8px 0" }}>{msgFor(sent.s, sent.out)}</pre>
           <a className="btn btn-primary btn-sm" href={waLink(msgFor(sent.s, sent.out))} target="_blank" rel="noreferrer">Share This Room</a>{" "}
           {data && <a className="btn btn-outline btn-sm" href={waLink(boardText(data))} target="_blank" rel="noreferrer">Share All Rooms</a>}{" "}
+          <button className="btn btn-light btn-sm" onClick={() => copyText(boardText(data), setNote)}>Copy All Rooms</button>{" "}
           <button className="btn btn-light btn-sm" onClick={() => setSent(null)}>Close</button>
         </div>
       )}
@@ -69,11 +80,11 @@ export default function RoomsPage({ user, isStaffLayout, onLogout, onBack }) {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(210px,1fr))", gap: 12 }}>
             {data.rooms.filter((r) => r.floor === f).map((r) => (
               <div key={r.key} className="card" style={{ margin: 0, borderTop: `4px solid ${r.current ? "#dc2626" : "#16a34a"}` }}>
-                <b>{r.name}</b> <span className="muted" style={{ fontSize: 12 }}>· {r.current ? "Occupied" : "Free"}</span>
+                <b>{r.name}</b> <span className="muted" style={{ fontSize: 12 }}>· {r.current ? "In use" : "Empty"}</span>
                 {r.current ? (
                   <div style={{ fontSize: 13, marginTop: 6 }}>
                     <div><b>{r.current.patient}</b></div><div>{r.current.procedure}</div>
-                    <div className="muted">In: {r.current.checkIn}{r.current.therapist ? ` · ${r.current.therapist}` : ""}</div>
+                    <div className="muted">In: {t12(r.current.checkIn)}{r.current.therapist ? ` · ${r.current.therapist}` : ""}</div><div className="muted">⏱ {dur(r.current.checkIn, "", data.nowTime)} so far</div>
                     {can && <button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} onClick={() => finish(r.current.id)}>Check Out</button>}
                   </div>
                 ) : can ? (
@@ -109,9 +120,9 @@ export default function RoomsPage({ user, isStaffLayout, onLogout, onBack }) {
           </div>
           {data.sessions.length === 0 ? <p className="muted">No entries yet.</p> : (
             <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
-              <thead><tr style={{ textAlign: "left" }}><th>Room</th><th>Patient</th><th>Procedure</th><th>Therapist</th><th>Doctor</th><th>In</th><th>Out</th><th></th></tr></thead>
+              <thead><tr style={{ textAlign: "left" }}><th>Room</th><th>Patient</th><th>Procedure</th><th>Therapist</th><th>Doctor</th><th>In</th><th>Out</th><th>Duration</th><th></th></tr></thead>
               <tbody>{[...data.sessions].sort((a, b) => a.room.localeCompare(b.room) || a.checkIn.localeCompare(b.checkIn)).map((s) => (
-                <tr key={s.id}><td>{s.roomLabel}</td><td>{s.patient}</td><td>{s.procedure}</td><td>{s.therapist}</td><td>{s.doctor}</td><td>{s.checkIn}</td><td>{s.checkOut || "—"}</td>
+                <tr key={s.id}><td>{s.roomLabel}</td><td>{s.patient}</td><td>{s.procedure}</td><td>{s.therapist}</td><td>{s.doctor}</td><td>{t12(s.checkIn)}</td><td>{s.checkOut ? t12(s.checkOut) : "—"}</td><td>{dur(s.checkIn, s.checkOut, data.nowTime) || "—"}{s.checkOut ? "" : " (running)"}</td>
                   <td><a href={waLink(msgFor(s, !!s.checkOut))} target="_blank" rel="noreferrer">Share</a></td></tr>
               ))}</tbody>
             </table>

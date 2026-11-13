@@ -217,7 +217,7 @@ function MessagesPanel({ flash }) {
       {d.messages.length === 0 && <div className="empty">No notes sent yet.</div>}
       {d.messages.map((m) => (
         <div key={m.id} className="task-row">
-          <div><div className="title">{m.name} <span className="meta">· {m.kind.startsWith("announce") ? "Announcement" : KIND[m.kind] || m.kind} · {m.date}</span></div>
+          <div><div className="title">{m.name} <span className="meta">· {m.kind.startsWith("announce") ? "Announcement" : m.kind.startsWith("auto") ? "Auto message" : KIND[m.kind] || m.kind} · {m.date}</span></div>
             <div className="meta">{m.body}</div>
             <div className="meta">In the app: {m.readAt ? "Read" : "Waiting"} · Email: {m.emailStatus || "—"}</div></div>
           {m.whatsappUrl && <a className="btn btn-outline btn-sm" href={m.whatsappUrl} target="_blank" rel="noreferrer">Send on WhatsApp</a>}
