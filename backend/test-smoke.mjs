@@ -654,6 +654,14 @@ try {
     ok("popup shows a task only once", ((await call("GET", "/api/tasks/unseen", null, stoken)).body || []).length === 0);
     ok("proof photo rejects a non-image", (await call("POST", `/api/tasks/${mk.body.id}/proof`, {}, stoken)).status === 400);
   }
+  { // sheets dashboard
+    const sh = await call("POST", "/api/sheets", { title: "T", category: "C", url: "https://docs.google.com/spreadsheets/d/abc123/edit#gid=0" }, admin);
+    ok("sheet can be added", sh.status === 201);
+    ok("non-google link rejected", (await call("POST", "/api/sheets", { title: "T", url: "http://evil.test/x" }, admin)).status === 400);
+    const ls = await call("GET", "/api/sheets", null, admin);
+    ok("sheet listed", ls.body?.sheets?.length >= 1);
+    await call("DELETE", `/api/sheets/${ls.body.sheets[0].id}`, null, admin);
+  }
   { // auto messages + stay signed in
     const rf = await call("POST", "/api/auth/refresh", {}, admin);
     ok("sign-in refresh gives a new token", !!rf.body?.token);

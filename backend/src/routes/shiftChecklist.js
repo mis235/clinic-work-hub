@@ -350,7 +350,7 @@ router.get("/submissions", requireAuth, requirePermission("shiftchecklist:view_a
 // POST /api/shift-checklist/import  (admin, multipart: file, mapping?, dryRun?)
 // mapping = JSON { "Name in sheet": "userId" }.  Existing app entries are never overwritten.
 // ---------------------------------------------------------------------------
-function parseCsv(text) {
+export function parseCsv(text) {
   const rows = []; let row = [], cur = "", q = false;
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
