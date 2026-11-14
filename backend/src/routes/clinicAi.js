@@ -70,6 +70,8 @@ router.get("/patient-dashboard", requireAuth, requireLeadership, (req, res) => {
   if (!fs.existsSync(PD_FILE)) return res.status(404).json({ error: "The patient dashboard has not been uploaded yet." });
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Access-Control-Expose-Headers", "X-File-Updated");
+  res.setHeader("X-File-Updated", fs.statSync(PD_FILE).mtime.toISOString());
   res.send(fs.readFileSync(PD_FILE));
 });
 router.put("/patient-dashboard", requireAuth, express.raw({ type: "*/*", limit: "40mb" }), (req, res) => {

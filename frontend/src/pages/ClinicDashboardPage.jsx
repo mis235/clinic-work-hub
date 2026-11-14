@@ -89,6 +89,7 @@ function PatientDashboard({ user }) {
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [full, setFull] = useState(false);
+  const [updated, setUpdated] = useState(null);
   const wrap = useRef(null);
   const [w, setW] = useState(1280);
   useEffect(() => {
@@ -102,7 +103,7 @@ function PatientDashboard({ user }) {
     try {
       const r = await fetch(base + "/api/clinic-ai/patient-dashboard", { headers: auth() });
       if (!r.ok) { setSrc(null); setMsg((await r.json().catch(() => ({}))).error || "Not available."); return; }
-      const blob = await r.blob(); setSrc(URL.createObjectURL(blob)); setMsg("");
+      const up = r.headers.get("X-File-Updated"); setUpdated(up ? new Date(up) : null); const blob = await r.blob(); setSrc(URL.createObjectURL(blob)); setMsg("");
     } catch { setMsg("Could not load the dashboard."); }
   };
   useEffect(() => { load(); }, []);
@@ -128,11 +129,11 @@ function PatientDashboard({ user }) {
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
           <label className="btn btn-outline btn-sm" style={{ cursor: "pointer" }}>{src ? "Replace dashboard file" : "Upload dashboard file"}
             <input type="file" accept=".html,text/html" onChange={upload} disabled={busy} style={{ display: "none" }} /></label>
-          <span className="meta">The patient data stays on your server and is shown only to admin and leadership.</span>
+          <span className="meta">Uploaded file: {updated ? updated.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "none yet"}. After you change the dashboard, download the new .html and press Replace. The patient data stays on your server.</span>
         </div>)}
       {msg && <div className="meta" style={{ marginBottom: 8 }}>{msg}</div>}
       {src && (() => {
-        const DESIGN = Math.max(900, w), scale = w / DESIGN, h = full ? Math.max(560, window.innerHeight - 80) : Math.max(560, window.innerHeight - 200);
+        const DESIGN = Math.max(1240, w), scale = Math.min(1, w / DESIGN), h = full ? Math.max(560, window.innerHeight - 80) : Math.max(620, window.innerHeight - 170);
         return (
           <div ref={wrap} style={{ width: "100%", height: h, overflow: "hidden", borderRadius: 12, flex: full ? 1 : undefined }}>
             <iframe title="Patient Dashboard" src={src} sandbox="allow-scripts"
