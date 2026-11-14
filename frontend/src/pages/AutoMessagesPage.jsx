@@ -11,7 +11,7 @@ const WHEN = {
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const IDEAS = [
   { title: "Happy Birthday, {name}!", body: "Dear {name}, wishing you a very happy birthday from all of us at Dr. Nishita's Clinic. Thank you for being part of our family. Have a wonderful day!", trigger: "birthday", time: "09:00" },
-  { title: "Today is {person}'s birthday", body: "Hi {name}, today is {person}'s birthday. Please wish them when you meet. A kind word makes their day!", trigger: "birthday_team", time: "09:00" },
+  { title: "Today is {person}'s birthday", body: "Hi {name}, today is {person}'s birthday. Please wish {person} a very happy birthday when you meet!", trigger: "birthday_team", time: "09:00" },
   { title: "Happy Work Anniversary!", body: "Hi {name}, congratulations on completing {years} year(s) with us. We are grateful for your hard work and care for our patients.", trigger: "anniversary", time: "09:00" },
   { title: "Happy {event}!", body: "Dear {name}, wishing you and your family a very happy {event} from Dr. Nishita's Clinic.", trigger: "event", time: "08:30" },
   { title: "Good Morning Team", body: "Good morning {name}. Please check your tasks and shift checklist for today. Have a great day!", trigger: "daily", time: "08:45" },

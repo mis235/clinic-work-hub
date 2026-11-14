@@ -70,12 +70,13 @@ export default router;
 // Ready on day one: a wish for the birthday person and a "wish them" note for the rest of the team.
 (() => {
   try {
+    db.prepare("UPDATE auto_messages SET body = ? WHERE trigger_type = 'birthday_team' AND body = ?").run("Hi {name}, today is {person}'s birthday. Please wish {person} a very happy birthday when you meet!", "Hi {name}, today is {person}'s birthday. Please wish them when you meet. A kind word makes their day!");
     const done = db.prepare("SELECT value FROM app_settings WHERE key = 'auto_msgs_seeded'").get();
     if (done) return;
     const add = (title, body, trigger) => db.prepare("INSERT INTO auto_messages (id, title, body, trigger_type, send_time, audience, whatsapp, active) VALUES (?,?,?,?,?,?,?,?)").run(randomUUID(), title, body, trigger, "09:00", "all", 1, 1);
     if (db.prepare("SELECT COUNT(*) n FROM auto_messages").get().n === 0) {
       add("Happy Birthday, {name}!", "Dear {name}, wishing you a very happy birthday from all of us at Dr. Nishita's Clinic. Thank you for being part of our family. Have a wonderful day!", "birthday");
-      add("Today is {person}'s birthday", "Hi {name}, today is {person}'s birthday. Please wish them when you meet. A kind word makes their day!", "birthday_team");
+      add("Today is {person}'s birthday", "Hi {name}, today is {person}'s birthday. Please wish {person} a very happy birthday when you meet!", "birthday_team");
     }
     db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('auto_msgs_seeded', '1')").run();
   } catch (e) { console.error("auto message defaults:", e.message); }
