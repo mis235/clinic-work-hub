@@ -34,6 +34,13 @@ export default function SheetsPage({ user, onLogout, onBack }) {
   useEffect(() => { loadList(); }, []);
   const open = (id, fresh) => { setLoading(true); setErr(""); setQ(""); setShown(50); api.sheetData(id, fresh).then((d) => { setData(d); setCatCol(""); }).catch((e) => { setData(null); setErr(e.message); }).finally(() => setLoading(false)); };
   useEffect(() => { if (sel) open(sel); }, [sel]);
+  // Live: re-read the sheet every minute (and when the app comes back to the screen) without flashing the page.
+  useEffect(() => {
+    if (!sel) return;
+    const quiet = () => api.sheetData(sel).then((d) => { setData(d); setErr(""); }).catch(() => {});
+    const t = setInterval(quiet, 60000); window.addEventListener("hub-refresh", quiet);
+    return () => { clearInterval(t); window.removeEventListener("hub-refresh", quiet); };
+  }, [sel]);
 
   const cats = useMemo(() => (data?.columns || []).filter((c) => c.type === "category"), [data]);
   const nums = useMemo(() => (data?.columns || []).filter((c) => c.type === "number"), [data]);
@@ -78,7 +85,7 @@ export default function SheetsPage({ user, onLogout, onBack }) {
       {data && !loading && (
         <>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
-            <div><b style={{ fontSize: 17 }}>{data.title}</b><div className="meta">Updated {new Date(data.fetchedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</div></div>
+            <div><b style={{ fontSize: 17 }}>{data.title}</b><div className="meta"><span className="live-dot" /> Live · updated {new Date(data.fetchedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</div></div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               <a className="btn btn-outline btn-sm" href={data.url} target="_blank" rel="noreferrer">Open In Google Sheets</a>
               <button className="btn btn-outline btn-sm" onClick={() => open(sel, true)}>Refresh</button>

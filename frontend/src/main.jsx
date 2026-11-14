@@ -7,6 +7,10 @@ import "./theme.css";
 // If a saved sign-in is ever truly invalid, the server says so (401) and the app asks to sign in once.
 try { localStorage.setItem("buildId", __BUILD_ID__); navigator.storage?.persist?.(); } catch {}
 
+// When someone returns to the app (phone unlocked, tab reopened), every live screen refreshes at once.
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") window.dispatchEvent(new Event("hub-refresh")); });
+window.addEventListener("online", () => window.dispatchEvent(new Event("hub-refresh")));
+
 class ErrorBoundary extends React.Component {
   state = { error: null };
   static getDerivedStateFromError(error) { return { error }; }

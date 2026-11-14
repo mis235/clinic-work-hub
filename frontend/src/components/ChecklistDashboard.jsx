@@ -32,7 +32,7 @@ export default function ChecklistDashboard({ user }) {
 
   const load = () => api.checklistDashboard(date, 14).then((r) => { setD(r); setErr(""); }).catch((e) => setErr(e.message));
   const loadSheet = () => api.checklistSheet().then((r) => { setSheet(r); setUrl(r.url === "set" ? "" : r.url || ""); }).catch(() => {});
-  useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, [date]);
+  useEffect(() => { load(); const t = setInterval(load, 20000); window.addEventListener("hub-refresh", load); return () => { clearInterval(t); window.removeEventListener("hub-refresh", load); }; }, [date]);
   useEffect(() => { loadSheet(); }, []);
 
   async function saveSheet() { setBusy(true); setMsg(""); try { await api.saveChecklistSheet(url); setMsg("Link saved."); loadSheet(); } catch (e) { setMsg(e.message); } setBusy(false); }

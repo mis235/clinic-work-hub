@@ -48,7 +48,8 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
     refresh();
     // Poll so replies from WhatsApp, task updates and live checklist progress show up without a manual refresh.
     const id = setInterval(refresh, 8000);
-    return () => clearInterval(id);
+    window.addEventListener("hub-refresh", refresh);
+    return () => { clearInterval(id); window.removeEventListener("hub-refresh", refresh); };
   }, [refresh]);
 
   function flash(msg) { setToast(msg); setTimeout(() => setToast(null), 3000); }

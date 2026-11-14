@@ -20,8 +20,9 @@ export default function ClinicDashboardPage({ user, onLogout, onBack, onNavigate
       api.getReports(30).then(setRep).catch(() => setRep((x) => x || {}));
     };
     load();
-    const t = setInterval(load, 30000);   // numbers refresh by themselves
-    return () => clearInterval(t);
+    const t = setInterval(load, 20000);   // numbers refresh by themselves
+    window.addEventListener("hub-refresh", load);
+    return () => { clearInterval(t); window.removeEventListener("hub-refresh", load); };
   }, []);
   const lead = user.role === "admin" || !!user.leadership;
   const sum = (k) => (depts || []).reduce((a, d) => a + (d[k] || 0), 0);

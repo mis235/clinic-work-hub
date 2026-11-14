@@ -42,7 +42,8 @@ export default function StaffDashboard({ user, onLogout }) {
   useEffect(() => {
     refresh();
     const id = setInterval(refresh, 8000);
-    return () => clearInterval(id);
+    window.addEventListener("hub-refresh", refresh);
+    return () => { clearInterval(id); window.removeEventListener("hub-refresh", refresh); };
   }, [refresh]);
 
   async function setStatus(taskId, status) {

@@ -43,7 +43,7 @@ export default function RoomsPage({ user, isStaffLayout, onLogout, onBack }) {
   const [date, setDate] = useState("");
   const [note, setNote] = useState("");
   const load = () => api.listRooms(date).then(setData).catch((e) => setError(e.message));
-  useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, [date]);
+  useEffect(() => { load(); const t = setInterval(load, 15000); window.addEventListener("hub-refresh", load); return () => { clearInterval(t); window.removeEventListener("hub-refresh", load); }; }, [date]);
 
   const start = async () => {
     setBusy(true); setError("");

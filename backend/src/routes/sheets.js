@@ -69,7 +69,7 @@ const cache = new Map(); // id -> { at, data }
 router.get("/:id/data", requireAuth, guard, async (req, res) => {
   const s = db.prepare("SELECT * FROM dash_sheets WHERE id = ?").get(req.params.id); if (!s) return res.status(404).json({ error: "Not found" });
   const hit = cache.get(s.id);
-  if (hit && Date.now() - hit.at < 5 * 60000 && !req.query.fresh) return res.json(hit.data);
+  if (hit && Date.now() - hit.at < 50 * 1000 && !req.query.fresh) return res.json(hit.data);
   try {
     const r = await fetch(normalizeSheetUrl(s.url), { redirect: "follow", signal: AbortSignal.timeout(30000) });
     const text = await r.text();

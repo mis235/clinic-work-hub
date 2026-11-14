@@ -4,7 +4,7 @@ import { api } from "../api.js";
 // Admin overview: which procedure rooms are free or in use right now, plus today's count.
 export default function RoomsCard({ onNavigate }) {
   const [d, setD] = useState(null);
-  useEffect(() => { const load = () => api.listRooms().then(setD).catch(() => {}); load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, []);
+  useEffect(() => { const load = () => api.listRooms().then(setD).catch(() => {}); load(); const t = setInterval(load, 15000); window.addEventListener("hub-refresh", load); return () => { window.removeEventListener("hub-refresh", load); clearInterval(t); }; }, []);
   if (!d) return null;
   const busy = d.rooms.filter((r) => r.current).length;
   return (

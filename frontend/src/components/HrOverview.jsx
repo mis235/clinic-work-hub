@@ -9,7 +9,7 @@ export default function HrOverview({ user, onNavigate }) {
   const [d, setD] = useState(null);
   const [pop, setPop] = useState(null);
   const load = () => api.leaveOverview().then(setD).catch(() => {});
-  useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, []);
+  useEffect(() => { load(); const t = setInterval(load, 30000); window.addEventListener("hub-refresh", load); return () => { clearInterval(t); window.removeEventListener("hub-refresh", load); }; }, []);
   useEffect(() => {
     if (!d) return;
     const key = "hrpop-" + new Date().toDateString();
