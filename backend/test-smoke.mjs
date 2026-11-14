@@ -678,6 +678,7 @@ try {
     const am = await call("POST", "/api/auto-messages", { title: "Hi {name}", body: "Happy day {name}", trigger: "daily", time: "00:00" }, admin);
     ok("auto message can be created", am.status === 201);
     ok("auto message appears in list", (await call("GET", "/api/auto-messages", null, admin)).body?.messages?.some((m) => m.id === am.body.id));
+    ok("birthday wishes are ready by default", (await call("GET", "/api/auto-messages", null, admin)).body?.messages?.some((m) => m.trigger === "birthday") && (await call("GET", "/api/auto-messages", null, admin)).body?.messages?.some((m) => m.trigger === "birthday_team"));
     ok("weekly needs a day", (await call("POST", "/api/auto-messages", { title: "a", body: "b", trigger: "weekly" }, admin)).status === 400);
     ok("test-to-me works", (await call("POST", `/api/auto-messages/${am.body.id}/test`, {}, admin)).status === 200);
     await call("DELETE", `/api/auto-messages/${am.body.id}`, null, admin);

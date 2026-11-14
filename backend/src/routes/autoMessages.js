@@ -15,7 +15,7 @@ db.exec(`CREATE TABLE IF NOT EXISTS auto_messages (
   active INTEGER NOT NULL DEFAULT 1, last_run TEXT, created_at TEXT DEFAULT (datetime('now'))
 )`);
 
-export const TRIGGERS = ["daily", "weekly", "once", "birthday", "anniversary", "event"];
+export const TRIGGERS = ["daily", "weekly", "once", "birthday", "birthday_team", "anniversary", "event"];
 const router = Router();
 const canManage = (req) => req.user.roleName === "admin" || accessFor(req.user.userId, req.user.roleName).isHr;
 const guard = (req, res, next) => (canManage(req) ? next() : res.status(403).json({ error: "Only HR or admin can do this" }));
@@ -67,8 +67,22 @@ router.post("/:id/test", requireAuth, guard, (req, res) => {
 });
 export default router;
 
+// Ready on day one: a wish for the birthday person and a "wish them" note for the rest of the team.
+(() => {
+  try {
+    const done = db.prepare("SELECT value FROM app_settings WHERE key = 'auto_msgs_seeded'").get();
+    if (done) return;
+    const add = (title, body, trigger) => db.prepare("INSERT INTO auto_messages (id, title, body, trigger_type, send_time, audience, whatsapp, active) VALUES (?,?,?,?,?,?,?,?)").run(randomUUID(), title, body, trigger, "09:00", "all", 1, 1);
+    if (db.prepare("SELECT COUNT(*) n FROM auto_messages").get().n === 0) {
+      add("Happy Birthday, {name}!", "Dear {name}, wishing you a very happy birthday from all of us at Dr. Nishita's Clinic. Thank you for being part of our family. Have a wonderful day!", "birthday");
+      add("Today is {person}'s birthday", "Hi {name}, today is {person}'s birthday. Please wish them when you meet. A kind word makes their day!", "birthday_team");
+    }
+    db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('auto_msgs_seeded', '1')").run();
+  } catch (e) { console.error("auto message defaults:", e.message); }
+})();
+
 const ist = () => { const d = new Date(Date.now() + 19800000); return { date: d.toISOString().slice(0, 10), hhmm: d.toISOString().slice(11, 16), dow: d.getUTCDay(), md: d.toISOString().slice(5, 10) }; };
-const fill = (t, u, vars) => String(t).replace(/\{name\}/gi, String(u.name || "").trim().split(/\s+/)[0] || "there").replace(/\{event\}/gi, vars.event || "").replace(/\{years\}/gi, vars.years || "");
+const fill = (t, u, vars) => String(t).replace(/\{name\}/gi, String(u.name || "").trim().split(/\s+/)[0] || "there").replace(/\{event\}/gi, vars.event || "").replace(/\{years\}/gi, vars.years || "").replace(/\{person\}/gi, vars.person || "");
 
 function deliver(u, m, { kind, date, vars = {} }) {
   const title = fill(m.title, u, vars), body = fill(m.body, u, vars);
@@ -89,6 +103,15 @@ export function runAutoMessages() {
     if (m.trigger_type === "daily") targets = people;
     else if (m.trigger_type === "weekly") { if (!(m.weekdays || "").split(",").includes(String(t.dow))) continue; targets = people; }
     else if (m.trigger_type === "once") { if (m.once_date !== t.date) continue; targets = people; }
+    else if (m.trigger_type === "birthday_team") {
+      // Someone has a birthday today: everyone else is told so they can wish them.
+      const celebrants = people.filter((u) => u.birthday && String(new Date(u.birthday).toISOString()).slice(5, 10) === t.md);
+      for (const c of celebrants) for (const u of people) {
+        if (u.id === c.id || (m.audience !== "all" && u.department_id !== m.audience)) continue;
+        try { deliver(u, m, { kind: `auto:${m.id}:${c.id}`, date: t.date, vars: { person: c.name } }); } catch (e) { console.error("auto message:", e.message); }
+      }
+      db.prepare("UPDATE auto_messages SET last_run = ? WHERE id = ?").run(t.date, m.id); continue;
+    }
     else if (m.trigger_type === "birthday") targets = people.filter((u) => u.birthday && String(new Date(u.birthday).toISOString()).slice(5, 10) === t.md);
     else if (m.trigger_type === "anniversary") targets = people.filter((u) => { if (!u.joined_at) return false; const d = new Date(u.joined_at); return !Number.isNaN(d.getTime()) && d.toISOString().slice(5, 10) === t.md && Number(t.date.slice(0, 4)) - d.getUTCFullYear() >= 1; });
     else if (m.trigger_type === "event") {

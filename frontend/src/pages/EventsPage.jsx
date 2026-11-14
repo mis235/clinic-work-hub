@@ -56,6 +56,10 @@ export default function EventsPage({ user, onLogout, onBack }) {
           {month !== istMonth() && <button className="btn btn-ghost btn-sm" onClick={() => setMonth(istMonth())}>This month</button>}
         </div>
 
+        {data && month === istMonth() && (() => {
+          const soon = data.items.filter((it) => { const d = Math.round((new Date(`${month}-${String(it.day).padStart(2, "0")}T00:00:00Z`) - new Date(today + "T00:00:00Z")) / 86400000); return d >= 0 && d <= 7; });
+          return soon.length ? <div className="card" style={{ borderLeft: "4px solid #be185d" }}><b>Today and the next 7 days</b>{soon.map((it, i) => <div key={i} className="meta" style={{ marginTop: 4 }}>{it.day} {new Date(`${month}-01T00:00:00Z`).toLocaleDateString("en-IN", { month: "short", timeZone: "UTC" })} · {it.title}</div>)}</div> : null;
+        })()}
         {err && <div className="login-error" style={{ marginBottom: 10 }}>{err}</div>}
         {!data && !err && <div className="empty">Loading…</div>}
         {data && data.items.length === 0 && <div className="empty">Nothing in {data.label}.{canManage && " Use + Add event to add a festival or an important date."}</div>}
@@ -65,11 +69,16 @@ export default function EventsPage({ user, onLogout, onBack }) {
             {data.items.map((it, i) => {
               const [tag, tone, icon] = KIND[it.kind] || KIND.event;
               const date = `${month}-${String(it.day).padStart(2, "0")}`;
+              const dateObj = new Date(date + "T00:00:00Z");
+              const when = dateObj.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+              const diff = Math.round((dateObj - new Date(today + "T00:00:00Z")) / 86400000);
+              const state = diff === 0 ? "Today" : diff === 1 ? "Tomorrow" : diff > 1 ? `In ${diff} days` : "Held";
               return (
                 <div key={i} className="task-row event-row">
-                  <div className={`event-day ${date === today ? "today" : ""}`}><b>{it.day}</b></div>
+                  <div className={`event-day ${date === today ? "today" : ""}`} style={{ flexDirection: "column", lineHeight: 1.1 }}><b>{it.day}</b><span style={{ fontSize: 10 }}>{dateObj.toLocaleDateString("en-IN", { month: "short", timeZone: "UTC" })}</span></div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div className="title">{icon} {it.title}</div>
+                    <div className="meta">📅 {when} · <b style={{ color: diff === 0 ? "#be185d" : undefined }}>{state}</b></div>
                     <div className="meta">{it.kind === "event" ? TYPE_LABEL[it.eventType] + (it.yearly ? " · every year" : "") : tag}</div>
                   </div>
                   {it.kind === "event" && canManage && (

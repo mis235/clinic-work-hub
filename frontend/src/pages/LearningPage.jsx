@@ -13,6 +13,30 @@ const embedUrl = (u = "") => {
   return null;
 };
 
+const shareInfo = (v) => {
+  const link = v.is_upload ? window.location.origin : v.url;
+  const text = `${v.title}${v.folder ? " (" + v.folder + ")" : ""}\n${link}`;
+  return { link, text: v.is_upload ? `${v.title} - training from Dr. Nishita's Clinic. Open the Work Hub app and find it in Training Library.\n${link}` : text };
+};
+// Anyone can pass a training video on: WhatsApp, email or copy the link.
+function ShareMenu({ v, open }) {
+  const { link, text } = shareInfo(v);
+  const [done, setDone] = useState("");
+  const items = (
+    <div style={{ display: "grid", gap: 2, minWidth: 150 }}>
+      <a className="btn btn-ghost btn-sm" href={`https://wa.me/?text=${encodeURIComponent(text)}`} target="_blank" rel="noreferrer">WhatsApp</a>
+      <a className="btn btn-ghost btn-sm" href={`mailto:?subject=${encodeURIComponent("Training: " + v.title)}&body=${encodeURIComponent(text)}`}>Email</a>
+      <button className="btn btn-ghost btn-sm" onClick={async () => { try { await navigator.clipboard.writeText(link); setDone("Copied"); setTimeout(() => setDone(""), 1500); } catch {} }}>{done || "Copy Link"}</button>
+    </div>);
+  if (open) return <div style={{ display: "flex", gap: 6, alignItems: "center" }}><span className="meta">Share:</span>{items.props.children}</div>;
+  return (
+    <details style={{ position: "relative" }}>
+      <summary className="btn btn-outline btn-sm" style={{ listStyle: "none", cursor: "pointer" }}>Share</summary>
+      <div style={{ position: "absolute", right: 0, top: "110%", zIndex: 20, background: "#fff", border: "1px solid var(--line)", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,.12)", padding: 6 }}>{items}</div>
+    </details>
+  );
+}
+
 export default function LearningPage({ user, isStaffLayout, onLogout, onBack }) {
   const [videos, setVideos] = useState(null);
   const [form, setForm] = useState(null); // null | {} (new) | video (edit)
@@ -54,31 +78,20 @@ export default function LearningPage({ user, isStaffLayout, onLogout, onBack }) 
   return (
     <PageShell user={user} active="Learning" title="Training Library" isStaffLayout={isStaffLayout} onLogout={onLogout} onBack={onBack}>
       <div className="page-head row">
-        <div><div className="eyebrow">Knowledge</div><h1>Training Library</h1>
-          <p>Training videos and files, organised in folders by department. {canManage ? "Add a video, a PDF, slides or a sheet (or paste a YouTube / Google Drive link), put it in a folder, then reorder, edit or remove as you like." : "Open what is meant for your department, then tick it off."}</p></div>
+        <div><div className="eyebrow">Knowledge</div><h1>Training Library</h1></div>
         {canManage && <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button className="btn btn-outline" onClick={() => setBulk(true)}>Bulk Add From List</button>
           <button className="btn btn-primary" onClick={() => setForm({})}><Icon name="plus" size={16} /> Add Video / File</button></div>}
       </div>
 
       {videos?.length > 0 && (() => {
-        const me = stat(all), pct = me.n ? Math.round((me.done / me.n) * 100) : 0, nVid = all.filter((v) => v.kind !== "file").length;
-        const tile = (num, label) => <div style={{ flex: "1 1 130px", background: "#fff", border: "1px solid var(--line)", borderRadius: 14, padding: "12px 14px" }}><div style={{ fontSize: 24, fontWeight: 800 }}>{num}</div><div className="meta">{label}</div></div>;
         return (
           <div style={{ marginBottom: 14 }}>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              {tile(all.length, "Total Items")}{tile(nVid, "Videos")}{tile(all.length - nVid, "Files & Documents")}{tile(departments.length, "Departments")}
-              <div style={{ flex: "2 1 220px", background: "#fff", border: "1px solid var(--line)", borderRadius: 14, padding: "12px 14px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}><b>My Progress</b><b>{pct}%</b></div>
-                <div style={{ height: 8, borderRadius: 99, background: "var(--surface-sunk, #f1f5f9)", margin: "8px 0 4px", overflow: "hidden" }}><div style={{ width: pct + "%", height: "100%", background: "var(--primary, #be185d)" }} /></div>
-                <div className="meta">{me.done} of {me.n} watched or read</div>
-              </div>
-            </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "12px 0 8px" }}>
               <input className="field" style={{ flex: "1 1 220px", maxWidth: 360, margin: 0 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search videos, folders, topics…" />
               <button className={`btn btn-sm ${deptF ? "btn-outline" : "btn-primary"}`} onClick={() => setDeptF("")}>All</button>
               {departments.map((d) => { const st = stat(all.filter((v) => v.department === d)); return (
-                <button key={d} className={`btn btn-sm ${deptF === d ? "btn-primary" : "btn-outline"}`} onClick={() => setDeptF(deptF === d ? "" : d)}>{d} · {st.done}/{st.n}</button>); })}
+                <button key={d} className={`btn btn-sm ${deptF === d ? "btn-primary" : "btn-outline"}`} onClick={() => setDeptF(deptF === d ? "" : d)}>{d} · {st.n}</button>); })}
             </div>
             {shown.length === 0 && <div className="empty">Nothing matches. Clear the search or choose All.</div>}
           </div>);
@@ -107,8 +120,7 @@ export default function LearningPage({ user, isStaffLayout, onLogout, onBack }) 
                       {v.kind === "file" && v.file_name && <div className="meta">{v.file_name}</div>}
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                      {v.watchedByMe ? <span className="badge done">✓ {v.kind === "file" ? "Read" : "Watched"}</span>
-                        : <button className="btn btn-outline btn-sm" onClick={() => markWatched(v.id)}>{v.kind === "file" ? "Mark Read" : "Mark Watched"}</button>}
+                      <ShareMenu v={v} />
                       {canManage && (
                         <details style={{ position: "relative" }}>
                           <summary className="btn btn-ghost btn-sm" style={{ listStyle: "none", cursor: "pointer" }}>⋯</summary>
@@ -136,7 +148,7 @@ export default function LearningPage({ user, isStaffLayout, onLogout, onBack }) 
               : embedUrl(playing.url) ? <iframe title={playing.title} src={embedUrl(playing.url)} allow="autoplay; fullscreen" allowFullScreen style={{ width: "100%", aspectRatio: "16/9", border: 0, borderRadius: 12, marginTop: 12 }} />
               : <p className="lead" style={{ marginTop: 12 }}>This link opens on its own page: <a href={playing.url} target="_blank" rel="noreferrer">{playing.url}</a></p>}
             <div className="actions">
-              {!playing.watchedByMe && <button className="btn btn-outline" onClick={async () => { await markWatched(playing.id); setPlaying(null); }}>Mark as watched</button>}
+              <ShareMenu v={playing} open />
               <button className="btn btn-primary" onClick={() => setPlaying(null)}>Close</button>
             </div>
           </div>

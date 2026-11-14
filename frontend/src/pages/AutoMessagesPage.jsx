@@ -6,11 +6,12 @@ import MobileTopBar from "../components/MobileTopBar.jsx";
 
 const WHEN = {
   daily: "Every day", weekly: "On certain days of the week", once: "One date only",
-  birthday: "On each person's birthday", anniversary: "On each person's work anniversary", event: "On festival / event days (from Events & Culture)",
+  birthday: "On each person's birthday (goes to the birthday person)", birthday_team: "When someone has a birthday (goes to everyone else)", anniversary: "On each person's work anniversary", event: "On festival / event days (from Events & Culture)",
 };
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const IDEAS = [
   { title: "Happy Birthday, {name}!", body: "Dear {name}, wishing you a very happy birthday from all of us at Dr. Nishita's Clinic. Thank you for being part of our family. Have a wonderful day!", trigger: "birthday", time: "09:00" },
+  { title: "Today is {person}'s birthday", body: "Hi {name}, today is {person}'s birthday. Please wish them when you meet. A kind word makes their day!", trigger: "birthday_team", time: "09:00" },
   { title: "Happy Work Anniversary!", body: "Hi {name}, congratulations on completing {years} year(s) with us. We are grateful for your hard work and care for our patients.", trigger: "anniversary", time: "09:00" },
   { title: "Happy {event}!", body: "Dear {name}, wishing you and your family a very happy {event} from Dr. Nishita's Clinic.", trigger: "event", time: "08:30" },
   { title: "Good Morning Team", body: "Good morning {name}. Please check your tasks and shift checklist for today. Have a great day!", trigger: "daily", time: "08:45" },
@@ -82,7 +83,7 @@ export default function AutoMessagesPage({ user, onLogout, onBack }) {
               <input className="field" value={form.title} onChange={set("title")} placeholder="e.g. Happy Birthday, {name}!" />
               <label className="field-label">Message</label>
               <textarea className="field" rows={5} value={form.body} onChange={set("body")} placeholder="Write the message. {name} becomes each person's first name." />
-              <div className="meta" style={{ marginTop: 4 }}>Use <b>{"{name}"}</b> for the first name, <b>{"{years}"}</b> for work anniversary years, <b>{"{event}"}</b> for the festival name.</div>
+              <div className="meta" style={{ marginTop: 4 }}>Use <b>{"{name}"}</b> for the first name, <b>{"{years}"}</b> for work anniversary years, <b>{"{event}"}</b> for the festival name, <b>{"{person}"}</b> for the birthday person (team message).</div>
               <label className="field-label">When should it go?</label>
               <select className="field" value={form.trigger} onChange={set("trigger")}>{Object.entries(WHEN).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
               {form.trigger === "weekly" && (
