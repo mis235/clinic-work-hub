@@ -8,6 +8,7 @@ import { sendEmail, isEmailConfigured } from "./email.js";
 import { syncChecklistSheet } from "./routes/shiftChecklist.js";
 import { generatePayslipPdf } from "./payslip-pdf.js";
 import { randomUUID } from "node:crypto";
+import { pullDashboard } from "./routes/clinicAi.js";
 import { runAutoMessages } from "./routes/autoMessages.js";
 
 function computeNet(p) {
@@ -130,6 +131,8 @@ export function startScheduledJobs() {
   setTimeout(() => syncChecklistSheet().catch(() => {}), 20000).unref();
 
   cron.schedule("* * * * *", () => { try { runAutoMessages(); } catch (e) { console.error("Auto messages:", e.message); } }, { timezone: "Asia/Kolkata" });
+
+  cron.schedule("*/20 * * * *", () => { pullDashboard().catch(() => {}); }, { timezone: "Asia/Kolkata" });   // patient dashboard follows its Drive file
 
   const payrollSchedule = process.env.PAYROLL_CRON || "0 9 1 * *"; // 9am on the 1st of each month
   const digestSchedule = process.env.CHECKLIST_DIGEST_CRON || "0 8 * * *"; // 8am daily

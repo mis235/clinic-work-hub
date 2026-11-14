@@ -2,6 +2,9 @@ import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import db from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { sendEmail, isEmailConfigured } from "../email.js";
+import { sendViaTelecrm } from "../telecrm.js";
+import "../engage.js";
 import { audit } from "../audit.js";
 import { payslipExtras } from "./leave.js";
 
@@ -61,6 +64,29 @@ router.get("/summary", requireAuth, (req, res) => {
   res.json({ month, rows, total: rows.reduce((s, r) => s + r.total, 0) });
 });
 
+// The person who is fined is told straight away: app banner, email (if set up) and WhatsApp (if TeleCRM is connected).
+function tellStaff(userId, fineId, date, reason, amount, note) {
+  try {
+    const u = db.prepare("SELECT id, name, email, phone FROM users WHERE id = ?").get(userId); if (!u) return;
+    const first = String(u.name || "").trim().split(/\s+/)[0] || "there";
+    const nice = new Date(date + "T00:00:00Z").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+    const title = "A Fine Has Been Added";
+    const body = `Hi ${first}, a fine of ₹${amount} has been added on ${nice} for: ${reason}.${note ? " Note: " + String(note).slice(0, 200) + "." : ""} It will be taken from this month's salary. If you think this is a mistake, please speak to HR.`;
+    const r = db.prepare("INSERT OR IGNORE INTO staff_messages (id, user_id, kind, msg_date, title, body, email_status) VALUES (?,?,?,?,?,?,?)")
+      .run(randomUUID(), u.id, "fine:" + fineId, date, title, body, u.email ? (isEmailConfigured() ? "sending" : "email not set up") : "no email address");
+    if (!r.changes) return;
+    if (u.email && isEmailConfigured()) sendEmail({ to: u.email, subject: title, html: `<p>${body}</p><p style="color:#666">Dr. Nishita's Clinic</p>` }).catch(() => {});
+    sendViaTelecrm({ name: u.name, phone: u.phone, message: `${title}: ${body}`, event: "fine" });
+  } catch (e) { console.error("fine notice:", e.message); }
+}
+
+// Staff: my own fines (this month and the last two) so there are no surprises on payday.
+router.get("/mine", requireAuth, (req, res) => {
+  const rows = db.prepare(`SELECT f.id, f.fine_date, f.category, f.amount, f.note FROM fines f WHERE f.user_id = ? AND f.fine_date >= date('now', '+5 hours', '30 minutes', 'start of month', '-2 months') ORDER BY f.fine_date DESC, f.created_at DESC`).all(req.user.userId)
+    .map((r) => ({ ...r, reason: FINE_CATEGORIES.find((c) => c.key === r.category)?.label || r.category }));
+  res.json({ rows, thisMonth: rows.filter((r) => r.fine_date.slice(0, 7) === thisMonth()).reduce((a, r) => a + r.amount, 0) });
+});
+
 router.post("/", requireAuth, (req, res) => {
   if (req.user.roleName !== "admin") return res.status(403).json({ error: "Only the admin can add a fine" });
   const { userId, category, amount, note, date } = req.body || {};
@@ -75,6 +101,7 @@ router.post("/", requireAuth, (req, res) => {
   db.prepare("INSERT INTO fines (id, user_id, fine_date, category, amount, note, added_by) VALUES (?,?,?,?,?,?,?)")
     .run(id, staff.id, fineDate, cat.key, amt, note ? String(note).slice(0, 300) : null, req.user.userId);
   audit({ userId: req.user.userId, action: "FINE_ADDED", detail: `${staff.name} ${cat.key} ${amt}` });
+  tellStaff(staff.id, id, fineDate, cat.label, amt, note);
   res.status(201).json(db.prepare("SELECT * FROM fines WHERE id = ?").get(id));
 });
 

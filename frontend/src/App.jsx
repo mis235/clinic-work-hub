@@ -24,6 +24,7 @@ import ConnectedToolPage from "./pages/ConnectedToolPage.jsx";
 import ClinicAIPage from "./pages/ClinicAIPage.jsx";
 import AttendancePage from "./pages/AttendancePage.jsx";
 import ExitsPage from "./pages/ExitsPage.jsx";
+import OnboardingPage from "./pages/OnboardingPage.jsx";
 import ClinicDashboardPage from "./pages/ClinicDashboardPage.jsx";
 import DepartmentsPage from "./pages/DepartmentsPage.jsx";
 import DocumentsPage from "./pages/DocumentsPage.jsx";
@@ -93,7 +94,8 @@ function MainApp() {
     if (view === "system" && user.role === "admin") return <SystemPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "clinicassistant") return <ClinicAIPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "dashboards") return <ClinicDashboardPage user={user} onLogout={logout} onBack={navigate} onNavigate={navigate} />;
-    if (view === "exits" && user.role === "admin") return <ExitsPage user={user} onLogout={logout} onBack={navigate} />;
+    if (view === "exits" && (user.role === "admin" || user.isHr)) return <ExitsPage user={user} onLogout={logout} onBack={navigate} />;
+    if (view === "onboarding" && (user.role === "admin" || user.isHr)) return <OnboardingPage user={user} onLogout={logout} onBack={navigate} onOpenProfile={() => navigate("Staff")} />;
     if (view === "leave") return <LeavePage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "attendance") return <AttendancePage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "departments") return <DepartmentsPage user={user} onLogout={logout} onBack={navigate} onOpenProfile={(id) => openProfile(id, "Departments")} />;

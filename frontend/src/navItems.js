@@ -9,7 +9,7 @@ export const NAV = {
   "Procedure Rooms":  { label: "Procedure Rooms",     icon: "clipboard" },
   "Departments":      { label: "Departmental Workspaces", icon: "users" },
   "My Workspace":     { label: "My Workspace",        icon: "file" },
-  "Exits":            { label: "Staff Exit Process",  icon: "userplus" },
+  "Exits":            { label: "Offboarding (Staff Exit)",  icon: "userplus" },
   "Staff":            { label: "Staff Profiles",      icon: "users" },
   "My Profile":       { label: "My Profile",          icon: "user" },
   "Leave":            { label: "Leave & HR",          icon: "calendarCheck" },
@@ -27,7 +27,7 @@ export const NAV = {
   "Clinic Assistant": { label: "Lumi — Clinic Assistant", icon: "bot" },
   "Assistant":        { label: "Ask Work Hub",        icon: "sparkles" },
   "System":           { label: "System & Backups",    icon: "shield" },
-  "Onboarding":       { label: "Staff Onboarding",    icon: "userplus" },
+  "Onboarding":       { label: "Onboarding (New Staff)",    icon: "userplus" },
 };
 
 // One place for each job. Admin sees: Home / People / Insights / Knowledge / Assistants / Admin.
@@ -35,8 +35,7 @@ export const NAV_GROUPS = [
   { title: "Home",            keys: ["Dashboard", "My checklist"] },
   { title: "Daily Work",      keys: ["Shift Checklist", "Tracker", "Attendance", "Procedure Rooms"] },
   { title: "Workspaces",      keys: ["Departments", "My Workspace"] },
-  { title: "Staff",           keys: ["Staff", "Exits", "My Profile"] },
-  { title: "Leave & Payroll", keys: ["Leave", "Payroll", "HR"] },
+  { title: "HR",              keys: ["Staff", "Onboarding", "HR", "Leave", "Payroll", "Exits", "My Profile"] },
   { title: "Insights",        keys: ["Reports", "Dashboards", "Sheets"] },
   { title: "Knowledge",       keys: ["Documents", "Policies", "SOPs", "Learning", "Events", "Auto Messages"] },
   { title: "Assistants",      keys: ["Clinic Assistant", "Assistant"] },
@@ -46,7 +45,7 @@ export const NAV_GROUPS = [
 export function navItemsFor(user) {
   // Insights, Knowledge and the Clinic Chatbot are for the leadership team only (admin + people the admin ticks: MIS, COS, COE, doctors).
   const lead = user.role === "admin" || !!user.leadership;
-  if (user.role === "admin") return ["Dashboard", "Attendance", "Procedure Rooms", "Dashboards", "Sheets", "Departments", "Staff", "Exits", "Leave", "Payroll", "HR", "Documents", "Policies", "SOPs", "Learning", "Events", "Auto Messages", "Clinic Assistant", "Assistant", "System"];
-  if (user.role === "manager") return ["Dashboard", "Shift Checklist", "Procedure Rooms", ...(user.isHr ? ["Attendance", "Staff", "Payroll", "HR", "Exits", "Events", "Auto Messages"] : []), "Dashboards", "Departments", "Leave", ...(lead ? ["Reports", "Sheets", "Documents", "Policies", "SOPs", "Learning", ...(user.isHr ? [] : ["Events"]), "Clinic Assistant"] : []), "Assistant"];
+  if (user.role === "admin") return ["Dashboard", "Attendance", "Procedure Rooms", "Dashboards", "Sheets", "Departments", "Staff", "Onboarding", "HR", "Leave", "Payroll", "Exits", "Documents", "Policies", "SOPs", "Learning", "Events", "Auto Messages", "Clinic Assistant", "Assistant", "System"];
+  if (user.role === "manager") return ["Dashboard", "Shift Checklist", "Procedure Rooms", ...(user.isHr ? ["Attendance", "Staff", "Onboarding", "HR", "Payroll", "Exits", "Events", "Auto Messages"] : []), "Dashboards", "Departments", "Leave", ...(lead ? ["Reports", "Sheets", "Documents", "Policies", "SOPs", "Learning", ...(user.isHr ? [] : ["Events"]), "Clinic Assistant"] : []), "Assistant"];
   return ["My checklist", "Shift Checklist", ...(user.roomsAccess ? ["Procedure Rooms"] : []), "Tracker", "My Workspace", "My Profile", "Leave", ...(lead ? ["Dashboards", "Reports", "Sheets", "Documents", "Policies", "SOPs", "Learning", "Events", "Clinic Assistant"] : []), "Assistant"];
 }

@@ -36,7 +36,7 @@ export default function ClinicDashboardPage({ user, onLogout, onBack, onNavigate
         <div className="live-chip"><span className="live-dot" /> Live · {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}</div>
       </div>
       <div className="pill-row dash-tabs">
-        {[["checklist", "Checklists", "tasks", true], ["live", "Clinic Overview", "chart", lead], ["patients", "Patients", "users", lead], ["chat", "Ask Lumi", "bot", lead]].filter((t) => t[3]).map(([k, label, icon]) => (
+        {[["checklist", "Checklists", "tasks", true], ["patients", "Patients", "users", lead], ["chat", "Ask Lumi", "bot", lead]].filter((t) => t[3]).map(([k, label, icon]) => (
           <button key={k} className={`pill ${tab === k ? "active" : ""}`} onClick={() => setTab(k)}><Icon name={icon} size={15} /> {label}</button>
         ))}
       </div>
@@ -90,6 +90,11 @@ function PatientDashboard({ user }) {
   const [busy, setBusy] = useState(false);
   const [full, setFull] = useState(false);
   const [updated, setUpdated] = useState(null);
+  const [srcInfo, setSrcInfo] = useState(null), [srcUrl, setSrcUrl] = useState("");
+  const loadSrc = () => user.role === "admin" && api.patientDashSource().then((d) => { setSrcInfo(d); setSrcUrl(d.url || ""); }).catch(() => {});
+  useEffect(() => { loadSrc(); }, []);
+  async function saveSrc() { setMsg("Checking the Drive link…"); try { const r = await api.savePatientDashSource(srcUrl.trim()); setMsg(r.message || "Saved."); await loadSrc(); await load(); } catch (e) { setMsg(e.message); } }
+  async function pullNow() { setMsg("Updating from Drive…"); try { const r = await api.pullPatientDash(); setMsg(r.message); await loadSrc(); await load(); } catch (e) { setMsg(e.message); } }
   const wrap = useRef(null);
   const [w, setW] = useState(1280);
   useEffect(() => {
@@ -130,6 +135,17 @@ function PatientDashboard({ user }) {
           <label className="btn btn-outline btn-sm" style={{ cursor: "pointer" }}>{src ? "Replace dashboard file" : "Upload dashboard file"}
             <input type="file" accept=".html,text/html" onChange={upload} disabled={busy} style={{ display: "none" }} /></label>
           <span className="meta">Uploaded file: {updated ? updated.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "none yet"}. After you change the dashboard, download the new .html and press Replace. The patient data stays on your server.</span>
+        </div>)}
+      {user.role === "admin" && !full && (
+        <div style={{ border: "1px dashed var(--line)", borderRadius: 12, padding: "10px 12px", marginBottom: 10 }}>
+          <b style={{ fontSize: 13.5 }}>Auto-update from Google Drive</b>
+          <div className="meta">Save the dashboard .html from your Claude "Clinic Dashboard" project into one Drive file (Anyone with the link, Viewer) and paste its link here. The app checks it every 20 minutes.</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+            <input className="field" style={{ flex: "1 1 280px", margin: 0 }} value={srcUrl} onChange={(e) => setSrcUrl(e.target.value)} placeholder="https://drive.google.com/file/d/…" />
+            <button className="btn btn-primary btn-sm" onClick={saveSrc}>Save Link</button>
+            {srcInfo?.url && <button className="btn btn-outline btn-sm" onClick={pullNow}>Update Now</button>}
+          </div>
+          {srcInfo?.status && <div className="meta" style={{ marginTop: 6 }}>Last check {new Date(srcInfo.status.at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}: {srcInfo.status.message}</div>}
         </div>)}
       {msg && <div className="meta" style={{ marginBottom: 8 }}>{msg}</div>}
       {src && (() => {

@@ -654,6 +654,16 @@ try {
     ok("popup shows a task only once", ((await call("GET", "/api/tasks/unseen", null, stoken)).body || []).length === 0);
     ok("proof photo rejects a non-image", (await call("POST", `/api/tasks/${mk.body.id}/proof`, {}, stoken)).status === 400);
   }
+  { // fines notify staff + patient dashboard source
+    const f = await call("POST", "/api/fines", { userId: staff.id, category: "late", amount: 100 }, admin);
+    ok("fine can be added", f.status === 201);
+    const mine = await call("GET", "/api/fines/mine", null, stoken);
+    ok("fined staff can see their own fine", mine.status === 200 && mine.body.rows.some((r) => r.id === f.body.id));
+    const note = await call("GET", "/api/messages/mine", null, stoken);
+    ok("fined staff gets a notice banner", Array.isArray(note.body) && note.body.some((n) => /fine/i.test(n.title)));
+    await call("DELETE", `/api/fines/${f.body.id}`, null, admin);
+    ok("dashboard source rejects non-drive link", (await call("PUT", "/api/clinic-ai/patient-dashboard/source", { url: "http://x.test/a" }, admin)).status === 400);
+  }
   { // sheets dashboard
     const sh = await call("POST", "/api/sheets", { title: "T", category: "C", url: "https://docs.google.com/spreadsheets/d/abc123/edit#gid=0" }, admin);
     ok("sheet can be added", sh.status === 201);

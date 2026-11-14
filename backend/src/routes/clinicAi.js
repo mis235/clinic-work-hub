@@ -74,6 +74,42 @@ router.get("/patient-dashboard", requireAuth, requireLeadership, (req, res) => {
   res.setHeader("X-File-Updated", fs.statSync(PD_FILE).mtime.toISOString());
   res.send(fs.readFileSync(PD_FILE));
 });
+// Keep the dashboard in step with the Claude "Clinic Dashboard" project: the finished .html is saved to a Google Drive file
+// (shared "Anyone with the link") and the app pulls it by itself, so nobody has to download and upload it each time.
+const sget = (k) => db.prepare("SELECT value FROM app_settings WHERE key = ?").get(k)?.value || "";
+const sput = (k, v) => db.prepare("INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(k, v);
+const driveId = (u) => /\/d\/([A-Za-z0-9_-]{15,})|[?&]id=([A-Za-z0-9_-]{15,})/.exec(String(u || "")) ;
+export async function pullDashboard() {
+  const url = sget("pd_source"); if (!url) return { ok: false, message: "No Drive link saved yet." };
+  const m = driveId(url); const id = m && (m[1] || m[2]);
+  const status = (message, ok = false, changed = false) => { sput("pd_pull_status", JSON.stringify({ at: new Date().toISOString(), ok, message, changed })); return { ok, message, changed }; };
+  if (!id) return status("That is not a Google Drive file link.");
+  try {
+    const r = await fetch(`https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t`, { redirect: "follow", signal: AbortSignal.timeout(60000) });
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (!r.ok || buf.length < 200 || !/<html|<!doctype/i.test(buf.subarray(0, 2000).toString("utf8"))) return status("Could not read it. In Google Drive set the file to Anyone with the link, Viewer.");
+    fs.mkdirSync(PD_DIR, { recursive: true });
+    const same = fs.existsSync(PD_FILE) && fs.readFileSync(PD_FILE).equals(buf);
+    if (!same) fs.writeFileSync(PD_FILE, buf);
+    return status(same ? "Already the latest." : "Updated from Drive.", true, !same);
+  } catch (e) { return status("Could not reach Drive: " + e.message); }
+}
+router.get("/patient-dashboard/source", requireAuth, (req, res) => {
+  if (req.user.roleName !== "admin") return res.status(403).json({ error: "Admin only" });
+  let st = null; try { st = JSON.parse(sget("pd_pull_status") || "null"); } catch {}
+  res.json({ url: sget("pd_source"), status: st });
+});
+router.put("/patient-dashboard/source", requireAuth, async (req, res) => {
+  if (req.user.roleName !== "admin") return res.status(403).json({ error: "Admin only" });
+  const url = String(req.body?.url || "").trim();
+  if (url && !driveId(url)) return res.status(400).json({ error: "Paste the Google Drive link of the dashboard .html file" });
+  sput("pd_source", url);
+  res.json(url ? await pullDashboard() : { ok: true, message: "Auto-update turned off." });
+});
+router.post("/patient-dashboard/pull", requireAuth, async (req, res) => {
+  if (req.user.roleName !== "admin") return res.status(403).json({ error: "Admin only" });
+  res.json(await pullDashboard());
+});
 router.put("/patient-dashboard", requireAuth, express.raw({ type: "*/*", limit: "40mb" }), (req, res) => {
   if (req.user.roleName !== "admin") return res.status(403).json({ error: "Only the admin can upload this." });
   const buf = req.body;
