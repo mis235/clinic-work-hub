@@ -426,6 +426,7 @@ CREATE TABLE IF NOT EXISTS app_links (
 );
 `);
 db.prepare("INSERT OR IGNORE INTO app_links (key, title, url, audience) VALUES (?, ?, ?, ?)").run("assistant", "Clinic Assistant", "http://72.60.101.59:3005", "all");
+db.prepare("INSERT OR IGNORE INTO app_links (key, title, url, audience) VALUES (?, ?, ?, ?)").run("patient_live", "Patients Dashboard (live link)", "", "lead");
 db.prepare("INSERT OR IGNORE INTO app_links (key, title, url, audience) VALUES (?, ?, ?, ?)").run("dashboard", "Clinic Dashboards", "https://claude.ai/code/artifact/c04a5c65-a3ee-4deb-be45-01658e364d8d", "lead");
 db.prepare("INSERT OR IGNORE INTO app_links (key, title, url, audience) VALUES (?, ?, ?, ?)").run("checklist_dashboard", "Checklist Dashboard", "https://script.google.com/a/macros/drnishitaranka.com/s/AKfycbykM1B3b4PZGN7wdWn4lxE6GjLnl-uwtrhgwtldX4m4HzVZd4XKoJW2L-CgOZqded8/exec?dashboard=1", "lead");
 ensureColumn("documents", "staff_user_id", "staff_user_id TEXT REFERENCES users(id)");  // set = a personal HR file (ID proof, certificates...) visible to admin + that person only

@@ -552,9 +552,9 @@ linksRouter.get("/:key/check", requireAuth, async (req, res) => {
 });
 linksRouter.put("/:key", requireAuth, adminOnly, (req, res) => {
   const { url, title } = req.body || {};
-  if (!/^https?:\/\//i.test(url || "")) return res.status(400).json({ error: "The address must start with http:// or https://" });
+  if (!(req.params.key === "patient_live" && url === "") && !/^https?:\/\//i.test(url || "")) return res.status(400).json({ error: "The address must start with http:// or https://" });
   const cur = db.prepare("SELECT * FROM app_links WHERE key = ?").get(req.params.key);
   if (!cur) return res.status(404).json({ error: "Unknown tool" });
-  db.prepare("UPDATE app_links SET url = ?, title = ?, updated_at = datetime('now') WHERE key = ?").run(url.trim(), (title || cur.title).trim(), cur.key);
+  db.prepare("UPDATE app_links SET url = ?, title = ?, updated_at = datetime('now') WHERE key = ?").run(String(url).trim(), (title || cur.title).trim(), cur.key);
   res.json({ ok: true });
 });

@@ -91,6 +91,10 @@ function PatientDashboard({ user }) {
   const [full, setFull] = useState(false);
   const [updated, setUpdated] = useState(null);
   const [srcInfo, setSrcInfo] = useState(null), [srcUrl, setSrcUrl] = useState("");
+  const [live, setLive] = useState(""), [liveIn, setLiveIn] = useState(""), [liveOk, setLiveOk] = useState(null);
+  const loadLive = () => api.listLinks().then((l) => { const u = (l.find((r) => r.key === "patient_live") || {}).url || ""; setLive(u); setLiveIn(u); if (u) api.checkLink("patient_live").then((c) => setLiveOk(c.canEmbed !== false)).catch(() => setLiveOk(null)); }).catch(() => {});
+  useEffect(() => { loadLive(); }, []);
+  async function saveLive(clear) { try { await api.setLink("patient_live", { url: clear ? "" : liveIn.trim(), title: "Patients Dashboard (live link)" }); setMsg(clear ? "Live link removed. The uploaded file is shown again." : "Live link saved."); await loadLive(); } catch (e) { setMsg(e.message); } }
   const loadSrc = () => user.role === "admin" && api.patientDashSource().then((d) => { setSrcInfo(d); setSrcUrl(d.url || ""); }).catch(() => {});
   useEffect(() => { loadSrc(); }, []);
   async function saveSrc() { setMsg("Checking the Drive link…"); try { const r = await api.savePatientDashSource(srcUrl.trim()); setMsg(r.message || "Saved."); await loadSrc(); await load(); } catch (e) { setMsg(e.message); } }
@@ -145,10 +149,26 @@ function PatientDashboard({ user }) {
             <button className="btn btn-primary btn-sm" onClick={saveSrc}>Save Link</button>
             {srcInfo?.url && <button className="btn btn-outline btn-sm" onClick={pullNow}>Update Now</button>}
           </div>
+          <div style={{ borderTop: "1px solid var(--line)", margin: "10px 0 8px" }} />
+          <b style={{ fontSize: 13.5 }}>Or show a live link (always the latest)</b>
+          <div className="meta">Paste the web link of a dashboard that is already live, such as a Looker Studio report or a published page. It then shows here instead of the file.</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+            <input className="field" style={{ flex: "1 1 280px", margin: 0 }} value={liveIn} onChange={(e) => setLiveIn(e.target.value)} placeholder="https://…" />
+            <button className="btn btn-primary btn-sm" onClick={() => saveLive(false)}>Save Live Link</button>
+            {live && <button className="btn btn-ghost btn-sm" onClick={() => saveLive(true)}>Remove</button>}
+          </div>
           {srcInfo?.status && <div className="meta" style={{ marginTop: 6 }}>Last check {new Date(srcInfo.status.at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}: {srcInfo.status.message}</div>}
         </div>)}
       {msg && <div className="meta" style={{ marginBottom: 8 }}>{msg}</div>}
-      {src && (() => {
+      {live && (
+        <div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8, alignItems: "center" }}>
+            <a className="btn btn-outline btn-sm" href={live} target="_blank" rel="noreferrer">Open in new tab</a>
+            {liveOk === false && <span className="meta" style={{ color: "#b91c1c" }}>This link does not allow being shown inside the app. Use Open in new tab, or ask for an embed link.</span>}
+          </div>
+          {liveOk !== false && <iframe title="Live dashboard" src={live} allow="fullscreen" style={{ width: "100%", height: full ? "calc(100vh - 130px)" : Math.max(620, window.innerHeight - 190), border: 0, borderRadius: 12, background: "#fff" }} />}
+        </div>)}
+      {!live && src && (() => {
         const DESIGN = Math.max(1240, w), scale = Math.min(1, w / DESIGN), h = full ? Math.max(560, window.innerHeight - 80) : Math.max(620, window.innerHeight - 170);
         return (
           <div ref={wrap} style={{ width: "100%", height: h, overflow: "hidden", borderRadius: 12, flex: full ? 1 : undefined }}>

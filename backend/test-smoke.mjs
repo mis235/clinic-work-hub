@@ -249,7 +249,7 @@ try {
   ok("staff cannot import history", (await form("POST", "/api/shift-checklist/import", fd, stoken)).status === 403);
 
   const lk = await call("GET", "/api/links", null, admin), lks = await call("GET", "/api/links", null, stoken);
-  ok("connected tools: admin sees assistant + dashboards, staff only the assistant", lk.body?.length === 3 && lks.body?.length === 1 && lks.body[0].key === "assistant");
+  ok("connected tools: admin sees assistant + dashboards, staff only the assistant", lk.body?.length === 4 && lks.body?.length === 1 && lks.body[0].key === "assistant");
   ok("only admin can change a tool address", (await call("PUT", "/api/links/assistant", { url: "https://x.example" }, stoken)).status === 403 && (await call("PUT", "/api/links/assistant", { url: "http://72.60.101.59:3005" }, admin)).status === 200);
 
   // Staff exit workflow
