@@ -8,7 +8,6 @@ import ReportsPage from "./pages/ReportsPage.jsx";
 import AboutPage from "./pages/AboutPage.jsx";
 import LearningPage from "./pages/LearningPage.jsx";
 import EventsPage from "./pages/EventsPage.jsx";
-import SheetsPage from "./pages/SheetsPage.jsx";
 import AutoMessagesPage from "./pages/AutoMessagesPage.jsx";
 import LeavePage from "./pages/LeavePage.jsx";
 import OfferLettersPage from "./pages/OfferLettersPage.jsx";
@@ -36,7 +35,7 @@ import ChangePinModal from "./components/ChangePinModal.jsx";
 
 const VIEW_KEY = {
   "Dashboard": "dashboard", "AI Advisors": "assistant", "Policies": "policies", "SOPs": "sops", "Reports": "reports",
-  "About": "about", "Learning": "learning", "Events": "events", "Auto Messages": "automessages", "Sheets": "sheets", "HR": "hr", "Payroll": "payroll", "Staff": "staff",
+  "About": "about", "Learning": "learning", "Events": "events", "Auto Messages": "automessages", "HR": "hr", "Payroll": "payroll", "Staff": "staff",
   "Assistant": "assistant", "Tracker": "tracker", "Shift Checklist": "shiftchecklist", "Procedure Rooms": "rooms", "Shift Logs": "dashboards", "Onboarding": "onboarding", "System": "system", "Attendance": "attendance", "Clinic Assistant": "clinicassistant", "Dashboards": "dashboards", "Documents": "documents", "Departments": "departments", "Roster": "roster", "Exits": "exits", "Leave": "leave", "My Profile": "myprofile",
 };
 
@@ -111,7 +110,6 @@ function MainApp() {
     if (view === "reports") return <ReportsPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "about") return <AboutPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "learning") return <LearningPage user={user} onLogout={logout} onBack={navigate} />;
-    if (view === "sheets") return <SheetsPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "automessages") return <AutoMessagesPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "events") return <EventsPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "hr" && user.role === "admin") return <OfferLettersPage user={user} onLogout={logout} onBack={navigate} />;
