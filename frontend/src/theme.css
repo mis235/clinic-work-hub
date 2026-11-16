@@ -640,3 +640,8 @@ button:active:not(:disabled) { transform: scale(.97); }
 .kpi-v { font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
 .mini-bar { display: inline-block; width: 60px; height: 6px; border-radius: 4px; background: var(--line, #f0d9ea); overflow: hidden; vertical-align: middle; }
 .mini-bar > span { display: block; height: 100%; background: var(--primary); }
+
+.reg-table .reg-time { font-size: 10px; font-weight: 600; color: var(--ink-soft, #475569); line-height: 1.15; }
+.reg-table .reg-time.out { opacity: .75; }
+.reg-table .reg-late { font-size: 9.5px; color: #b91c1c; font-weight: 700; }
+.reg-table td { min-width: 38px; vertical-align: top; }

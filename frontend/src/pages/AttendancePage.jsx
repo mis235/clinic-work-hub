@@ -11,6 +11,7 @@ const CYCLE = ["", "P", "L", "A", "H", "LV", "W"];
 const CUTOFF = "2026-11-18"; // from Wednesday: Present / Late / Half day only from check-in times
 const CYCLE_AFTER = ["", "A", "LV", "W"];
 const t12 = (t) => { const [h, m] = String(t).split(":").map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
+const short = (t) => String(t).replace(/^0/, "");
 const shiftDay = (d, n) => new Date(new Date(d + "T00:00:00Z").getTime() + n * 86400000).toISOString().slice(0, 10);
 
 // Attendance is marked by the admin / manager (like the paper register). Staff do not check in on the app.
@@ -18,8 +19,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
   const [date, setDate] = useState(todayIST());
   const [board, setBoard] = useState(null);
   const [reg, setReg] = useState(null);
-  const [tab, setTab] = useState("time");
-  const [ts, setTs] = useState(null);
+  const [tab, setTab] = useState("register");
   const [fix, setFix] = useState(null);
   const [preset, setPreset] = useState(null);
   const [toast, setToast] = useState("");
@@ -28,7 +28,6 @@ export default function AttendancePage({ user, onLogout, onBack }) {
 
   const load = () => {
     api.attendanceBoard(date).then(setBoard).catch((e) => { setBoard({ rows: [], counts: {}, total: 0 }); flash(e.message); });
-    api.attendanceTimesheet(date).then(setTs).catch(() => setTs({ rows: [] }));
     api.attendanceRegister(month).then(setReg).catch(() => setReg({ rows: [], daysInMonth: 0 }));
   };
   useEffect(load, [date]);
@@ -60,64 +59,32 @@ export default function AttendancePage({ user, onLogout, onBack }) {
       </div>
 
       <div className="pill-row">
-        <button className={`pill ${tab === "time" ? "active" : ""}`} onClick={() => setTab("time")}>Time Table</button>
         <button className={`pill ${tab === "register" ? "active" : ""}`} onClick={() => setTab("register")}>Month register</button>
         <button className={`pill ${tab === "face" ? "active" : ""}`} onClick={() => setTab("face")}>Face check-in</button>
         {user.role === "admin" && <button className={`pill ${tab === "fines" ? "active" : ""}`} onClick={() => setTab("fines")}>Fines</button>}
         <button className={`pill ${tab === "notes" ? "active" : ""}`} onClick={() => setTab("notes")}>Staff Messages</button>
       </div>
 
-      {tab === "time" && (!ts ? <div className="empty">Loading…</div> : (
-        <div className="card" style={{ overflowX: "auto" }}>
-          <div className="row" style={{ justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-            <div className="row" style={{ gap: 6, alignItems: "center" }}>
-              <button className="btn btn-outline btn-sm" onClick={() => setDate(shiftDay(date, -1))}>‹</button>
-              <input className="field" type="date" style={{ width: 160, margin: 0 }} max={todayIST()} value={date} onChange={(e) => e.target.value && setDate(e.target.value)} />
-              <button className="btn btn-outline btn-sm" disabled={date >= todayIST()} onClick={() => setDate(shiftDay(date, 1))}>›</button>
-              <b style={{ marginLeft: 6 }}>{new Date(date + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })}</b>
-            </div>
-            <div className="meta">Late = after shift start + {ts.graceMin} min grace. Times come from face check-in.</div>
-          </div>
-          <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse", minWidth: 760 }}>
-            <thead><tr style={{ textAlign: "left", background: "var(--surface-sunk, #f1f5f9)" }}>
-              {["Staff", "Shift", "Check-in", "Late by", "Check-out", "Worked", "Left early", "Status", "This month late", ""].map((h) => <th key={h} style={{ padding: "8px 8px", whiteSpace: "nowrap" }}>{h}</th>)}
-            </tr></thead>
-            <tbody>{ts.rows.map((r) => {
-              const leaveLike = ["LV", "A", "W"].includes(r.status);
-              return (
-                <tr key={r.id} style={{ borderTop: "1px solid var(--line)" }}>
-                  <td style={{ padding: "7px 8px" }}><b>{r.name}</b><div className="meta">{r.department}</div></td>
-                  <td style={{ padding: "7px 8px", whiteSpace: "nowrap" }}>{r.shiftStart} – {r.shiftEnd}</td>
-                  <td style={{ padding: "7px 8px" }}><b>{r.inTime ? t12(r.inTime) : "—"}</b></td>
-                  <td style={{ padding: "7px 8px", color: r.isLate ? "#b91c1c" : undefined, fontWeight: r.isLate ? 700 : 400 }}>{r.inTime ? (r.lateMin > 0 ? `${r.lateMin} min` : "On time") : "—"}</td>
-                  <td style={{ padding: "7px 8px" }}><b>{r.outTime ? t12(r.outTime) : "—"}</b></td>
-                  <td style={{ padding: "7px 8px", whiteSpace: "nowrap" }}>{r.workedMin != null ? `${Math.floor(r.workedMin / 60)} h ${r.workedMin % 60} min` : "—"}</td>
-                  <td style={{ padding: "7px 8px", color: r.earlyMin > 15 ? "#b45309" : undefined }}>{r.earlyMin != null ? (r.earlyMin > 0 ? `${r.earlyMin} min` : "No") : "—"}</td>
-                  <td style={{ padding: "7px 8px" }}>{leaveLike ? <span className="badge">{{ LV: "Leave", A: "Absent", W: "Off" }[r.status]}</span> : r.inTime ? <span className={`badge ${r.isLate ? "overdue" : "done"}`}>{r.isLate ? "Late" : "On time"}</span> : <span className="badge">Not in</span>}</td>
-                  <td style={{ padding: "7px 8px", whiteSpace: "nowrap" }}>{r.monthLate.days ? `${r.monthLate.days} days · ${r.monthLate.minutes} min` : "—"}</td>
-                  <td style={{ padding: "7px 8px" }}><button className="btn btn-ghost btn-sm" onClick={() => setFix({ userId: r.id, name: r.name, date, inTime: r.inTime, outTime: r.outTime })}>Fix Times</button></td>
-                </tr>);
-            })}</tbody>
-          </table>
-          {ts.rows.length === 0 && <div className="empty">No staff found.</div>}
-        </div>
-      ))}
       {fix && (
         <div className="modal-backdrop" onClick={() => setFix(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Fix Times · {fix.name}</h3>
-            <div className="meta">Use this only when someone forgot to check in or out. Present or Late is worked out from the time.</div>
+            <h3>{fix.name} · {new Date(fix.date + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })}</h3>
+            <div className="meta">Times normally come from face check-in. If someone forgot, type the time here. Present or Late follows from the time.</div>
             <label className="field-label">Check-in time</label><input className="field" type="time" value={fix.inTime} onChange={(e) => setFix({ ...fix, inTime: e.target.value })} />
             <label className="field-label">Check-out time</label><input className="field" type="time" value={fix.outTime} onChange={(e) => setFix({ ...fix, outTime: e.target.value })} />
-            <div className="actions"><button className="btn btn-ghost" onClick={() => setFix(null)}>Cancel</button>
-              <button className="btn btn-primary" onClick={async () => { try { await api.fixAttendanceTime({ userId: fix.userId, date: fix.date, inTime: fix.inTime, outTime: fix.outTime }); setFix(null); load(); flash("Saved."); } catch (e) { flash(e.message); } }}>Save</button></div>
+            <button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} disabled={!fix.inTime && !fix.outTime} onClick={async () => { try { await api.fixAttendanceTime({ userId: fix.userId, date: fix.date, inTime: fix.inTime, outTime: fix.outTime }); setFix(null); load(); flash("Saved."); } catch (e) { flash(e.message); } }}>Save Times</button>
+            <div className="meta" style={{ marginTop: 12 }}>Or mark the whole day as:</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+              {[["A", "Absent"], ["LV", "Leave"], ["W", "Off"], ["", "Clear"]].map(([k, l]) => <button key={l} className="btn btn-outline btn-sm" onClick={async () => { await mark(fix.userId, fix.date, k); setFix(null); }}>{l}</button>)}
+            </div>
+            <div className="actions"><button className="btn btn-ghost" onClick={() => setFix(null)}>Close</button></div>
           </div>
         </div>)}
 
       {tab === "register" && (!reg ? <div className="empty">Loading…</div> : (
         <div className="card" style={{ overflowX: "auto" }}>
           <div className="row" style={{ justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
-            <div className="meta">Up to Tue 17 Nov you can change any box. From Wed 18 Nov, P and L come only from check-in times; you can still set Absent, Leave and Off. Month: {reg.month}</div>
+            <div className="meta">Each day shows the status, the check-in time (top), the check-out time (below) and minutes late (+12m). Tap a day to fix a time or mark Absent / Leave / Off. Up to 17 Nov you can still tap to change P / L / A. Month: {reg.month}</div>
             <div className="row" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
               <button className="btn btn-outline btn-sm" disabled={dlBusy} onClick={() => download(month, month)}>{dlBusy ? "Preparing…" : "⬇ This month (Excel)"}</button>
               <button className="btn btn-outline btn-sm" disabled={dlBusy} onClick={() => download(monthsAgo(2), monthsAgo(0))}>⬇ Last 3 months</button>
@@ -129,15 +96,26 @@ export default function AttendancePage({ user, onLogout, onBack }) {
             </div>
           </div>
           <table className="reg-table">
-            <thead><tr><th>Staff</th>{Array.from({ length: reg.daysInMonth }, (_, i) => <th key={i}>{i + 1}</th>)}<th>Pres</th><th>Late</th><th>Abs</th><th>Leave</th><th>Fines</th></tr></thead>
+            <thead><tr><th>Staff</th>{Array.from({ length: reg.daysInMonth }, (_, i) => <th key={i}>{i + 1}</th>)}<th>Pres</th><th>Late</th><th>Late min</th><th>Abs</th><th>Leave</th><th>Fines</th></tr></thead>
             <tbody>{reg.rows.map((r) => (
               <tr key={r.id}><td className="nm">{r.name}<div className="meta">{r.department}</div></td>
                 {r.days.map((d, i) => {
                   const day = `${reg.month}-${String(i + 1).padStart(2, "0")}`;
                   const future = day > todayIST();
-                  return <td key={i} className={`c-${d || "x"} ${future ? "" : "clk"}`} onClick={() => { if (future) return; if (day >= CUTOFF) { if (["P", "L", "H"].includes(d)) return flash("From Wednesday 18 Nov, Present and Late come only from check-in times. Use Fix Times on the Time Table."); mark(r.id, day, CYCLE_AFTER[(CYCLE_AFTER.indexOf(d) + 1) % CYCLE_AFTER.length]); } else mark(r.id, day, CYCLE[(CYCLE.indexOf(d) + 1) % CYCLE.length]); }}>{d === "LV" ? "Lv" : d}</td>;
+                  const t = r.times?.[i];
+                  const onClick = () => {
+                    if (future) return;
+                    if (day >= CUTOFF) setFix({ userId: r.id, name: r.name, date: day, inTime: t?.i || "", outTime: t?.o || "" });
+                    else mark(r.id, day, CYCLE[(CYCLE.indexOf(d) + 1) % CYCLE.length]);
+                  };
+                  return (
+                    <td key={i} className={`c-${d || "x"} ${future ? "" : "clk"}`} onClick={onClick} title={t ? `In ${t.i || "-"} · Out ${t.o || "-"}${t.l ? ` · Late ${t.l} min` : ""}` : ""}>
+                      <div>{d === "LV" ? "Lv" : d}{t?.l ? <span className="reg-late"> +{t.l}m</span> : null}</div>
+                      {t && <div className="reg-time">{t.i ? short(t.i) : "–"}</div>}
+                      {t && <div className="reg-time out">{t.o ? short(t.o) : "–"}</div>}
+                    </td>);
                 })}
-                <td><b>{r.present}</b></td><td>{r.late || ""}</td><td>{r.absent || ""}</td><td>{r.leave || ""}</td><td>{r.fine_total ? "₹" + r.fine_total : ""}</td></tr>
+                <td><b>{r.present}</b></td><td>{r.late || ""}</td><td>{r.lateMinutes || ""}</td><td>{r.absent || ""}</td><td>{r.leave || ""}</td><td>{r.fine_total ? "₹" + r.fine_total : ""}</td></tr>
             ))}</tbody>
           </table>
         </div>

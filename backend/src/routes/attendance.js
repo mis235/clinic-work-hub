@@ -397,21 +397,26 @@ router.get("/register", requireAuth, requirePermission("attendance:view_all"), (
   const staff = db.prepare(
     `SELECT u.id, u.name, u.designation, d.name AS department FROM users u LEFT JOIN departments d ON d.id = u.department_id
      WHERE u.active = 1 ORDER BY d.name, u.name`).all();
-  const marks = db.prepare("SELECT user_id, mark_date, status FROM attendance_marks WHERE substr(mark_date,1,7) = ?").all(month);
+  const marks = db.prepare("SELECT user_id, mark_date, status, in_time, out_time FROM attendance_marks WHERE substr(mark_date,1,7) = ?").all(month);
   const by = new Map(marks.map((r) => [r.user_id + "|" + r.mark_date, r.status]));
+  const tby = new Map(marks.map((r) => [r.user_id + "|" + r.mark_date, r]));
   const fines = db.prepare("SELECT user_id, COALESCE(SUM(amount),0) AS total, COUNT(*) AS n FROM fines WHERE substr(fine_date,1,7) = ? GROUP BY user_id").all(month);
   const fineBy = new Map(fines.map((f) => [f.user_id, f]));
   const rows = staff.map((u) => {
     const c = { P: 0, L: 0, H: 0, LV: 0, A: 0, W: 0 };
-    const days = [];
+    const days = [], times = []; let lateMinutes = 0;
     for (let d = 1; d <= daysInMonth; d++) {
       const date = `${month}-${String(d).padStart(2, "0")}`;
       const st = by.get(u.id + "|" + date) || "";
       if (st) c[st]++;
       days.push(st);
+      const t = tby.get(u.id + "|" + date);
+      let late = 0;
+      if (t?.in_time) { late = Math.max(0, mm(t.in_time) - mm(shiftWindow(u.id, date).start)); if (!isLateArrival(u.id, date, t.in_time)) late = 0; lateMinutes += late; }
+      times.push(t && (t.in_time || t.out_time) ? { i: t.in_time || "", o: t.out_time || "", l: late } : null);
     }
     const f = fineBy.get(u.id);
-    return { ...u, days, present: c.P + c.L + c.H * 0.5, late: c.L, absent: c.A, leave: c.LV, fine_count: f?.n || 0, fine_total: f?.total || 0 };
+    return { ...u, days, times, lateMinutes, present: c.P + c.L + c.H * 0.5, late: c.L, absent: c.A, leave: c.LV, fine_count: f?.n || 0, fine_total: f?.total || 0 };
   });
   res.json({ month, daysInMonth, today: now, labels: MARKS, rows });
 });
