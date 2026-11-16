@@ -352,6 +352,13 @@ function ensureColumn(table, column, ddl) {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
   if (!cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
 }
+ensureColumn("pay_profiles", "pay_type", "pay_type TEXT");            // monthly | daily | hourly
+ensureColumn("pay_profiles", "pay_rate", "pay_rate REAL");            // amount per month / day / hour (to match pay_type)
+ensureColumn("pay_profiles", "bank_name", "bank_name TEXT");
+ensureColumn("pay_profiles", "account_holder", "account_holder TEXT");
+ensureColumn("pay_profiles", "account_number", "account_number TEXT");
+ensureColumn("pay_profiles", "ifsc", "ifsc TEXT");
+ensureColumn("pay_profiles", "branch", "branch TEXT");
 ensureColumn("users", "designation", "designation TEXT");
 ensureColumn("users", "shift_role", "shift_role TEXT"); // which shift-checklist template this person fills in (matches shift_checklist_templates.role_name); null = no daily shift checklist
 

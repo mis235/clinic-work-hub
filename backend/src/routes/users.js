@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { requireAuth, requirePermission, clearPermissionCache } from "../middleware/auth.js";
-import { adminGrantError } from "../access.js";
+import { adminGrantError, accessFor } from "../access.js";
 import { audit } from "../audit.js";
 
 const router = Router();
@@ -441,9 +441,9 @@ router.get("/:id/profile", requireAuth, (req, res) => {
 
   // --- payroll status (restricted) ---
   let payroll = null;
-  if (isSelf || roleHas(req.user.roleId, "payroll:view_all")) {
+  if (isSelf || roleHas(req.user.roleId, "payroll:view_all") || accessFor(req.user.userId, req.user.roleName).isHr) {
     const profile = db.prepare(
-      `SELECT pp.employee_code, pp.position, pp.basic_salary, c.name AS company
+      `SELECT pp.employee_code, pp.position, pp.basic_salary, pp.pan, pp.pay_type, pp.pay_rate, pp.bank_name, pp.account_holder, pp.account_number, pp.ifsc, pp.branch, c.name AS company
        FROM pay_profiles pp JOIN companies c ON c.id = pp.company_id WHERE pp.user_id = ?`
     ).get(id);
     const slips = db.prepare(

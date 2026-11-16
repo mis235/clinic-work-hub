@@ -674,6 +674,15 @@ try {
     ok("bad time rejected", (await call("PUT", "/api/attendance/time", { userId: staff.id, date: today, inTime: "25:99" }, admin)).status === 400);
     ok("staff cannot fix times", (await call("PUT", "/api/attendance/time", { userId: staff.id, date: today, inTime: "09:00" }, stoken)).status === 403);
     const sh0 = await call("GET", "/api/attendance/sheet", null, admin);
+    const pd = await call("PUT", `/api/payroll/profile/${staff.id}/details`, { payType: "daily", payRate: 800, pan: "ABCDE1234F", bankName: "HDFC Bank", accountHolder: "Test", accountNumber: "123456789012", ifsc: "HDFC0001234", branch: "Madhapur" }, admin);
+    ok("pay & bank details saved", pd.status === 200);
+    ok("bad IFSC rejected", (await call("PUT", `/api/payroll/profile/${staff.id}/details`, { ifsc: "BAD" }, admin)).status === 400);
+    ok("bad PAN rejected", (await call("PUT", `/api/payroll/profile/${staff.id}/details`, { pan: "123" }, admin)).status === 400);
+    ok("staff cannot change pay details", (await call("PUT", `/api/payroll/profile/${staff.id}/details`, { payRate: 1 }, stoken)).status === 403);
+    const gp = await call("GET", `/api/payroll/profile/${staff.id}`, null, admin);
+    ok("pay details stored", gp.body?.account_number === "123456789012" && gp.body?.pay_type === "daily" && gp.body?.ifsc === "HDFC0001234");
+    const sp = await call("GET", `/api/users/${staff.id}/profile`, null, admin);
+    ok("profile shows pay details", sp.body?.payroll?.profile?.bank_name === "HDFC Bank");
     const ln = await call("GET", "/api/live-numbers", null, admin);
     ok("live numbers readable by admin", ln.status === 200 && ln.body.configured === false);
     ok("live numbers closed to staff", (await call("GET", "/api/live-numbers", null, stoken)).status === 403);

@@ -7,6 +7,7 @@ import { stampPayslip } from "./leave.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
 import { generatePayslipPdf } from "../payslip-pdf.js";
 import { sendEmail, isEmailConfigured } from "../email.js";
+import { accessFor } from "../access.js";
 
 const router = Router();
 
@@ -38,6 +39,28 @@ router.post("/profile", requireAuth, requirePermission("payroll:manage"), (req, 
        other_deductions=excluded.other_deductions, retention=excluded.retention, updated_at=datetime('now')`
   ).run(userId, companyId, employeeCode || null, position || null, pan || null,
     basicSalary || 0, leaveBonus || 0, overtime || 0, otherAllowances || 0, pf || 0, tds || 0, otherDeductions || 0, retention || 0);
+  res.json({ ok: true });
+});
+
+// PUT /api/payroll/profile/:userId/details — pay type, pay rate, PAN and bank details (admin or HR). Does not touch salary figures.
+router.put("/profile/:userId/details", requireAuth, (req, res) => {
+  if (!accessFor(req.user.userId, req.user.roleName).isHr) return res.status(403).json({ error: "Only the admin or HR can change pay and bank details" });
+  const id = req.params.userId;
+  if (!db.prepare("SELECT 1 FROM users WHERE id = ?").get(id)) return res.status(404).json({ error: "Staff member not found" });
+  const b = req.body || {}, t = (v, n = 80) => (v == null || String(v).trim() === "" ? null : String(v).trim().slice(0, n));
+  const payType = t(b.payType, 10); if (payType && !["monthly", "daily", "hourly"].includes(payType)) return res.status(400).json({ error: "Pay type must be monthly, daily or hourly" });
+  const rate = b.payRate === "" || b.payRate == null ? null : Number(b.payRate);
+  if (rate != null && (!Number.isFinite(rate) || rate < 0)) return res.status(400).json({ error: "Pay rate must be a number" });
+  const pan = t(b.pan, 10)?.toUpperCase() || null; if (pan && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) return res.status(400).json({ error: "PAN looks wrong. It should be like ABCDE1234F" });
+  const ifsc = t(b.ifsc, 11)?.toUpperCase() || null; if (ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) return res.status(400).json({ error: "IFSC looks wrong. It should be like HDFC0001234" });
+  const acct = t(b.accountNumber, 20)?.replace(/\s+/g, "") || null; if (acct && !/^\d{6,20}$/.test(acct)) return res.status(400).json({ error: "Account number should be digits only (6 to 20)" });
+  if (!db.prepare("SELECT 1 FROM pay_profiles WHERE user_id = ?").get(id)) {
+    const co = db.prepare("SELECT id FROM companies ORDER BY rowid LIMIT 1").get();
+    if (!co) return res.status(400).json({ error: "Add a company under Payroll first" });
+    db.prepare("INSERT INTO pay_profiles (user_id, company_id) VALUES (?, ?)").run(id, co.id);
+  }
+  db.prepare("UPDATE pay_profiles SET pay_type=?, pay_rate=?, pan=?, bank_name=?, account_holder=?, account_number=?, ifsc=?, branch=?, updated_at=datetime('now') WHERE user_id=?")
+    .run(payType, rate, pan, t(b.bankName), t(b.accountHolder), acct, ifsc, t(b.branch), id);
   res.json({ ok: true });
 });
 

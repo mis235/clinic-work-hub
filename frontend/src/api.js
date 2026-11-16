@@ -264,6 +264,7 @@ export const api = {
   updateUser: (id, payload) => req(`/api/users/${id}`, { method: "PATCH", body: payload }),
   listCompanies: () => req("/api/companies"),
   getPayProfile: (userId) => req(`/api/payroll/profile/${userId}`),
+  savePayDetails: (userId, body) => req(`/api/payroll/profile/${userId}/details`, { method: "PUT", body }),
   listPayProfiles: () => req("/api/payroll/profiles"),
   setPayProfile: (payload) => req("/api/payroll/profile", { method: "POST", body: payload }),
   generatePayroll: (payload) => req("/api/payroll/generate", { method: "POST", body: payload }),

@@ -116,6 +116,7 @@ export default function StaffProfilePage({ user, staffId, isStaffLayout, onLogou
               ) : <div className="meta">No salary details yet. Add them from the Payroll page.</div>}
             </div>
           )}
+          {tab === "pay" && p.payroll && <PayBankCard staffId={p.details?.id || staffId} profile={p.payroll.profile} canEdit={isAdmin || !!user.isHr} onSaved={load} />}
 
           <div style={{ display: tab === "overview" || tab === "activity" ? "block" : "none" }}>
           {tab === "overview" && !isStaffLayout && p.missing.length > 0 && (
@@ -217,4 +218,52 @@ export default function StaffProfilePage({ user, staffId, isStaffLayout, onLogou
       </main>
     </div>
   );
+}
+
+
+const TYPE = { monthly: "Monthly salary", daily: "Per day", hourly: "Per hour" };
+const mask = (a) => (a ? "•••• " + String(a).slice(-4) : "");
+function PayBankCard({ staffId, profile, canEdit, onSaved }) {
+  const pr = profile || {};
+  const blank = () => ({ payType: pr.pay_type || "monthly", payRate: pr.pay_rate ?? "", pan: pr.pan || "", bankName: pr.bank_name || "", accountHolder: pr.account_holder || "", accountNumber: pr.account_number || "", ifsc: pr.ifsc || "", branch: pr.branch || "" });
+  const [edit, setEdit] = useState(false), [f, setF] = useState(blank), [err, setErr] = useState(""), [show, setShow] = useState(false);
+  useEffect(() => setF(blank()), [profile]);
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const save = async () => { setErr(""); try { await api.savePayDetails(staffId, f); setEdit(false); onSaved?.(); } catch (e) { setErr(e.message); } };
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <div className="card-head" style={{ display: "flex", justifyContent: "space-between" }}>
+        <div className="name">Pay & bank details</div>
+        {canEdit && !edit && <button className="btn btn-primary btn-sm" onClick={() => setEdit(true)}>{pr.bank_name || pr.account_number ? "Edit" : "Add details"}</button>}
+      </div>
+      {!edit ? (
+        <>
+          <Row k="Pay type" v={TYPE[pr.pay_type] || ""} />
+          <Row k={pr.pay_type === "daily" ? "Pay rate (per day)" : pr.pay_type === "hourly" ? "Pay rate (per hour)" : "Pay rate (per month)"} v={pr.pay_rate != null ? `₹${Number(pr.pay_rate).toLocaleString("en-IN")}` : ""} />
+          <Row k="PAN number" v={pr.pan} />
+          <Row k="Bank" v={pr.bank_name} />
+          <Row k="Account holder" v={pr.account_holder} />
+          <Row k="Account number" v={pr.account_number ? (show ? pr.account_number : mask(pr.account_number)) : ""} />
+          <Row k="IFSC code" v={pr.ifsc} />
+          <Row k="Branch" v={pr.branch} />
+          {pr.account_number && <button className="btn btn-ghost btn-sm" onClick={() => setShow(!show)}>{show ? "Hide account number" : "Show account number"}</button>}
+          {!pr.bank_name && !pr.account_number && !pr.pan && <div className="meta">{canEdit ? "Not added yet. Press Add details." : "Not added yet. Ask HR to add them."}</div>}
+        </>
+      ) : (
+        <div style={{ display: "grid", gap: 8, maxWidth: 460 }}>
+          <label className="field-label">Pay type</label>
+          <select className="field" value={f.payType} onChange={set("payType")}><option value="monthly">Monthly salary</option><option value="daily">Per day</option><option value="hourly">Per hour</option></select>
+          <label className="field-label">Pay rate (₹ {f.payType === "daily" ? "per day" : f.payType === "hourly" ? "per hour" : "per month"})</label>
+          <input className="field" type="number" min="0" value={f.payRate} onChange={set("payRate")} />
+          <label className="field-label">PAN number</label><input className="field" value={f.pan} onChange={set("pan")} placeholder="ABCDE1234F" maxLength={10} />
+          <label className="field-label">Bank name</label><input className="field" value={f.bankName} onChange={set("bankName")} />
+          <label className="field-label">Account holder name</label><input className="field" value={f.accountHolder} onChange={set("accountHolder")} />
+          <label className="field-label">Account number</label><input className="field" inputMode="numeric" value={f.accountNumber} onChange={set("accountNumber")} />
+          <label className="field-label">IFSC code</label><input className="field" value={f.ifsc} onChange={set("ifsc")} placeholder="HDFC0001234" maxLength={11} />
+          <label className="field-label">Branch</label><input className="field" value={f.branch} onChange={set("branch")} />
+          {err && <div className="note warn">{err}</div>}
+          <div style={{ display: "flex", gap: 8 }}><button className="btn btn-primary btn-sm" onClick={save}>Save</button><button className="btn btn-ghost btn-sm" onClick={() => { setEdit(false); setF(blank()); setErr(""); }}>Cancel</button></div>
+        </div>
+      )}
+    </div>);
 }
