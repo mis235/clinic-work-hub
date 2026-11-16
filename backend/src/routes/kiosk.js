@@ -20,6 +20,7 @@ const MATCH_DISTANCE = Number(process.env.FACE_MATCH_DISTANCE || 0.5); // lower 
 const UNIQUE_DISTANCE = Number(process.env.FACE_UNIQUE_DISTANCE || 0.45); // two people closer than this are treated as the same face
 const MIN_GAP_MIN = Number(process.env.MIN_STAY_MINUTES || 30);        // a second look within this many minutes is not a logout
 import { isLateArrival, syncLateFines, shiftWindow } from "./leave.js";
+import { queueSheet } from "../attendanceSheet.js";
 import { engage } from "../engage.js";
 // Late = more than the grace minutes (HR rule, default 15) after the start of the person's shift.                   // IST, HH:MM — arrivals after this are marked Late
 const secret = () => process.env.JWT_SECRET;
@@ -158,6 +159,7 @@ router.post("/checkin", requireKiosk, (req, res) => {
     kind = "out"; outTime = hhmm;
     db.prepare("UPDATE attendance_marks SET out_time = ?, updated_at = datetime('now') WHERE user_id = ? AND mark_date = ?").run(outTime, best.userId, date);
   } else { kind = outTime ? "out" : "in"; already = true; }
+  if (!already) queueSheet(date.slice(0, 7));
   if (kind === "in" && !already) { try { syncLateFines(date.slice(0, 7)); } catch (e) { console.error("late fines:", e.message); } }
   const worked = inTime && outTime ? mins(outTime) - mins(inTime) : null;
   // A kind note to the person: leaving early, staying late, or leaving with no morning check-in.

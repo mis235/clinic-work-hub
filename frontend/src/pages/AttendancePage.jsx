@@ -61,6 +61,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
       <div className="pill-row">
         <button className={`pill ${tab === "register" ? "active" : ""}`} onClick={() => setTab("register")}>Month register</button>
         <button className={`pill ${tab === "face" ? "active" : ""}`} onClick={() => setTab("face")}>Face check-in</button>
+        {user.role === "admin" && <button className={`pill ${tab === "sheet" ? "active" : ""}`} onClick={() => setTab("sheet")}>Google Sheet</button>}
         {user.role === "admin" && <button className={`pill ${tab === "fines" ? "active" : ""}`} onClick={() => setTab("fines")}>Fines</button>}
         <button className={`pill ${tab === "notes" ? "active" : ""}`} onClick={() => setTab("notes")}>Staff Messages</button>
       </div>
@@ -84,7 +85,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
       {tab === "register" && (!reg ? <div className="empty">Loading…</div> : (
         <div className="card" style={{ overflowX: "auto" }}>
           <div className="row" style={{ justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
-            <div className="meta">Each day shows the status, the check-in time (top), the check-out time (below) and minutes late (+12m). Tap a day to fix a time or mark Absent / Leave / Off. Up to 17 Nov you can still tap to change P / L / A. Month: {reg.month}</div>
+            <div className="meta">Each day shows the status, the check-in time (top), the check-out time (below) and minutes late (+12m). Tap a day to fix a time or mark Absent / Leave / Off. Up to 17 Nov you can still tap to change P / L / A. Month: {reg.month}. Late = more than {reg.rule?.grace ?? 15} min after the shift start. Every {reg.rule?.limit ?? 3} lates = ₹{reg.rule?.fine ?? 100} fine.</div>
             <div className="row" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
               <button className="btn btn-outline btn-sm" disabled={dlBusy} onClick={() => download(month, month)}>{dlBusy ? "Preparing…" : "⬇ This month (Excel)"}</button>
               <button className="btn btn-outline btn-sm" disabled={dlBusy} onClick={() => download(monthsAgo(2), monthsAgo(0))}>⬇ Last 3 months</button>
@@ -122,6 +123,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
       ))}
 
       {tab === "face" && <FacePanel date={date} people={board?.rows || []} isAdmin={user.role === "admin"} flash={flash} />}
+      {tab === "sheet" && <SheetPanel flash={flash} onChanged={load} />}
       {tab === "notes" && <MessagesPanel flash={flash} />}
       {tab === "fines" && <FinesPanel month={month} isAdmin={user.role === "admin"} preset={preset} onChanged={load} />}
       {toast && <div className="toast">{toast}</div>}
@@ -274,4 +276,50 @@ function Announce({ flash, onSent }) {
       </div>}
     </div>
   );
+}
+
+
+// Admin: a live Google Sheet copy of attendance, and clearing the old data.
+function SheetPanel({ flash, onChanged }) {
+  const [d, setD] = useState(null), [url, setUrl] = useState(""), [link, setLink] = useState(""), [busy, setBusy] = useState(false);
+  const [before, setBefore] = useState(CUTOFF), [pre, setPre] = useState(null), [word, setWord] = useState(""), [done, setDone] = useState("");
+  const load = () => api.attSheet().then((x) => { setD(x); setUrl(x.url || ""); setLink(x.link || ""); }).catch((e) => flash(e.message));
+  useEffect(() => { load(); }, []);
+  useEffect(() => { setPre(null); setWord(""); api.clearOldPreview(before).then(setPre).catch(() => {}); }, [before]);
+  if (!d) return <div className="empty">Loading…</div>;
+  const copy = (t) => { navigator.clipboard?.writeText(t); flash("Copied."); };
+  return (
+    <div style={{ display: "grid", gap: 14 }}>
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Attendance in Google Sheets</h3>
+        <div className="meta">Every check-in, check-out and fix goes to your Google Sheet within a minute. One tab per month (day by day) and one summary tab. Download it from Google Sheets: File → Download → Excel.</div>
+        <div className="meta" style={{ marginTop: 8 }}><b>Set up once (5 minutes):</b></div>
+        <ol className="meta" style={{ margin: "4px 0 8px 18px", lineHeight: 1.7 }}>
+          <li>Open Google Sheets, make a new empty sheet, name it “Clinic Attendance”. Copy its link from the address bar into the box below.</li>
+          <li>In that sheet click <b>Extensions → Apps Script</b>. Delete everything there.</li>
+          <li><button className="btn btn-outline btn-sm" onClick={() => copy(d.script)}>Copy the script</button> and paste it into Apps Script. Click the save icon.</li>
+          <li>Click <b>Deploy → New deployment</b>. Click the gear and choose <b>Web app</b>. Set “Execute as” = Me and “Who has access” = <b>Anyone</b>. Click Deploy, allow access, then copy the <b>Web app URL</b> (ends with /exec).</li>
+          <li>Paste both links below and press Save. Then press “Send everything now”.</li>
+        </ol>
+        <label className="field-label">Google Sheet link</label><input className="field" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/…" />
+        <label className="field-label">Web app URL (ends with /exec)</label><input className="field" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://script.google.com/macros/s/…/exec" />
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+          <button className="btn btn-primary btn-sm" onClick={async () => { try { await api.saveAttSheet({ url, link }); flash("Saved."); load(); } catch (e) { flash(e.message); } }}>Save</button>
+          <button className="btn btn-outline btn-sm" disabled={busy || !d.url} onClick={async () => { setBusy(true); try { await api.sendAttSheet(); flash("Sent to Google Sheet."); load(); } catch (e) { flash(e.message); } setBusy(false); }}>{busy ? "Sending…" : "Send everything now"}</button>
+          {d.link && <a className="btn btn-outline btn-sm" href={d.link} target="_blank" rel="noreferrer">Open Google Sheet</a>}
+        </div>
+        {d.status && <div className="meta" style={{ marginTop: 8 }}>Last: {d.status}</div>}
+      </div>
+
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Remove old attendance</h3>
+        <div className="meta">This deletes the attendance entries before the date you choose (the hand-marked P / L / A of the old way). Late fines that came from them are recalculated. Manual fines stay. A safety copy is kept on the server first.</div>
+        <div className="meta" style={{ marginTop: 6 }}><b>Do first:</b> press “Send everything now” above (or download the Excel) so you also have the data in Google Sheets.</div>
+        <label className="field-label">Delete everything before</label><input className="field" type="date" style={{ width: 200 }} value={before} max={todayIST()} onChange={(e) => setBefore(e.target.value)} />
+        <div className="meta" style={{ marginTop: 6 }}>{pre ? (pre.count ? `${pre.count} entries will be deleted (${pre.from} to ${pre.to}).` : "Nothing to delete before this date.") : ""}</div>
+        <label className="field-label">Type DELETE to confirm</label><input className="field" style={{ width: 200 }} value={word} onChange={(e) => setWord(e.target.value)} />
+        <button className="btn btn-primary btn-sm" style={{ marginTop: 10 }} disabled={word !== "DELETE" || !pre?.count} onClick={async () => { try { const r = await api.clearOldAttendance(before, word); setDone(`${r.deleted} entries deleted. Safety copy: ${r.backup || "-"}`); setWord(""); onChanged(); } catch (e) { flash(e.message); } }}>Delete old attendance</button>
+        {done && <div className="meta" style={{ marginTop: 8 }}>{done}</div>}
+      </div>
+    </div>);
 }

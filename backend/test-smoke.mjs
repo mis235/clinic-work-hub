@@ -673,6 +673,16 @@ try {
     ok("time table shows check-in/out and minutes", row && row.inTime === "10:40" && row.outTime === "18:30" && row.workedMin === 470 && typeof row.lateMin === "number");
     ok("bad time rejected", (await call("PUT", "/api/attendance/time", { userId: staff.id, date: today, inTime: "25:99" }, admin)).status === 400);
     ok("staff cannot fix times", (await call("PUT", "/api/attendance/time", { userId: staff.id, date: today, inTime: "09:00" }, stoken)).status === 403);
+    const sh0 = await call("GET", "/api/attendance/sheet", null, admin);
+    ok("sheet settings (admin)", sh0.status === 200 && /doGet|doPost/.test(sh0.body.script || "") && sh0.body.key);
+    ok("sheet link must be Google script", (await call("PUT", "/api/attendance/sheet", { url: "https://evil.com/exec" }, admin)).status === 400);
+    ok("staff cannot see sheet settings", (await call("GET", "/api/attendance/sheet", null, stoken)).status === 403);
+    ok("clear old needs DELETE", (await call("POST", "/api/attendance/clear-old", { before: today, confirm: "no" }, admin)).status === 400);
+    ok("staff cannot clear old", (await call("POST", "/api/attendance/clear-old", { before: today, confirm: "DELETE" }, stoken)).status === 403);
+    const pv = await call("GET", `/api/attendance/clear-old/preview?before=${today}`, null, admin);
+    ok("clear old preview", pv.status === 200 && typeof pv.body.count === "number");
+    const rg = await call("GET", `/api/attendance/register?month=${today.slice(0, 7)}`, null, admin);
+    ok("register shows late rule", rg.body.rule?.grace === 15 && rg.body.rule?.limit === 3);
     if (today >= "2026-11-18") ok("hand-marking Present is closed from 18 Nov", (await call("PUT", "/api/attendance/mark", { userId: staff.id, date: today, status: "P" }, admin)).status === 400);
   }
   { // sheets dashboard

@@ -9,6 +9,9 @@ import {
 import db from "../db.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
 import { syncLateFines, shiftWindow, isLateArrival } from "./leave.js";
+import { queueSheet, pushAll, sheetState, saveSheetSettings, sheetScript } from "../attendanceSheet.js";
+import fs from "node:fs";
+import path from "node:path";
 
 const router = Router();
 
@@ -323,6 +326,7 @@ router.put("/mark", requireAuth, (req, res) => {
      ON CONFLICT(user_id, mark_date) DO UPDATE SET status = excluded.status, note = excluded.note, marked_by = excluded.marked_by, updated_at = datetime('now')`
   ).run(userId, date, status, note ? String(note).slice(0, 200) : null, req.user.userId);
   try { syncLateFines(date.slice(0, 7)); } catch {}
+  queueSheet(date.slice(0, 7));
   res.json({ ok: true });
 });
 
@@ -338,6 +342,7 @@ router.post("/mark-day", requireAuth, (req, res) => {
      AND NOT EXISTS (SELECT 1 FROM attendance_marks m WHERE m.user_id = u.id AND m.mark_date = ?)`).all(...(department ? [department, date] : [date]));
   const ins = db.prepare("INSERT INTO attendance_marks (user_id, mark_date, status, marked_by) VALUES (?,?,?,?)");
   db.transaction(() => users.forEach((u) => ins.run(u.id, date, status, req.user.userId)))();
+  queueSheet(date.slice(0, 7));
   res.json({ ok: true, marked: users.length });
 });
 
@@ -385,6 +390,7 @@ router.put("/time", requireAuth, (req, res) => {
     ON CONFLICT(user_id, mark_date) DO UPDATE SET status = excluded.status, in_time = excluded.in_time, out_time = excluded.out_time, note = excluded.note, marked_by = excluded.marked_by, updated_at = datetime('now')`)
     .run(userId, date, status, newIn, newOut, note, req.user.userId);
   try { syncLateFines(date.slice(0, 7)); } catch {}
+  queueSheet(date.slice(0, 7));
   res.json({ ok: true, status });
 });
 
@@ -418,7 +424,8 @@ router.get("/register", requireAuth, requirePermission("attendance:view_all"), (
     const f = fineBy.get(u.id);
     return { ...u, days, times, lateMinutes, present: c.P + c.L + c.H * 0.5, late: c.L, absent: c.A, leave: c.LV, fine_count: f?.n || 0, fine_total: f?.total || 0 };
   });
-  res.json({ month, daysInMonth, today: now, labels: MARKS, rows });
+  const st = (k, d) => Number(db.prepare("SELECT value FROM app_settings WHERE key = ?").get(k)?.value || d);
+  res.json({ month, daysInMonth, today: now, labels: MARKS, rows, rule: { grace: st("late_grace_min", 15), limit: st("late_limit", 3), fine: st("late_fine", 100) } });
 });
 
 // Download the month as an Excel sheet: every person, every day: status, login time, logout time, hours.
@@ -480,6 +487,44 @@ router.post("/manual", requireAuth, requirePermission("attendance:manual_overrid
   const id = randomUUID();
   db.prepare("INSERT INTO attendance (id, user_id, type, method) VALUES (?, ?, ?, 'manual')").run(id, userId, type);
   res.status(201).json({ id, userId, type, method: "manual" });
+});
+
+// ---- Google Sheet copy of attendance (admin) ----
+const isAdmin = (u) => u?.roleName === "admin";
+router.get("/sheet", requireAuth, (req, res) => { if (!isAdmin(req.user)) return res.status(403).json({ error: "Admin only" }); res.json({ ...sheetState(), script: sheetScript() }); });
+router.put("/sheet", requireAuth, (req, res) => {
+  if (!isAdmin(req.user)) return res.status(403).json({ error: "Admin only" });
+  const url = String(req.body?.url || "").trim(), link = String(req.body?.link || "").trim();
+  if (url && !/^https:\/\/script\.google\.com\/(a\/macros\/[^/]+\/)?macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url)) return res.status(400).json({ error: "That is not the Apps Script web app link. It ends with /exec" });
+  if (link && !/^https:\/\/docs\.google\.com\/spreadsheets\//.test(link)) return res.status(400).json({ error: "The sheet link should start with https://docs.google.com/spreadsheets/" });
+  saveSheetSettings({ url, link }); res.json({ ok: true });
+});
+router.post("/sheet/send", requireAuth, async (req, res) => {
+  if (!isAdmin(req.user)) return res.status(403).json({ error: "Admin only" });
+  const r = await pushAll(); res.status(r.ok ? 200 : 400).json(r.ok ? { ok: true, status: sheetState().status } : { error: r.error });
+});
+
+// ---- Clear old attendance (admin). A copy is always saved on the server first. ----
+router.get("/clear-old/preview", requireAuth, (req, res) => {
+  if (!isAdmin(req.user)) return res.status(403).json({ error: "Admin only" });
+  const before = String(req.query.before || "");
+  if (!DATE_RE.test(before)) return res.status(400).json({ error: "Choose a date" });
+  const r = db.prepare("SELECT COUNT(*) n, MIN(mark_date) a, MAX(mark_date) b FROM attendance_marks WHERE mark_date < ?").get(before);
+  res.json({ count: r.n, from: r.a, to: r.b });
+});
+router.post("/clear-old", requireAuth, (req, res) => {
+  if (!isAdmin(req.user)) return res.status(403).json({ error: "Admin only" });
+  const { before, confirm } = req.body || {};
+  if (!DATE_RE.test(before || "") || before > istToday()) return res.status(400).json({ error: "Choose a date up to today" });
+  if (confirm !== "DELETE") return res.status(400).json({ error: "Type DELETE to confirm" });
+  const rows = db.prepare("SELECT * FROM attendance_marks WHERE mark_date < ?").all(before);
+  if (!rows.length) return res.json({ ok: true, deleted: 0 });
+  const dir = path.join(process.env.DATA_DIR || path.join(process.cwd()), "attendance-backups"); fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `attendance-before-${before}-${Date.now()}.json`); fs.writeFileSync(file, JSON.stringify(rows));
+  const months = [...new Set(rows.map((r) => r.mark_date.slice(0, 7)))];
+  db.prepare("DELETE FROM attendance_marks WHERE mark_date < ?").run(before);
+  for (const m of months) { try { syncLateFines(m); } catch {} }
+  res.json({ ok: true, deleted: rows.length, backup: path.basename(file) });
 });
 
 export default router;
