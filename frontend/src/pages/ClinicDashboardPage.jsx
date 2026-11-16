@@ -33,17 +33,16 @@ export default function ClinicDashboardPage({ user, onLogout, onBack, onNavigate
   return (
     <PageShell user={user} active="Dashboards" title="Clinic dashboards" onLogout={onLogout} onBack={onBack}>
       <div className="page-head row">
-        <div><div className="eyebrow">Insights</div><h1>Clinic Dashboard</h1><p>Checklists, patients and clinic numbers in one place. They update by themselves when staff submit their work.</p></div>
+        <div><div className="eyebrow">Insights</div><h1>Clinic Dashboard</h1></div>
         <div className="live-chip"><span className="live-dot" /> Live · {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}</div>
       </div>
       <div className="pill-row dash-tabs">
-        {[["checklist", "Checklists", "tasks", true], ["numbers", "Live Numbers", "chart", lead], ["patients", "Patients", "users", lead], ["chat", "Ask Lumi", "bot", lead]].filter((t) => t[3]).map(([k, label, icon]) => (
+        {[["checklist", "Checklists", "tasks", true], ["patients", "Patients", "users", lead], ["chat", "Ask Lumi", "bot", lead]].filter((t) => t[3]).map(([k, label, icon]) => (
           <button key={k} className={`pill ${tab === k ? "active" : ""}`} onClick={() => setTab(k)}><Icon name={icon} size={15} /> {label}</button>
         ))}
       </div>
       {tab === "checklist" && <ChecklistDashboard user={user} />}
-      {tab === "numbers" && <LiveNumbers user={user} />}
-      {tab === "patients" && <PatientDashboard user={user} />}
+            {tab === "patients" && (SETUP ? <PatientDashboard user={user} /> : <LiveNumbers user={user} />)}
       {tab === "chat" && <ClinicAIPage user={user} isStaffLayout />}
       {tab === "live" && (!depts ? <div className="empty">Loading…</div> : (
         <>
