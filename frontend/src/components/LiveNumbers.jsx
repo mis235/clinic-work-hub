@@ -32,6 +32,7 @@ function Columns({ items, val, label, color = COL, fmt = (n) => n }) {
 const Kpi = ({ l, v, c = COL, sub }) => <div className="kpi" style={{ "--kc": c }}><div className="meta">{l}</div><div className="kpi-v">{v}</div>{sub && <div className="meta">{sub}</div>}</div>;
 const Card = ({ t, children, sub }) => <div className="card"><div className="title" style={{ marginBottom: 2 }}>{t}</div>{sub && <div className="meta" style={{ marginBottom: 8 }}>{sub}</div>}{children}</div>;
 
+const SETUP = typeof location !== "undefined" && new URLSearchParams(location.search).has("setup");
 export default function LiveNumbers({ user }) {
   const [sec, setSec] = useState("conv"), [d, setD] = useState(null), [cfg, setCfg] = useState(null), [url, setUrl] = useState(""), [busy, setBusy] = useState(false), [msg, setMsg] = useState(""), [open, setOpen] = useState(false);
   const load = () => api.liveNumbers().then(setD).catch((e) => setMsg(e.message));
@@ -41,7 +42,7 @@ export default function LiveNumbers({ user }) {
   const copy = (t) => { navigator.clipboard?.writeText(t); setMsg("Copied."); };
   return (
     <div style={{ display: "grid", gap: 14 }}>
-      {isAdmin && (
+      {isAdmin && SETUP && (
         <div className="card">
           <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
             <div className="meta">{d?.status || "Not connected yet."} {x?.updatedAt ? `· numbers as of ${x.updatedAt}` : ""}{d?.heavyStatus ? ` · big sheets: ${d.heavyStatus}` : ""}</div>
@@ -65,15 +66,15 @@ export default function LiveNumbers({ user }) {
             </div>)}
         </div>)}
 
-      {!x && <div className="empty">{d?.configured ? "Waiting for the first update (up to 10 minutes). Admin can press Update now." : "Live numbers are not connected yet. Ask the admin to finish the setup."}</div>}
-      {x && Object.keys(x.errors || {}).length > 0 && <div className="card meta">Some sheets could not be read: {Object.entries(x.errors).map(([k, v]) => `${k} (${v})`).join(" · ")}</div>}
+      {!x && <div className="empty">Loading…</div>}
+      {SETUP && x && Object.keys(x.errors || {}).length > 0 && <div className="card meta">Some sheets could not be read: {Object.entries(x.errors).map(([k, v]) => `${k} (${v})`).join(" · ")}</div>}
 
       {(x || hv) && (
         <div className="pill-row">
           {[["conv", "Conversions"], ["daily", "Daily Procedures"], ["sales", "Clinic Sales"], ["pack", "Package Sheet"], ["pharm", "Purchase & Pharmacy"], ["deliv", "Procedure Delivery"], ["master", "Master"], ["hr", "Human Resources"], ["search", "Patient Search"], ["leads", "Leads"]].map(([k, l]) => <button key={k} className={`pill ${sec === k ? "active" : ""}`} onClick={() => setSec(k)}>{l}</button>)}
         </div>)}
-      {hv && Object.keys(hv.errors || {}).length > 0 && <div className="card meta">Some big sheets could not be read: {Object.entries(hv.errors).map(([k, v]) => `${k} (${v})`).join(" · ")}</div>}
-      {!hv && x && ["conv", "pack", "pharm", "deliv", "master", "hr"].includes(sec) && <div className="empty">{isAdmin ? "The big sheets are not connected yet. Open Setup, copy the new script into your Google script and deploy a new version, then press Update now." : "Still loading. Try again in a few minutes."}</div>}
+      {SETUP && hv && Object.keys(hv.errors || {}).length > 0 && <div className="card meta">Some big sheets could not be read: {Object.entries(hv.errors).map(([k, v]) => `${k} (${v})`).join(" · ")}</div>}
+      {!hv && x && ["conv", "pack", "pharm", "deliv", "master", "hr"].includes(sec) && <div className="empty">Loading…</div>}
       {(() => { const fk = (n) => (n >= 10000000 ? (n / 10000000).toFixed(1) + "Cr" : n >= 100000 ? (n / 100000).toFixed(1) + "L" : n >= 1000 ? Math.round(n / 1000) + "k" : n); return (<>
 
       {sec === "conv" && hv?.conv && (<>
@@ -204,7 +205,7 @@ function PatientSearch() {
   return (
     <div className="card">
       <div className="title" style={{ marginBottom: 2 }}>Search a patient</div>
-      <div className="meta" style={{ marginBottom: 8 }}>By patient ID, phone number or name (at least 3 letters or numbers). Leadership only. Each search is recorded.</div>
+      
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <input className="field" style={{ maxWidth: 360 }} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && q.trim().length >= 3 && go()} placeholder="Name, phone or patient ID" />
         <button className="btn btn-primary btn-sm" disabled={busy || q.trim().length < 3} onClick={go}>{busy ? "Searching…" : "Search"}</button>

@@ -85,6 +85,8 @@ export default function ClinicDashboardPage({ user, onLogout, onBack, onNavigate
   );
 }
 
+const SETUP = typeof location !== "undefined" && new URLSearchParams(location.search).has("setup");
+
 // The clinic's patient/procedure dashboard (an HTML file kept privately on the server).
 function PatientDashboard({ user }) {
   const [src, setSrc] = useState(null);
@@ -134,15 +136,14 @@ function PatientDashboard({ user }) {
     <div className="card" style={box || undefined}>
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
         <button className="btn btn-primary btn-sm" onClick={() => setFull((f) => !f)}>{full ? "✕ Close full screen" : "⤢ Open full screen"}</button>
-        {!full && <span className="meta">The dashboard fits the screen. Use full screen for a bigger view.</span>}
-      </div>
-      {user.role === "admin" && !full && (
+              </div>
+      {user.role === "admin" && !full && SETUP && (
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
           <label className="btn btn-outline btn-sm" style={{ cursor: "pointer" }}>{src ? "Replace dashboard file" : "Upload dashboard file"}
             <input type="file" accept=".html,text/html" onChange={upload} disabled={busy} style={{ display: "none" }} /></label>
           <span className="meta">Uploaded file: {updated ? updated.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "none yet"}. After you change the dashboard, download the new .html and press Replace. The patient data stays on your server.</span>
         </div>)}
-      {user.role === "admin" && !full && (
+      {user.role === "admin" && !full && SETUP && (
         <div style={{ border: "1px dashed var(--line)", borderRadius: 12, padding: "10px 12px", marginBottom: 10 }}>
           <b style={{ fontSize: 13.5 }}>Auto-update from Google Drive</b>
           <div className="meta">Save the dashboard .html from your Claude "Clinic Dashboard" project into one Drive file (Anyone with the link, Viewer) and paste its link here. The app checks it every 20 minutes.</div>

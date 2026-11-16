@@ -47,8 +47,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
   return (
     <PageShell user={user} active="Attendance" title="Attendance" onLogout={onLogout} onBack={onBack}>
       <div className="page-head row">
-        <div><div className="eyebrow">People</div><h1>Attendance</h1>
-          <p>Staff check in and out by face on the clinic phone. The Time Table shows each person’s check-in, check-out and minutes late against their shift.</p></div>
+        <div><div className="eyebrow">People</div><h1>Attendance</h1></div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button className="btn btn-outline btn-sm" disabled={dlBusy} onClick={download}>{dlBusy ? "Preparing…" : "⬇ Attendance sheet (Excel)"}</button><input className="field" type="date" style={{ width: 180 }} value={date} max={todayIST()} onChange={(e) => setDate(e.target.value)} /></div>
       </div>
 
@@ -61,7 +60,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
       <div className="pill-row">
         <button className={`pill ${tab === "register" ? "active" : ""}`} onClick={() => setTab("register")}>Month register</button>
         <button className={`pill ${tab === "face" ? "active" : ""}`} onClick={() => setTab("face")}>Face check-in</button>
-        {user.role === "admin" && <button className={`pill ${tab === "sheet" ? "active" : ""}`} onClick={() => setTab("sheet")}>Google Sheet</button>}
+        {user.role === "admin" && SETUP && <button className={`pill ${tab === "sheet" ? "active" : ""}`} onClick={() => setTab("sheet")}>Google Sheet</button>}
         {user.role === "admin" && <button className={`pill ${tab === "fines" ? "active" : ""}`} onClick={() => setTab("fines")}>Fines</button>}
         <button className={`pill ${tab === "notes" ? "active" : ""}`} onClick={() => setTab("notes")}>Staff Messages</button>
       </div>
@@ -70,11 +69,10 @@ export default function AttendancePage({ user, onLogout, onBack }) {
         <div className="modal-backdrop" onClick={() => setFix(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>{fix.name} · {new Date(fix.date + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })}</h3>
-            <div className="meta">Times normally come from face check-in. If someone forgot, type the time here. Present or Late follows from the time.</div>
-            <label className="field-label">Check-in time</label><input className="field" type="time" value={fix.inTime} onChange={(e) => setFix({ ...fix, inTime: e.target.value })} />
+                        <label className="field-label">Check-in time</label><input className="field" type="time" value={fix.inTime} onChange={(e) => setFix({ ...fix, inTime: e.target.value })} />
             <label className="field-label">Check-out time</label><input className="field" type="time" value={fix.outTime} onChange={(e) => setFix({ ...fix, outTime: e.target.value })} />
             <button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} disabled={!fix.inTime && !fix.outTime} onClick={async () => { try { await api.fixAttendanceTime({ userId: fix.userId, date: fix.date, inTime: fix.inTime, outTime: fix.outTime }); setFix(null); load(); flash("Saved."); } catch (e) { flash(e.message); } }}>Save Times</button>
-            <div className="meta" style={{ marginTop: 12 }}>Or mark the whole day as:</div>
+            <div className="meta" style={{ marginTop: 12 }}>Mark the day as</div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
               {[["A", "Absent"], ["LV", "Leave"], ["W", "Off"], ["", "Clear"]].map(([k, l]) => <button key={l} className="btn btn-outline btn-sm" onClick={async () => { await mark(fix.userId, fix.date, k); setFix(null); }}>{l}</button>)}
             </div>
@@ -85,7 +83,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
       {tab === "register" && (!reg ? <div className="empty">Loading…</div> : (
         <div className="card" style={{ overflowX: "auto" }}>
           <div className="row" style={{ justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
-            <div className="meta">Each day shows the status, the check-in time (top), the check-out time (below) and minutes late (+12m). Tap a day to fix a time or mark Absent / Leave / Off. Up to 17 Nov you can still tap to change P / L / A. Month: {reg.month}. Late = more than {reg.rule?.grace ?? 15} min after the shift start. Every {reg.rule?.limit ?? 3} lates = ₹{reg.rule?.fine ?? 100} fine.</div>
+            <div className="meta">{reg.month}</div>
             <div className="row" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
               <button className="btn btn-outline btn-sm" disabled={dlBusy} onClick={() => download(month, month)}>{dlBusy ? "Preparing…" : "⬇ This month (Excel)"}</button>
               <button className="btn btn-outline btn-sm" disabled={dlBusy} onClick={() => download(monthsAgo(2), monthsAgo(0))}>⬇ Last 3 months</button>
@@ -123,7 +121,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
       ))}
 
       {tab === "face" && <FacePanel date={date} people={board?.rows || []} isAdmin={user.role === "admin"} flash={flash} />}
-      {tab === "sheet" && <SheetPanel flash={flash} onChanged={load} />}
+      {tab === "sheet" && SETUP && <SheetPanel flash={flash} onChanged={load} />}
       {tab === "notes" && <MessagesPanel flash={flash} />}
       {tab === "fines" && <FinesPanel month={month} isAdmin={user.role === "admin"} preset={preset} onChanged={load} />}
       {toast && <div className="toast">{toast}</div>}
@@ -278,6 +276,8 @@ function Announce({ flash, onSent }) {
   );
 }
 
+
+const SETUP = typeof location !== "undefined" && new URLSearchParams(location.search).has("setup");
 
 // Admin: a live Google Sheet copy of attendance, and clearing the old data.
 function SheetPanel({ flash, onChanged }) {
