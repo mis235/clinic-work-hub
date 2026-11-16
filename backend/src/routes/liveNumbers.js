@@ -6,6 +6,7 @@ import { randomBytes } from "node:crypto";
 import db from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireLeadership } from "../access.js";
+import { audit } from "../audit.js";
 
 const router = Router();
 const get = (k) => db.prepare("SELECT value FROM app_settings WHERE key = ?").get(k)?.value || "";
@@ -24,6 +25,7 @@ var KEY = "${key()}";
 var SRC = ${JSON.stringify(SOURCES, null, 1)};
 function doGet(e) {
   if (!e || !e.parameter || e.parameter.key !== KEY) return ContentService.createTextOutput("wrong key");
+  if (e.parameter.part === "search") return ContentService.createTextOutput(JSON.stringify(search(e.parameter.q))).setMimeType(ContentService.MimeType.JSON);
   if (e.parameter.part === "heavy") return ContentService.createTextOutput(JSON.stringify(heavy())).setMimeType(ContentService.MimeType.JSON);
   var out = {};
   Object.keys(SRC).forEach(function (k) {
@@ -56,6 +58,14 @@ function heavy() {
       d.rows.forEach(function (r) { var m = ym(r[iD]); if (!m) return; var done = /^y/i.test(String(r[iX]).trim()) ? 1 : 0; bump(byMonth, m, "s", 1); bump(byMonth, m, "d", done);
         var y = m.slice(0, 4), c = String(r[iC]).trim() || "Other"; byYearCat[y] = byYearCat[y] || {}; bump(byYearCat[y], c, "s", 1); bump(byYearCat[y], c, "d", done); });
     });
+    [["11fhuimn4KxcPWGBri0L8lVX3z7LSlxeCOLCDj7yjbIk", "Sheet1"], ["1pKDJ7fDVzgeJv3vPdaeamm3Cd1leUVUZlWTu3eWbqqY", "Sheet1"], ["15xDR-GOHWUlrN2iNbJKt12vyjrlM4uS7_BNXppmW7jI", "Main Sheet"]].forEach(function (t) {
+      try {
+        var d = load(t[0], t[1]), iD = d.head.indexOf("Date"), iX = -1;
+        d.head.forEach(function (h, i) { if (iX < 0 && /^whether done/i.test(h)) iX = i; });
+        d.rows.forEach(function (r) { var m = ym(r[iD]); if (!m) return; var done = /^(done|y)/i.test(String(r[iX]).trim()) ? 1 : 0; var y = m.slice(0, 4);
+          bump(byMonth, m, "s", 1); bump(byMonth, m, "d", done); byYearCat[y] = byYearCat[y] || {}; bump(byYearCat[y], "All", "s", 1); bump(byYearCat[y], "All", "d", done); });
+      } catch (e2) { out.convOldError = String(e2); }
+    });
     out.conv = { byMonth: byMonth, byYearCat: byYearCat };
   } catch (e) { out.conv = { error: String(e) }; }
   try { // package sheet FY 25-26
@@ -82,7 +92,35 @@ function heavy() {
     rows.forEach(function (x) { if (x[0] !== last) return; if (x[2]) bump(bt, x[2], "n", 1); bump(bp, x[1], "n", 1); if (x[3]) bump(bu, x[3], "n", 1); bump(bc, x[4], "n", 1); });
     out.deliv = { byMonth: bm, focus: last, byTherapist: bt, byProc: bp, byUnique: bu, byCat: bc };
   } catch (e) { out.deliv = { error: String(e) }; }
+  try { // master: patient visit recency
+    var d = load("11FfZivBsq0EiNLIz8v7F1FetjfidUyGpJc74BI9WTYY", "Unique"), h = d.head, iG = h.indexOf("Gender"), iA = h.indexOf("Age Range"), iV = h.indexOf("Total Visits"), iM = h.indexOf("Months Due Next Visit"), iI = h.indexOf("Patient ID");
+    var g = {}, a = {}, due = {}, vis = {}, total = 0;
+    d.rows.forEach(function (r) { if (!String(r[iI]).trim()) return; total++; var x = String(r[iG]).trim(); if (x) bump(g, x, "n", 1); x = String(r[iA]).trim(); if (x) bump(a, x, "n", 1); x = String(r[iM]).trim(); if (x) bump(due, x, "n", 1);
+      var v = num(r[iV]); bump(vis, v <= 1 ? "1 visit" : v <= 5 ? "2 to 5 visits" : v <= 10 ? "6 to 10 visits" : v <= 20 ? "11 to 20 visits" : "More than 20 visits", "n", 1); });
+    out.master = { total: total, byGender: g, byAge: a, byDue: due, byVisits: vis };
+  } catch (e) { out.master = { error: String(e) }; }
+  try { // human resources: recruitment calls
+    var d = load("1KhbR6W38bgxnuLvH5F0Nz4bp_768-vVmGjMDwmsxfWE", "Form responses 1"), h = d.head, iR = h.indexOf("Role"), iE = h.indexOf("Fresher/Experienced"), iS = h.indexOf("Status of interview"), iC = h.indexOf("Call Status"), iSr = h.indexOf("Source/Referral"), iT = h.indexOf("Timestamp");
+    var r1 = {}, e1 = {}, s1 = {}, c1 = {}, so = {}, mo = {}, n = 0;
+    d.rows.forEach(function (r) { if (!String(r[iT]).trim()) return; n++; [[r1, iR], [e1, iE], [s1, iS], [c1, iC], [so, iSr]].forEach(function (p) { var x = String(r[p[1]]).trim(); if (x) bump(p[0], x, "n", 1); }); var m = ym(r[iT]); if (m) bump(mo, m, "n", 1); });
+    out.hr = { total: n, byRole: r1, byExp: e1, byStatus: s1, byCall: c1, bySource: so, byMonth: mo };
+  } catch (e) { out.hr = { error: String(e) }; }
   return out;
+}
+function search(q) {
+  q = String(q || "").trim(); if (q.length < 3) return { rows: [] };
+  var digits = q.replace(/[^0-9]/g, ""), low = q.toLowerCase();
+  var d = load("11FfZivBsq0EiNLIz8v7F1FetjfidUyGpJc74BI9WTYY", "Unique"), h = d.head, ix = {};
+  ["Patient ID", "Patient Name", "Gender", "Age", "Phone Number", "Total Visits", "Visit Date", "Next Visit", "Last Visits"].forEach(function (c) { ix[c] = h.indexOf(c); });
+  var rows = [];
+  for (var i = 0; i < d.rows.length && rows.length < 8; i++) { var r = d.rows[i], id = String(r[ix["Patient ID"]]).trim(); if (!id) continue;
+    var ph = String(r[ix["Phone Number"]]).replace(/[^0-9]/g, ""), nm = String(r[ix["Patient Name"]]).toLowerCase();
+    if ((digits.length >= 4 && (id === digits || ph.slice(-10) === digits.slice(-10) || (digits.length >= 6 && ph.indexOf(digits) >= 0))) || nm.indexOf(low) >= 0)
+      rows.push({ id: id, name: r[ix["Patient Name"]], gender: r[ix["Gender"]], age: r[ix["Age"]], phone: r[ix["Phone Number"]], visits: r[ix["Total Visits"]], first: r[ix["Visit Date"]], last: r[ix["Last Visits"]], next: r[ix["Next Visit"]] }); }
+  var hist = [];
+  if (rows.length) { try { var t = load("12wDnSh5PzHQNDaDjusRjmyHsInj9GC2qArG9emJp2PE", "table"), iP = t.head.indexOf("Patient ID"), iDt = t.head.indexOf("Date"), iPr = t.head.indexOf("Procedures"), iPa = t.head.indexOf("Part"), iTh = t.head.indexOf("Therapist");
+    t.rows.forEach(function (r) { if (String(r[iP]).trim() === rows[0].id) hist.push({ date: r[iDt], proc: r[iPr], part: r[iPa], by: r[iTh] }); }); } catch (e) {} }
+  return { rows: rows, history: hist.slice(-25).reverse() };
 }
 `;
 
@@ -143,7 +181,7 @@ const sorted = (o, f, n = 10) => Object.entries(o || {}).map(([k, v]) => ({ k, n
 const monthsList = (o, n = 12) => Object.keys(o || {}).sort().slice(-n);
 export function computeHeavy(raw) {
   const out = { updatedAt: ist().slice(0, 16).replace("T", " "), errors: {} };
-  for (const k of ["conv", "pack", "pharm", "deliv"]) if (!raw[k] || raw[k].error) out.errors[k] = raw[k]?.error || "No data";
+  for (const k of ["conv", "pack", "pharm", "deliv", "master", "hr"]) if (!raw[k] || raw[k].error) out.errors[k] = raw[k]?.error || "No data";
   const c = raw.conv;
   if (c && !c.error) {
     const years = Object.keys(c.byYearCat).sort();
@@ -167,6 +205,10 @@ export function computeHeavy(raw) {
   if (d && !d.error) {
     out.deliv = { focus: d.focus, byMonth: monthsList(d.byMonth).map((m) => ({ m, n: d.byMonth[m].n || 0 })), byTherapist: sorted(d.byTherapist, "n"), byProc: sorted(d.byProc, "n"), byUnique: sorted(d.byUnique, "n"), byCategory: sorted(d.byCat, "n") };
   }
+  const m = raw.master;
+  if (m && !m.error) out.master = { total: m.total, byGender: sorted(m.byGender, "n"), byAge: sorted(m.byAge, "n", 12), byDue: sorted(m.byDue, "n", 12), byVisits: sorted(m.byVisits, "n") };
+  const hr = raw.hr;
+  if (hr && !hr.error) out.hr = { total: hr.total, byRole: sorted(hr.byRole, "n"), byExp: sorted(hr.byExp, "n"), byStatus: sorted(hr.byStatus, "n"), byCall: sorted(hr.byCall, "n"), bySource: sorted(hr.bySource, "n"), byMonth: monthsList(hr.byMonth).map((x) => ({ m: x, n: hr.byMonth[x].n || 0 })) };
   return out;
 }
 export async function refreshHeavy() {
@@ -185,6 +227,18 @@ router.get("/", requireAuth, requireLeadership, (req, res) => {
   let heavy = null; try { heavy = JSON.parse(get("live_heavy") || "null"); } catch {}
   res.json({ configured: !!get("live_feed_url"), data, heavy, status: get("live_numbers_status"), heavyStatus: get("live_heavy_status") });
 });
+router.get("/patient-search", requireAuth, requireLeadership, async (req, res) => {
+  const q = String(req.query.q || "").trim();
+  if (q.length < 3) return res.status(400).json({ error: "Type at least 3 letters or numbers" });
+  const url = get("live_feed_url"); if (!url) return res.status(400).json({ error: "Live numbers are not connected yet" });
+  try {
+    const r = await fetch(`${url}?key=${encodeURIComponent(key())}&part=search&q=${encodeURIComponent(q)}`, { redirect: "follow", signal: AbortSignal.timeout(60000) });
+    const j = JSON.parse(await r.text());
+    audit({ userId: req.user.userId, action: "PATIENT_SEARCH" });
+    res.json(j);
+  } catch { res.status(502).json({ error: "The search did not work. Update the Google script (copy it again from the app) and try again." }); }
+});
+
 router.get("/config", requireAuth, (req, res) => {
   if (req.user.roleName !== "admin") return res.status(403).json({ error: "Admin only" });
   res.json({ url: get("live_feed_url"), status: get("live_numbers_status"), script: feedScript() });

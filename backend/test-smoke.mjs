@@ -686,6 +686,8 @@ try {
     const ln = await call("GET", "/api/live-numbers", null, admin);
     ok("live numbers readable by admin", ln.status === 200 && ln.body.configured === false);
     ok("live numbers closed to staff", (await call("GET", "/api/live-numbers", null, stoken)).status === 403);
+    ok("patient search closed to staff", (await call("GET", "/api/live-numbers/patient-search?q=ravi", null, stoken)).status === 403);
+    ok("patient search needs 3 characters", (await call("GET", "/api/live-numbers/patient-search?q=ra", null, admin)).status === 400);
     const lc = await call("GET", "/api/live-numbers/config", null, admin);
     ok("live numbers setup script", lc.status === 200 && /doGet/.test(lc.body.script || ""));
     ok("live numbers link must be Google script", (await call("PUT", "/api/live-numbers/config", { url: "https://evil.com/exec" }, admin)).status === 400);

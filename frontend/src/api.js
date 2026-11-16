@@ -131,6 +131,7 @@ export const api = {
   attendanceMonth: (month) => req(`/api/attendance/month${month ? `?month=${month}` : ""}`),
   attendanceTimesheet: (date) => req(`/api/attendance/timesheet${date ? `?date=${date}` : ""}`),
   liveNumbers: () => req("/api/live-numbers"),
+  patientSearch: (q) => req(`/api/live-numbers/patient-search?q=${encodeURIComponent(q)}`),
   liveConfig: () => req("/api/live-numbers/config"),
   saveLiveConfig: (url) => req("/api/live-numbers/config", { method: "PUT", body: { url } }),
   refreshLive: () => req("/api/live-numbers/refresh", { method: "POST", body: {} }),

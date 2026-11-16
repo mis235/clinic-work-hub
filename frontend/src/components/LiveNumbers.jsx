@@ -70,10 +70,10 @@ export default function LiveNumbers({ user }) {
 
       {(x || hv) && (
         <div className="pill-row">
-          {[["conv", "Conversions"], ["daily", "Daily Procedures"], ["sales", "Clinic Sales"], ["pack", "Package Sheet"], ["pharm", "Purchase & Pharmacy"], ["deliv", "Procedure Delivery"], ["leads", "Leads"]].map(([k, l]) => <button key={k} className={`pill ${sec === k ? "active" : ""}`} onClick={() => setSec(k)}>{l}</button>)}
+          {[["conv", "Conversions"], ["daily", "Daily Procedures"], ["sales", "Clinic Sales"], ["pack", "Package Sheet"], ["pharm", "Purchase & Pharmacy"], ["deliv", "Procedure Delivery"], ["master", "Master"], ["hr", "Human Resources"], ["search", "Patient Search"], ["leads", "Leads"]].map(([k, l]) => <button key={k} className={`pill ${sec === k ? "active" : ""}`} onClick={() => setSec(k)}>{l}</button>)}
         </div>)}
       {hv && Object.keys(hv.errors || {}).length > 0 && <div className="card meta">Some big sheets could not be read: {Object.entries(hv.errors).map(([k, v]) => `${k} (${v})`).join(" · ")}</div>}
-      {!hv && x && ["conv", "pack", "pharm", "deliv"].includes(sec) && <div className="empty">{isAdmin ? "The big sheets are not connected yet. Open Setup, copy the new script into your Google script and deploy a new version, then press Update now." : "Still loading. Try again in a few minutes."}</div>}
+      {!hv && x && ["conv", "pack", "pharm", "deliv", "master", "hr"].includes(sec) && <div className="empty">{isAdmin ? "The big sheets are not connected yet. Open Setup, copy the new script into your Google script and deploy a new version, then press Update now." : "Still loading. Try again in a few minutes."}</div>}
       {(() => { const fk = (n) => (n >= 10000000 ? (n / 10000000).toFixed(1) + "Cr" : n >= 100000 ? (n / 100000).toFixed(1) + "L" : n >= 1000 ? Math.round(n / 1000) + "k" : n); return (<>
 
       {sec === "conv" && hv?.conv && (<>
@@ -158,6 +158,32 @@ export default function LiveNumbers({ user }) {
         </div>
       </>)}
 
+      {sec === "master" && hv?.master && (<>
+        <div className="kpi-row">
+          <Kpi l="Patients on file" v={hv.master.total.toLocaleString("en-IN")} />
+          {hv.master.byGender.map((g) => <Kpi key={g.k} l={g.k} v={g.n.toLocaleString("en-IN")} c={GOLD} />)}
+        </div>
+        <div className="dept-grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))" }}>
+          <Card t="Patient visit recency" sub="How overdue their next visit is"><Bars items={hv.master.byDue} color={GREEN} /></Card>
+          <Card t="By number of visits"><Bars items={hv.master.byVisits} /></Card>
+          <Card t="By age range"><Bars items={hv.master.byAge} color={GOLD} /></Card>
+        </div>
+      </>)}
+
+      {sec === "hr" && hv?.hr && (<>
+        <div className="kpi-row"><Kpi l="Candidates called" v={hv.hr.total} /></div>
+        <div className="dept-grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))" }}>
+          <Card t="Candidates by month"><Columns items={hv.hr.byMonth} val={(r) => r.n} label={(r) => mon(r.m)} /></Card>
+          <Card t="By role"><Bars items={hv.hr.byRole} color={GOLD} /></Card>
+          <Card t="Interview status"><Bars items={hv.hr.byStatus} color={GREEN} /></Card>
+          <Card t="Call status"><Bars items={hv.hr.byCall} /></Card>
+          <Card t="Fresher or experienced"><Bars items={hv.hr.byExp} color={GOLD} /></Card>
+          <Card t="Source"><Bars items={hv.hr.bySource} color={GREEN} /></Card>
+        </div>
+      </>)}
+
+      {sec === "search" && <PatientSearch />}
+
       {sec === "leads" && x?.leads && (<>
         <div className="kpi-row"><Kpi l="Leads (TeleCRM)" v={x.leads.total} /></div>
         {x.leads.total === 0 ? <div className="empty">No leads in the TeleCRM sheet yet. They appear here once TeleCRM sends them.</div> : (
@@ -169,5 +195,31 @@ export default function LiveNumbers({ user }) {
         </div>)}
       </>)}
       </>); })()}
+    </div>);
+}
+
+function PatientSearch() {
+  const [q, setQ] = useState(""), [r, setR] = useState(null), [busy, setBusy] = useState(false), [err, setErr] = useState("");
+  const go = async () => { setBusy(true); setErr(""); setR(null); try { setR(await api.patientSearch(q.trim())); } catch (e) { setErr(e.message); } setBusy(false); };
+  return (
+    <div className="card">
+      <div className="title" style={{ marginBottom: 2 }}>Search a patient</div>
+      <div className="meta" style={{ marginBottom: 8 }}>By patient ID, phone number or name (at least 3 letters or numbers). Leadership only. Each search is recorded.</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <input className="field" style={{ maxWidth: 360 }} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && q.trim().length >= 3 && go()} placeholder="Name, phone or patient ID" />
+        <button className="btn btn-primary btn-sm" disabled={busy || q.trim().length < 3} onClick={go}>{busy ? "Searching…" : "Search"}</button>
+      </div>
+      {err && <div className="note warn" style={{ marginTop: 8 }}>{err}</div>}
+      {r && r.rows.length === 0 && <div className="meta" style={{ marginTop: 10 }}>No patient found.</div>}
+      {r && r.rows.length > 0 && (
+        <div style={{ marginTop: 12, overflowX: "auto" }}>
+          <table className="reg-table"><thead><tr><th>Name</th><th>Patient ID</th><th>Phone</th><th>Gender / age</th><th>Visits</th><th>Last visit</th><th>Next visit</th></tr></thead>
+            <tbody>{r.rows.map((p) => <tr key={p.id}><td className="nm">{p.name}</td><td>{p.id}</td><td>{p.phone}</td><td>{p.gender} {p.age ? "· " + p.age : ""}</td><td>{p.visits}</td><td>{p.last}</td><td>{p.next}</td></tr>)}</tbody></table>
+          {r.history?.length > 0 && (<>
+            <div className="title" style={{ margin: "14px 0 6px" }}>Recent procedures · {r.rows[0].name}</div>
+            <table className="reg-table"><thead><tr><th>Date</th><th>Procedure</th><th>Part</th><th>Done by</th></tr></thead>
+              <tbody>{r.history.map((h, i) => <tr key={i}><td>{h.date}</td><td>{h.proc}</td><td>{h.part}</td><td>{h.by}</td></tr>)}</tbody></table>
+          </>)}
+        </div>)}
     </div>);
 }
