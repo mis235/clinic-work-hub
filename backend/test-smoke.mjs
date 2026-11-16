@@ -664,6 +664,17 @@ try {
     await call("DELETE", `/api/fines/${f.body.id}`, null, admin);
     ok("dashboard source rejects non-drive link", (await call("PUT", "/api/clinic-ai/patient-dashboard/source", { url: "http://x.test/a" }, admin)).status === 400);
   }
+  { // attendance time table
+    const today = new Date(Date.now() + 19800000).toISOString().slice(0, 10);
+    const fx = await call("PUT", "/api/attendance/time", { userId: staff.id, date: today, inTime: "10:40", outTime: "18:30" }, admin);
+    ok("times can be fixed", fx.status === 200);
+    const tt = await call("GET", `/api/attendance/timesheet?date=${today}`, null, admin);
+    const row = tt.body?.rows?.find((r) => r.id === staff.id);
+    ok("time table shows check-in/out and minutes", row && row.inTime === "10:40" && row.outTime === "18:30" && row.workedMin === 470 && typeof row.lateMin === "number");
+    ok("bad time rejected", (await call("PUT", "/api/attendance/time", { userId: staff.id, date: today, inTime: "25:99" }, admin)).status === 400);
+    ok("staff cannot fix times", (await call("PUT", "/api/attendance/time", { userId: staff.id, date: today, inTime: "09:00" }, stoken)).status === 403);
+    if (today >= "2026-11-18") ok("hand-marking Present is closed from 18 Nov", (await call("PUT", "/api/attendance/mark", { userId: staff.id, date: today, status: "P" }, admin)).status === 400);
+  }
   { // sheets dashboard
     const sh = await call("POST", "/api/sheets", { title: "T", category: "C", url: "https://docs.google.com/spreadsheets/d/abc123/edit#gid=0" }, admin);
     ok("sheet can be added", sh.status === 201);

@@ -8,7 +8,7 @@ import {
 } from "@simplewebauthn/server";
 import db from "../db.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
-import { syncLateFines } from "./leave.js";
+import { syncLateFines, shiftWindow, isLateArrival } from "./leave.js";
 
 const router = Router();
 
@@ -249,6 +249,11 @@ export const MARKS = { P: "Present", L: "Late", H: "Half day", LV: "Leave", A: "
 const isLead = (u) => u?.roleName === "admin" || u?.roleName === "manager";
 const istToday = () => new Date(Date.now() + 19800000).toISOString().slice(0, 10);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+// From this day, Present / Late / Half day come ONLY from the check-in and check-out times (face check-in), not from hand marking.
+// Leave, Absent and Week off can still be recorded by HR. Change with the app setting att_manual_cutoff.
+const manualCutoff = () => db.prepare("SELECT value FROM app_settings WHERE key = 'att_manual_cutoff'").get()?.value || "2026-11-18";
+const hhmmOk = (t) => /^([01]\d|2[0-3]):[0-5]\d$/.test(t || "");
+const mm = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
 
 /** { P: n, L: n, ... } plus present-day total for one person in one month (used by the staff home screen). */
 export function monthCounts(userId, month) {
@@ -310,6 +315,7 @@ router.put("/mark", requireAuth, (req, res) => {
   const { userId, date, status, note } = req.body || {};
   if (!DATE_RE.test(date || "") || date > istToday()) return res.status(400).json({ error: "Choose today or an earlier date" });
   if (!db.prepare("SELECT 1 FROM users WHERE id = ? AND active = 1").get(userId)) return res.status(400).json({ error: "Choose a staff member" });
+  if (["P", "L", "H"].includes(status) && date >= manualCutoff()) return res.status(400).json({ error: "From Wednesday 18 Nov, Present, Late and Half day come only from check-in and check-out times. If someone forgot to check in, use Fix Times on the Time Table." });
   if (!status) db.prepare("DELETE FROM attendance_marks WHERE user_id = ? AND mark_date = ?").run(userId, date);
   else if (!MARKS[status]) return res.status(400).json({ error: "Unknown status" });
   else db.prepare(
@@ -326,12 +332,60 @@ router.post("/mark-day", requireAuth, (req, res) => {
   const { date, status, department } = req.body || {};
   if (!DATE_RE.test(date || "") || date > istToday()) return res.status(400).json({ error: "Choose today or an earlier date" });
   if (!MARKS[status]) return res.status(400).json({ error: "Unknown status" });
+  if (["P", "L", "H"].includes(status) && date >= manualCutoff()) return res.status(400).json({ error: "From Wednesday 18 Nov, attendance comes only from check-in and check-out times." });
   const users = db.prepare(
     `SELECT u.id FROM users u LEFT JOIN departments d ON d.id = u.department_id WHERE u.active = 1 ${department ? "AND d.name = ?" : ""}
      AND NOT EXISTS (SELECT 1 FROM attendance_marks m WHERE m.user_id = u.id AND m.mark_date = ?)`).all(...(department ? [department, date] : [date]));
   const ins = db.prepare("INSERT INTO attendance_marks (user_id, mark_date, status, marked_by) VALUES (?,?,?,?)");
   db.transaction(() => users.forEach((u) => ins.run(u.id, date, status, req.user.userId)))();
   res.json({ ok: true, marked: users.length });
+});
+
+// ---- Time Table: who came when, how many minutes late, when they left, hours worked -----------------------------------
+router.get("/timesheet", requireAuth, requirePermission("attendance:view_all"), (req, res) => {
+  const date = DATE_RE.test(req.query.date || "") ? req.query.date : istToday();
+  const month = date.slice(0, 7);
+  const staff = db.prepare(`SELECT u.id, u.name, u.designation, d.name AS department FROM users u LEFT JOIN departments d ON d.id = u.department_id
+    WHERE u.active = 1 AND COALESCE((SELECT name FROM roles WHERE id = u.role_id), '') != 'admin' ORDER BY d.name, u.name`).all();
+  const day = new Map(db.prepare("SELECT user_id, status, in_time, out_time, note FROM attendance_marks WHERE mark_date = ?").all(date).map((r) => [r.user_id, r]));
+  const monthRows = db.prepare("SELECT user_id, mark_date, in_time FROM attendance_marks WHERE substr(mark_date,1,7) = ? AND in_time IS NOT NULL AND mark_date <= ?").all(month, date);
+  const lateSum = new Map();
+  for (const r of monthRows) {
+    const late = mm(r.in_time) - mm(shiftWindow(r.user_id, r.mark_date).start);
+    const cur = lateSum.get(r.user_id) || { days: 0, minutes: 0 };
+    if (late > 0 && isLateArrival(r.user_id, r.mark_date, r.in_time)) { cur.days++; cur.minutes += late; }
+    lateSum.set(r.user_id, cur);
+  }
+  const rows = staff.map((u) => {
+    const w = shiftWindow(u.id, date), m = day.get(u.id) || {};
+    const lateMin = m.in_time ? Math.max(0, mm(m.in_time) - mm(w.start)) : null;
+    const earlyMin = m.out_time ? Math.max(0, mm(w.end) - mm(m.out_time)) : null;
+    const worked = m.in_time && m.out_time ? Math.max(0, mm(m.out_time) - mm(m.in_time)) : null;
+    return { id: u.id, name: u.name, department: u.department || "", designation: u.designation || "", shiftStart: w.start, shiftEnd: w.end,
+      status: m.status || "", inTime: m.in_time || "", outTime: m.out_time || "", lateMin, isLate: !!(m.in_time && isLateArrival(u.id, date, m.in_time)),
+      earlyMin, workedMin: worked, monthLate: lateSum.get(u.id) || { days: 0, minutes: 0 }, note: m.note || "" };
+  });
+  res.json({ date, month, rows, manualCutoff: manualCutoff(), graceMin: Number(db.prepare("SELECT value FROM app_settings WHERE key = 'late_grace_min'").get()?.value || 15) });
+});
+
+// HR fixes a missing or wrong time (someone forgot to check in/out). The status (Present / Late) follows the time.
+router.put("/time", requireAuth, (req, res) => {
+  if (!isLead(req.user)) return res.status(403).json({ error: "Only admin or a manager can fix times" });
+  const { userId, date, inTime, outTime } = req.body || {};
+  if (!DATE_RE.test(date || "") || date > istToday()) return res.status(400).json({ error: "Choose today or an earlier date" });
+  if (!db.prepare("SELECT 1 FROM users WHERE id = ? AND active = 1").get(userId)) return res.status(400).json({ error: "Choose a staff member" });
+  if ((inTime && !hhmmOk(inTime)) || (outTime && !hhmmOk(outTime))) return res.status(400).json({ error: "Use the time like 09:45" });
+  if (!inTime && !outTime) return res.status(400).json({ error: "Enter a check-in or a check-out time" });
+  if (inTime && outTime && mm(outTime) <= mm(inTime)) return res.status(400).json({ error: "Check-out must be after check-in" });
+  const cur = db.prepare("SELECT * FROM attendance_marks WHERE user_id = ? AND mark_date = ?").get(userId, date);
+  const newIn = inTime || cur?.in_time || null, newOut = outTime || cur?.out_time || null;
+  const status = newIn ? (isLateArrival(userId, date, newIn) ? "L" : "P") : (cur?.status || "P");
+  const note = `Time fixed by ${db.prepare("SELECT name FROM users WHERE id = ?").get(req.user.userId)?.name || "admin"}`;
+  db.prepare(`INSERT INTO attendance_marks (user_id, mark_date, status, in_time, out_time, note, marked_by) VALUES (?,?,?,?,?,?,?)
+    ON CONFLICT(user_id, mark_date) DO UPDATE SET status = excluded.status, in_time = excluded.in_time, out_time = excluded.out_time, note = excluded.note, marked_by = excluded.marked_by, updated_at = datetime('now')`)
+    .run(userId, date, status, newIn, newOut, note, req.user.userId);
+  try { syncLateFines(date.slice(0, 7)); } catch {}
+  res.json({ ok: true, status });
 });
 
 // The month register: one row per person, one column per day, with totals and fines.

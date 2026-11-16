@@ -8,13 +8,19 @@ import { snapUrl } from "../api.js";
 const todayIST = () => new Date(Date.now() + 19800000).toISOString().slice(0, 10);
 const MARKS = [["P", "Present", "done"], ["L", "Late", "overdue"], ["H", "Half day", "accepted"], ["LV", "Leave", "accepted"], ["A", "Absent", "overdue"], ["W", "Off", "accepted"]];
 const CYCLE = ["", "P", "L", "A", "H", "LV", "W"];
+const CUTOFF = "2026-11-18"; // from Wednesday: Present / Late / Half day only from check-in times
+const CYCLE_AFTER = ["", "A", "LV", "W"];
+const t12 = (t) => { const [h, m] = String(t).split(":").map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
+const shiftDay = (d, n) => new Date(new Date(d + "T00:00:00Z").getTime() + n * 86400000).toISOString().slice(0, 10);
 
 // Attendance is marked by the admin / manager (like the paper register). Staff do not check in on the app.
 export default function AttendancePage({ user, onLogout, onBack }) {
   const [date, setDate] = useState(todayIST());
   const [board, setBoard] = useState(null);
   const [reg, setReg] = useState(null);
-  const [tab, setTab] = useState("day");
+  const [tab, setTab] = useState("time");
+  const [ts, setTs] = useState(null);
+  const [fix, setFix] = useState(null);
   const [preset, setPreset] = useState(null);
   const [toast, setToast] = useState("");
   const flash = (m) => { setToast(m); setTimeout(() => setToast(""), 3000); };
@@ -22,6 +28,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
 
   const load = () => {
     api.attendanceBoard(date).then(setBoard).catch((e) => { setBoard({ rows: [], counts: {}, total: 0 }); flash(e.message); });
+    api.attendanceTimesheet(date).then(setTs).catch(() => setTs({ rows: [] }));
     api.attendanceRegister(month).then(setReg).catch(() => setReg({ rows: [], daysInMonth: 0 }));
   };
   useEffect(load, [date]);
@@ -42,7 +49,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
     <PageShell user={user} active="Attendance" title="Attendance" onLogout={onLogout} onBack={onBack}>
       <div className="page-head row">
         <div><div className="eyebrow">People</div><h1>Attendance</h1>
-          <p>Staff check in by face on the clinic phone (tab Face check-in). Here you can see the day and correct anything, like the paper register.</p></div>
+          <p>Staff check in and out by face on the clinic phone. The Time Table shows each person’s check-in, check-out and minutes late against their shift.</p></div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button className="btn btn-outline btn-sm" disabled={dlBusy} onClick={download}>{dlBusy ? "Preparing…" : "⬇ Attendance sheet (Excel)"}</button><input className="field" type="date" style={{ width: 180 }} value={date} max={todayIST()} onChange={(e) => setDate(e.target.value)} /></div>
       </div>
 
@@ -53,37 +60,64 @@ export default function AttendancePage({ user, onLogout, onBack }) {
       </div>
 
       <div className="pill-row">
-        <button className={`pill ${tab === "day" ? "active" : ""}`} onClick={() => setTab("day")}>Mark the day</button>
+        <button className={`pill ${tab === "time" ? "active" : ""}`} onClick={() => setTab("time")}>Time Table</button>
         <button className={`pill ${tab === "register" ? "active" : ""}`} onClick={() => setTab("register")}>Month register</button>
         <button className={`pill ${tab === "face" ? "active" : ""}`} onClick={() => setTab("face")}>Face check-in</button>
         {user.role === "admin" && <button className={`pill ${tab === "fines" ? "active" : ""}`} onClick={() => setTab("fines")}>Fines</button>}
         <button className={`pill ${tab === "notes" ? "active" : ""}`} onClick={() => setTab("notes")}>Staff Messages</button>
       </div>
 
-      {tab === "day" && (!board ? <div className="empty">Loading…</div> : (
-        <div className="card">
-          <div className="row" style={{ justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
-            <div className="meta">Tap a status for each person. “Mark all present” fills only the people not yet marked.</div>
-            <button className="btn btn-outline btn-sm" onClick={() => markAll("P")}>Mark all present</button>
-          </div>
-          {board.rows.map((r) => (
-            <div key={r.id} className="task-row" style={{ flexWrap: "wrap", gap: 8 }}>
-              <div><div className="title">{r.name}</div><div className="meta">{r.department || "—"}{r.designation ? ` · ${r.designation}` : ""}{r.in_time ? ` · In ${r.in_time}` : ""}{r.out_time ? ` · Out ${r.out_time}` : ""}</div></div>
-              <div className="right" style={{ gap: 4, flexWrap: "wrap" }}>
-                {MARKS.map(([k, label]) => (
-                  <button key={k} className={`pill ${r.mark === k ? "active" : ""}`} style={{ padding: "5px 10px" }} onClick={() => mark(r.id, date, r.mark === k ? "" : k)}>{label}</button>
-                ))}
-                {r.mark === "L" && user.role === "admin" && <button className="btn btn-ghost btn-sm" onClick={() => { setPreset({ userId: r.id, category: "late", amount: 100, date, note: "" }); setTab("fines"); }}>Add fine</button>}
-              </div>
+      {tab === "time" && (!ts ? <div className="empty">Loading…</div> : (
+        <div className="card" style={{ overflowX: "auto" }}>
+          <div className="row" style={{ justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+            <div className="row" style={{ gap: 6, alignItems: "center" }}>
+              <button className="btn btn-outline btn-sm" onClick={() => setDate(shiftDay(date, -1))}>‹</button>
+              <input className="field" type="date" style={{ width: 160, margin: 0 }} max={todayIST()} value={date} onChange={(e) => e.target.value && setDate(e.target.value)} />
+              <button className="btn btn-outline btn-sm" disabled={date >= todayIST()} onClick={() => setDate(shiftDay(date, 1))}>›</button>
+              <b style={{ marginLeft: 6 }}>{new Date(date + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })}</b>
             </div>
-          ))}
+            <div className="meta">Late = after shift start + {ts.graceMin} min grace. Times come from face check-in.</div>
+          </div>
+          <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse", minWidth: 760 }}>
+            <thead><tr style={{ textAlign: "left", background: "var(--surface-sunk, #f1f5f9)" }}>
+              {["Staff", "Shift", "Check-in", "Late by", "Check-out", "Worked", "Left early", "Status", "This month late", ""].map((h) => <th key={h} style={{ padding: "8px 8px", whiteSpace: "nowrap" }}>{h}</th>)}
+            </tr></thead>
+            <tbody>{ts.rows.map((r) => {
+              const leaveLike = ["LV", "A", "W"].includes(r.status);
+              return (
+                <tr key={r.id} style={{ borderTop: "1px solid var(--line)" }}>
+                  <td style={{ padding: "7px 8px" }}><b>{r.name}</b><div className="meta">{r.department}</div></td>
+                  <td style={{ padding: "7px 8px", whiteSpace: "nowrap" }}>{r.shiftStart} – {r.shiftEnd}</td>
+                  <td style={{ padding: "7px 8px" }}><b>{r.inTime ? t12(r.inTime) : "—"}</b></td>
+                  <td style={{ padding: "7px 8px", color: r.isLate ? "#b91c1c" : undefined, fontWeight: r.isLate ? 700 : 400 }}>{r.inTime ? (r.lateMin > 0 ? `${r.lateMin} min` : "On time") : "—"}</td>
+                  <td style={{ padding: "7px 8px" }}><b>{r.outTime ? t12(r.outTime) : "—"}</b></td>
+                  <td style={{ padding: "7px 8px", whiteSpace: "nowrap" }}>{r.workedMin != null ? `${Math.floor(r.workedMin / 60)} h ${r.workedMin % 60} min` : "—"}</td>
+                  <td style={{ padding: "7px 8px", color: r.earlyMin > 15 ? "#b45309" : undefined }}>{r.earlyMin != null ? (r.earlyMin > 0 ? `${r.earlyMin} min` : "No") : "—"}</td>
+                  <td style={{ padding: "7px 8px" }}>{leaveLike ? <span className="badge">{{ LV: "Leave", A: "Absent", W: "Off" }[r.status]}</span> : r.inTime ? <span className={`badge ${r.isLate ? "overdue" : "done"}`}>{r.isLate ? "Late" : "On time"}</span> : <span className="badge">Not in</span>}</td>
+                  <td style={{ padding: "7px 8px", whiteSpace: "nowrap" }}>{r.monthLate.days ? `${r.monthLate.days} days · ${r.monthLate.minutes} min` : "—"}</td>
+                  <td style={{ padding: "7px 8px" }}><button className="btn btn-ghost btn-sm" onClick={() => setFix({ userId: r.id, name: r.name, date, inTime: r.inTime, outTime: r.outTime })}>Fix Times</button></td>
+                </tr>);
+            })}</tbody>
+          </table>
+          {ts.rows.length === 0 && <div className="empty">No staff found.</div>}
         </div>
       ))}
+      {fix && (
+        <div className="modal-backdrop" onClick={() => setFix(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Fix Times · {fix.name}</h3>
+            <div className="meta">Use this only when someone forgot to check in or out. Present or Late is worked out from the time.</div>
+            <label className="field-label">Check-in time</label><input className="field" type="time" value={fix.inTime} onChange={(e) => setFix({ ...fix, inTime: e.target.value })} />
+            <label className="field-label">Check-out time</label><input className="field" type="time" value={fix.outTime} onChange={(e) => setFix({ ...fix, outTime: e.target.value })} />
+            <div className="actions"><button className="btn btn-ghost" onClick={() => setFix(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={async () => { try { await api.fixAttendanceTime({ userId: fix.userId, date: fix.date, inTime: fix.inTime, outTime: fix.outTime }); setFix(null); load(); flash("Saved."); } catch (e) { flash(e.message); } }}>Save</button></div>
+          </div>
+        </div>)}
 
       {tab === "register" && (!reg ? <div className="empty">Loading…</div> : (
         <div className="card" style={{ overflowX: "auto" }}>
           <div className="row" style={{ justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
-            <div className="meta">Click a box to change it: P present · L late · A absent · H half day · LV leave · W off. Month: {reg.month}</div>
+            <div className="meta">Up to Tue 17 Nov you can change any box. From Wed 18 Nov, P and L come only from check-in times; you can still set Absent, Leave and Off. Month: {reg.month}</div>
             <div className="row" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
               <button className="btn btn-outline btn-sm" disabled={dlBusy} onClick={() => download(month, month)}>{dlBusy ? "Preparing…" : "⬇ This month (Excel)"}</button>
               <button className="btn btn-outline btn-sm" disabled={dlBusy} onClick={() => download(monthsAgo(2), monthsAgo(0))}>⬇ Last 3 months</button>
@@ -101,7 +135,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
                 {r.days.map((d, i) => {
                   const day = `${reg.month}-${String(i + 1).padStart(2, "0")}`;
                   const future = day > todayIST();
-                  return <td key={i} className={`c-${d || "x"} ${future ? "" : "clk"}`} onClick={() => !future && mark(r.id, day, CYCLE[(CYCLE.indexOf(d) + 1) % CYCLE.length])}>{d === "LV" ? "Lv" : d}</td>;
+                  return <td key={i} className={`c-${d || "x"} ${future ? "" : "clk"}`} onClick={() => { if (future) return; if (day >= CUTOFF) { if (["P", "L", "H"].includes(d)) return flash("From Wednesday 18 Nov, Present and Late come only from check-in times. Use Fix Times on the Time Table."); mark(r.id, day, CYCLE_AFTER[(CYCLE_AFTER.indexOf(d) + 1) % CYCLE_AFTER.length]); } else mark(r.id, day, CYCLE[(CYCLE.indexOf(d) + 1) % CYCLE.length]); }}>{d === "LV" ? "Lv" : d}</td>;
                 })}
                 <td><b>{r.present}</b></td><td>{r.late || ""}</td><td>{r.absent || ""}</td><td>{r.leave || ""}</td><td>{r.fine_total ? "₹" + r.fine_total : ""}</td></tr>
             ))}</tbody>

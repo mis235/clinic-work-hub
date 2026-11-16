@@ -129,6 +129,8 @@ export const api = {
   setMessagesOn: (enabled) => req("/api/messages/settings", { method: "PUT", body: { enabled } }),
   attendanceBoard: (date) => req(`/api/attendance/board${date ? `?date=${date}` : ""}`),
   attendanceMonth: (month) => req(`/api/attendance/month${month ? `?month=${month}` : ""}`),
+  attendanceTimesheet: (date) => req(`/api/attendance/timesheet${date ? `?date=${date}` : ""}`),
+  fixAttendanceTime: (payload) => req("/api/attendance/time", { method: "PUT", body: payload }),
   markAttendance: (userId, date, status) => req("/api/attendance/mark", { method: "PUT", body: { userId, date, status } }),
   markAttendanceDay: (date, status) => req("/api/attendance/mark-day", { method: "POST", body: { date, status } }),
   attendanceRegister: (month) => req(`/api/attendance/register${month ? `?month=${month}` : ""}`),
