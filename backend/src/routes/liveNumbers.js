@@ -105,6 +105,14 @@ function heavy() {
     d.rows.forEach(function (r) { if (!String(r[iT]).trim()) return; n++; [[r1, iR], [e1, iE], [s1, iS], [c1, iC], [so, iSr]].forEach(function (p) { var x = String(r[p[1]]).trim(); if (x) bump(p[0], x, "n", 1); }); var m = ym(r[iT]); if (m) bump(mo, m, "n", 1); });
     out.hr = { total: n, byRole: r1, byExp: e1, byStatus: s1, byCall: c1, bySource: so, byMonth: mo };
   } catch (e) { out.hr = { error: String(e) }; }
+  try { // pharmacy purchases
+    var d = load("1r7LFjkmlCp7RXYPG6tlT7A7qNCzIzf5kYC0to2-P1OY", "Sheet1"), h = d.head, iDt = h.indexOf("Invoice Date"), iV = h.indexOf("Stockist Name"), iM = h.indexOf("Medicine Name"), iQ = h.indexOf("Qty"), iA = h.indexOf("Amount"), iG = h.indexOf("Total GST Amt."), iN = h.indexOf("Invoice No");
+    var bm = {}, seen = {}, rows = [];
+    d.rows.forEach(function (r) { var m = ym(r[iDt]); if (!m) return; var a = num(r[iA]), g = num(r[iG]); bump(bm, m, "amt", a + g); bump(bm, m, "gst", g); bump(bm, m, "qty", num(r[iQ])); var k = m + "|" + r[iN]; if (!seen[k]) { seen[k] = 1; bump(bm, m, "inv", 1); } rows.push([m, String(r[iV]).trim(), String(r[iM]).trim(), a + g]); });
+    var months = Object.keys(bm).sort(), last = months[months.length - 1], bv = {}, bi = {};
+    rows.forEach(function (x) { if (x[0] !== last) return; bump(bv, x[1], "amt", x[3]); bump(bi, x[2], "amt", x[3]); });
+    out.purch = { byMonth: bm, focus: last, byVendor: bv, byItem: bi };
+  } catch (e) { out.purch = { error: String(e) }; }
   return out;
 }
 function search(q) {
@@ -181,7 +189,7 @@ const sorted = (o, f, n = 10) => Object.entries(o || {}).map(([k, v]) => ({ k, n
 const monthsList = (o, n = 12) => Object.keys(o || {}).sort().slice(-n);
 export function computeHeavy(raw) {
   const out = { updatedAt: ist().slice(0, 16).replace("T", " "), errors: {} };
-  for (const k of ["conv", "pack", "pharm", "deliv", "master", "hr"]) if (!raw[k] || raw[k].error) out.errors[k] = raw[k]?.error || "No data";
+  for (const k of ["conv", "pack", "pharm", "purch", "deliv", "master", "hr"]) if (!raw[k] || raw[k].error) out.errors[k] = raw[k]?.error || "No data";
   const c = raw.conv;
   if (c && !c.error) {
     const years = Object.keys(c.byYearCat).sort();
@@ -201,6 +209,8 @@ export function computeHeavy(raw) {
     out.pharm = { focus: h.focus, byMonth: ms.map((m) => ({ m, sales: Math.round(h.byMonth[m].sales || 0), profit: Math.round(h.byMonth[m].profit || 0), orders: h.byMonth[m].orders || 0, qty: h.byMonth[m].qty || 0 })),
       byCategory: sorted(h.byCat, "sales"), topMedicines: sorted(h.byMed, "sales") };
   }
+  const pu = raw.purch;
+  if (pu && !pu.error) out.purch = { focus: pu.focus, byMonth: monthsList(pu.byMonth).map((m) => ({ m, amt: Math.round(pu.byMonth[m].amt || 0), gst: Math.round(pu.byMonth[m].gst || 0), qty: pu.byMonth[m].qty || 0, inv: pu.byMonth[m].inv || 0 })), byVendor: sorted(pu.byVendor, "amt"), byItem: sorted(pu.byItem, "amt") };
   const d = raw.deliv;
   if (d && !d.error) {
     out.deliv = { focus: d.focus, byMonth: monthsList(d.byMonth).map((m) => ({ m, n: d.byMonth[m].n || 0 })), byTherapist: sorted(d.byTherapist, "n"), byProc: sorted(d.byProc, "n"), byUnique: sorted(d.byUnique, "n"), byCategory: sorted(d.byCat, "n") };
