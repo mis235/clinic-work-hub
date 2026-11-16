@@ -674,6 +674,13 @@ try {
     ok("bad time rejected", (await call("PUT", "/api/attendance/time", { userId: staff.id, date: today, inTime: "25:99" }, admin)).status === 400);
     ok("staff cannot fix times", (await call("PUT", "/api/attendance/time", { userId: staff.id, date: today, inTime: "09:00" }, stoken)).status === 403);
     const sh0 = await call("GET", "/api/attendance/sheet", null, admin);
+    const ln = await call("GET", "/api/live-numbers", null, admin);
+    ok("live numbers readable by admin", ln.status === 200 && ln.body.configured === false);
+    ok("live numbers closed to staff", (await call("GET", "/api/live-numbers", null, stoken)).status === 403);
+    const lc = await call("GET", "/api/live-numbers/config", null, admin);
+    ok("live numbers setup script", lc.status === 200 && /doGet/.test(lc.body.script || ""));
+    ok("live numbers link must be Google script", (await call("PUT", "/api/live-numbers/config", { url: "https://evil.com/exec" }, admin)).status === 400);
+    ok("live numbers config admin only", (await call("GET", "/api/live-numbers/config", null, stoken)).status === 403);
     ok("sheet settings (admin)", sh0.status === 200 && /doGet|doPost/.test(sh0.body.script || "") && sh0.body.key);
     ok("sheet link must be Google script", (await call("PUT", "/api/attendance/sheet", { url: "https://evil.com/exec" }, admin)).status === 400);
     ok("staff cannot see sheet settings", (await call("GET", "/api/attendance/sheet", null, stoken)).status === 403);

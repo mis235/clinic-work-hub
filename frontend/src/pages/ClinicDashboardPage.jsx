@@ -4,6 +4,7 @@ import PageShell from "../components/PageShell.jsx";
 import ChecklistDashboard from "../components/ChecklistDashboard.jsx";
 import ClinicAIPage from "./ClinicAIPage.jsx";
 import Icon from "../components/Icon.jsx";
+import LiveNumbers from "../components/LiveNumbers.jsx";
 
 const rupee = (n) => "₹" + Number(n || 0).toLocaleString("en-IN");
 const pctText = (p) => (p == null ? "—" : p + "%");
@@ -36,11 +37,12 @@ export default function ClinicDashboardPage({ user, onLogout, onBack, onNavigate
         <div className="live-chip"><span className="live-dot" /> Live · {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}</div>
       </div>
       <div className="pill-row dash-tabs">
-        {[["checklist", "Checklists", "tasks", true], ["patients", "Patients", "users", lead], ["chat", "Ask Lumi", "bot", lead]].filter((t) => t[3]).map(([k, label, icon]) => (
+        {[["checklist", "Checklists", "tasks", true], ["numbers", "Live Numbers", "chart", lead], ["patients", "Patients", "users", lead], ["chat", "Ask Lumi", "bot", lead]].filter((t) => t[3]).map(([k, label, icon]) => (
           <button key={k} className={`pill ${tab === k ? "active" : ""}`} onClick={() => setTab(k)}><Icon name={icon} size={15} /> {label}</button>
         ))}
       </div>
       {tab === "checklist" && <ChecklistDashboard user={user} />}
+      {tab === "numbers" && <LiveNumbers user={user} />}
       {tab === "patients" && <PatientDashboard user={user} />}
       {tab === "chat" && <ClinicAIPage user={user} isStaffLayout />}
       {tab === "live" && (!depts ? <div className="empty">Loading…</div> : (

@@ -34,6 +34,7 @@ import payrollRoutes from "./routes/payroll.js";
 import assistantRoutes from "./routes/assistant.js";
 import shiftChecklistRoutes from "./routes/shiftChecklist.js";
 import clinicAiRoutes from "./routes/clinicAi.js";
+import liveNumbersRoutes from "./routes/liveNumbers.js";
 import { requireAuth, requirePermission } from "./middleware/auth.js";
 import { runMonthlyPayroll, runDailyChecklistDigest, startScheduledJobs } from "./cron.js";
 import db from "./db.js"; // ensures tables exist on boot
@@ -155,6 +156,7 @@ app.use("/api/payroll", payrollRoutes);
 app.use("/api/assistant", assistantRoutes);
 app.use("/api/shift-checklist", shiftChecklistRoutes);
 app.use("/api/clinic-ai", clinicAiRoutes);
+app.use("/api/live-numbers", liveNumbersRoutes);
 app.use("/webhook", webhookRoutes); // GET+POST /webhook/whatsapp
 
 // Serves uploaded shift-checklist photo evidence. Not permission-gated at the
