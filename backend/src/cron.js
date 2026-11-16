@@ -2,7 +2,7 @@ import { runBackup, backupDue } from "./backup.js";
 import cron from "node-cron";
 import db from "./db.js";
 import { withFines } from "./routes/fines.js";
-import { refreshLive } from "./routes/liveNumbers.js";
+import { refreshLive, refreshHeavy } from "./routes/liveNumbers.js";
 import { pushMonth } from "./attendanceSheet.js";
 import { stampPayslip, syncLateFines } from "./routes/leave.js";
 import { autoMarkLeave } from "./routes/attendance.js";
@@ -131,6 +131,7 @@ export function startScheduledJobs() {
   setTimeout(() => { try { for (let n = 1; n <= 7; n++) autoMarkLeave(ist(n)); } catch (e) { console.error("Auto leave catch-up:", e.message); } }, 25000).unref();
   cron.schedule("*/10 * * * *", () => { pushMonth(ist().slice(0, 7)).catch(() => {}); }, { timezone: "Asia/Kolkata" });
   cron.schedule("*/10 * * * *", () => { refreshLive().catch(() => {}); }, { timezone: "Asia/Kolkata" });
+  cron.schedule("7 * * * *", () => { refreshHeavy().catch(() => {}); }, { timezone: "Asia/Kolkata" });
   cron.schedule("*/2 * * * *", () => { syncChecklistSheet().catch((e) => console.error("Checklist sync failed:", e.message)); });
   setTimeout(() => syncChecklistSheet().catch(() => {}), 20000).unref();
 

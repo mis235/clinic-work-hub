@@ -24,6 +24,7 @@ var KEY = "${key()}";
 var SRC = ${JSON.stringify(SOURCES, null, 1)};
 function doGet(e) {
   if (!e || !e.parameter || e.parameter.key !== KEY) return ContentService.createTextOutput("wrong key");
+  if (e.parameter.part === "heavy") return ContentService.createTextOutput(JSON.stringify(heavy())).setMimeType(ContentService.MimeType.JSON);
   var out = {};
   Object.keys(SRC).forEach(function (k) {
     try {
@@ -34,6 +35,54 @@ function doGet(e) {
     } catch (err) { out[k] = { error: String(err) }; }
   });
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
+}
+
+var MON = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+function num(x) { var n = Number(String(x).replace(/[₹,\\s]/g, "")); return isFinite(n) ? n : 0; }
+function ym(s) {
+  s = String(s).trim(); var m = /^(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})/.exec(s); if (m) return m[3] + "-" + ("0" + m[2]).slice(-2);
+  m = /^(\\d{4})-(\\d{2})/.exec(s); if (m) return m[1] + "-" + m[2];
+  m = /^(\\d{1,2})-([A-Za-z]{3})[a-z]*-(\\d{4})/.exec(s); if (m && MON[m[2].toLowerCase()]) return m[3] + "-" + ("0" + MON[m[2].toLowerCase()]).slice(-2);
+  return "";
+}
+function load(id, tab) { var v = SpreadsheetApp.openById(id).getSheetByName(tab).getDataRange().getDisplayValues(); return { head: v[0].map(function (h) { return String(h).trim(); }), rows: v.slice(1) }; }
+function bump(o, k, f, n) { if (!k) return; var r = (o[k] = o[k] || {}); r[f] = (r[f] || 0) + n; }
+function heavy() {
+  var out = {};
+  try { // suggested vs done, 2025 + 2026
+    var byMonth = {}, byYearCat = {};
+    [["Suggested procedures 2025"], ["Suggested procedures 2026"]].forEach(function (t) {
+      var d = load("1by72If2xcVd8CmRgDYKxtHoJIIF1z1EK3MyZt03IaYs", t[0]), iD = d.head.indexOf("Date"), iX = d.head.indexOf("Whether Done Or Not"), iC = d.head.indexOf("Category");
+      d.rows.forEach(function (r) { var m = ym(r[iD]); if (!m) return; var done = /^y/i.test(String(r[iX]).trim()) ? 1 : 0; bump(byMonth, m, "s", 1); bump(byMonth, m, "d", done);
+        var y = m.slice(0, 4), c = String(r[iC]).trim() || "Other"; byYearCat[y] = byYearCat[y] || {}; bump(byYearCat[y], c, "s", 1); bump(byYearCat[y], c, "d", done); });
+    });
+    out.conv = { byMonth: byMonth, byYearCat: byYearCat };
+  } catch (e) { out.conv = { error: String(e) }; }
+  try { // package sheet FY 25-26
+    var d = load("1fbqLXZoeRHaktiEnhzTqCN7A8JBz9HmWDGByxxkjK18", "FY 25-26"), h = d.head, iDt = h.indexOf("Date of Package taken"), iP = h.indexOf("Procedure Name"), iT = h.indexOf("Type of Package"), iA = h.indexOf("Package Amount"), iPd = h.indexOf("Amount Paid"), iB = h.indexOf("Balance"), iPt = h.indexOf("Type of Patient");
+    var bm = {}, bp = {}, bt = {}, bpt = {};
+    d.rows.forEach(function (r) { var m = ym(r[iDt]); if (!m) return; var a = num(r[iA]); bump(bm, m, "n", 1); bump(bm, m, "amt", a); bump(bm, m, "paid", num(r[iPd])); bump(bm, m, "bal", num(r[iB]));
+      var p = String(r[iP]).trim(); if (p) { bump(bp, p, "n", 1); bump(bp, p, "amt", a); } var t = String(r[iT]).trim(); if (t) bump(bt, t, "n", 1); var pt = String(r[iPt]).trim(); if (pt) bump(bpt, pt, "n", 1); });
+    out.pack = { byMonth: bm, byProc: bp, byType: bt, byPatientType: bpt };
+  } catch (e) { out.pack = { error: String(e) }; }
+  try { // pharmacy sales
+    var d = load("1zrRgwj4XdqIwl8W5-O4vWIFSD_C7b3azrumvY7V6vO0", "Pharma Sales Report"), h = d.head, iO = h.indexOf("Order #"), iDt = h.indexOf("Date"), iM = h.indexOf("Medicine"), iQ = h.indexOf("Qty"), iS = h.indexOf("Total Sales"), iPf = h.indexOf("Profit"), iC = h.indexOf("Category Wise");
+    var bm = {}, seen = {}, rowsM = [];
+    d.rows.forEach(function (r) { var m = ym(r[iDt]); if (!m) return; var s = num(r[iS]); bump(bm, m, "sales", s); bump(bm, m, "profit", num(r[iPf])); bump(bm, m, "qty", num(r[iQ]));
+      var k = m + "|" + r[iO]; if (!seen[k]) { seen[k] = 1; bump(bm, m, "orders", 1); } rowsM.push([m, String(r[iM]).trim(), String(r[iC]).trim() || "Other", s]); });
+    var months = Object.keys(bm).sort(), last = months[months.length - 1], bc = {}, bmed = {};
+    rowsM.forEach(function (x) { if (x[0] !== last) return; bump(bc, x[2], "sales", x[3]); bump(bmed, x[1], "sales", x[3]); });
+    out.pharm = { byMonth: bm, focus: last, byCat: bc, byMed: bmed };
+  } catch (e) { out.pharm = { error: String(e) }; }
+  try { // procedure delivery (procedures book)
+    var d = load("12wDnSh5PzHQNDaDjusRjmyHsInj9GC2qArG9emJp2PE", "table"), h = d.head, iDt = h.indexOf("Date"), iPr = h.indexOf("Procedures"), iTh = h.indexOf("Therapist"), iU = h.indexOf("Unique Procedures"), iC = h.indexOf("Category");
+    var bm = {}, rows = [];
+    d.rows.forEach(function (r) { var m = ym(r[iDt]); if (!m) return; bump(bm, m, "n", 1); rows.push([m, String(r[iPr]).trim(), String(r[iTh]).trim(), String(r[iU]).trim(), String(r[iC]).trim() || "Other"]); });
+    var months = Object.keys(bm).sort(), last = months[months.length - 1], bt = {}, bp = {}, bu = {}, bc = {};
+    rows.forEach(function (x) { if (x[0] !== last) return; if (x[2]) bump(bt, x[2], "n", 1); bump(bp, x[1], "n", 1); if (x[3]) bump(bu, x[3], "n", 1); bump(bc, x[4], "n", 1); });
+    out.deliv = { byMonth: bm, focus: last, byTherapist: bt, byProc: bp, byUnique: bu, byCat: bc };
+  } catch (e) { out.deliv = { error: String(e) }; }
+  return out;
 }
 `;
 
@@ -90,9 +139,51 @@ export async function refreshLive() {
   } catch (e) { set("live_numbers_status", `Failed ${ist().slice(0, 16).replace("T", " ")}: ${e.message}`); return { ok: false, error: e.message }; }
 }
 
+const sorted = (o, f, n = 10) => Object.entries(o || {}).map(([k, v]) => ({ k, n: Math.round(v[f] || 0), ...v })).sort((a, b) => b.n - a.n).slice(0, n);
+const monthsList = (o, n = 12) => Object.keys(o || {}).sort().slice(-n);
+export function computeHeavy(raw) {
+  const out = { updatedAt: ist().slice(0, 16).replace("T", " "), errors: {} };
+  for (const k of ["conv", "pack", "pharm", "deliv"]) if (!raw[k] || raw[k].error) out.errors[k] = raw[k]?.error || "No data";
+  const c = raw.conv;
+  if (c && !c.error) {
+    const years = Object.keys(c.byYearCat).sort();
+    out.conv = { years: years.map((y) => { const t = Object.values(c.byYearCat[y]).reduce((a, v) => ({ s: a.s + v.s, d: a.d + (v.d || 0) }), { s: 0, d: 0 }); return { y, sug: t.s, done: t.d, rate: t.s ? Math.round((t.d / t.s) * 100) : 0 }; }),
+      byMonth: monthsList(c.byMonth).map((m) => ({ m, sug: c.byMonth[m].s || 0, done: c.byMonth[m].d || 0 })),
+      byCategory: Object.fromEntries(years.map((y) => [y, Object.entries(c.byYearCat[y]).map(([k, v]) => ({ k, sug: v.s, done: v.d || 0 })).sort((a, b) => b.sug - a.sug).slice(0, 12)])) };
+  }
+  const p = raw.pack;
+  if (p && !p.error) {
+    const ms = monthsList(p.byMonth), all = Object.values(p.byMonth).reduce((a, v) => ({ n: a.n + (v.n || 0), amt: a.amt + (v.amt || 0), paid: a.paid + (v.paid || 0), bal: a.bal + (v.bal || 0) }), { n: 0, amt: 0, paid: 0, bal: 0 });
+    out.pack = { total: all, byMonth: ms.map((m) => ({ m, n: p.byMonth[m].n || 0, amt: Math.round(p.byMonth[m].amt || 0), paid: Math.round(p.byMonth[m].paid || 0), bal: Math.round(p.byMonth[m].bal || 0) })),
+      byProc: sorted(p.byProc, "amt").map((x) => ({ k: x.k, n: x.amt, count: x.n })), byType: sorted(p.byType, "n"), byPatientType: sorted(p.byPatientType, "n") };
+  }
+  const h = raw.pharm;
+  if (h && !h.error) {
+    const ms = monthsList(h.byMonth);
+    out.pharm = { focus: h.focus, byMonth: ms.map((m) => ({ m, sales: Math.round(h.byMonth[m].sales || 0), profit: Math.round(h.byMonth[m].profit || 0), orders: h.byMonth[m].orders || 0, qty: h.byMonth[m].qty || 0 })),
+      byCategory: sorted(h.byCat, "sales"), topMedicines: sorted(h.byMed, "sales") };
+  }
+  const d = raw.deliv;
+  if (d && !d.error) {
+    out.deliv = { focus: d.focus, byMonth: monthsList(d.byMonth).map((m) => ({ m, n: d.byMonth[m].n || 0 })), byTherapist: sorted(d.byTherapist, "n"), byProc: sorted(d.byProc, "n"), byUnique: sorted(d.byUnique, "n"), byCategory: sorted(d.byCat, "n") };
+  }
+  return out;
+}
+export async function refreshHeavy() {
+  const url = get("live_feed_url");
+  if (!url) return { ok: false, error: "No Google link saved yet" };
+  try {
+    const r = await fetch(`${url}?key=${encodeURIComponent(key())}&part=heavy`, { redirect: "follow", signal: AbortSignal.timeout(280000) });
+    const t = await r.text(); let raw; try { raw = JSON.parse(t); } catch { throw new Error(/wrong key/i.test(t) ? "The script key is wrong" : "The script did not return the big-sheet totals. Update the script in Google (copy it again from the app)."); }
+    set("live_heavy", JSON.stringify(computeHeavy(raw))); set("live_heavy_status", `Updated ${ist().slice(0, 16).replace("T", " ")}`);
+    return { ok: true };
+  } catch (e) { set("live_heavy_status", `Failed ${ist().slice(0, 16).replace("T", " ")}: ${e.message}`); return { ok: false, error: e.message }; }
+}
+
 router.get("/", requireAuth, requireLeadership, (req, res) => {
   let data = null; try { data = JSON.parse(get("live_numbers") || "null"); } catch {}
-  res.json({ configured: !!get("live_feed_url"), data, status: get("live_numbers_status") });
+  let heavy = null; try { heavy = JSON.parse(get("live_heavy") || "null"); } catch {}
+  res.json({ configured: !!get("live_feed_url"), data, heavy, status: get("live_numbers_status"), heavyStatus: get("live_heavy_status") });
 });
 router.get("/config", requireAuth, (req, res) => {
   if (req.user.roleName !== "admin") return res.status(403).json({ error: "Admin only" });
@@ -106,6 +197,6 @@ router.put("/config", requireAuth, (req, res) => {
 });
 router.post("/refresh", requireAuth, async (req, res) => {
   if (req.user.roleName !== "admin") return res.status(403).json({ error: "Admin only" });
-  const r = await refreshLive(); res.status(r.ok ? 200 : 400).json(r.ok ? { ok: true } : { error: r.error });
+  const r = await refreshLive(); const h = r.ok ? await refreshHeavy() : r; res.status(r.ok ? 200 : 400).json(r.ok ? { ok: true, heavy: h.ok, heavyError: h.ok ? undefined : h.error } : { error: r.error });
 });
 export default router;

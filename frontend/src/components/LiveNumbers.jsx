@@ -33,20 +33,20 @@ const Kpi = ({ l, v, c = COL, sub }) => <div className="kpi" style={{ "--kc": c 
 const Card = ({ t, children, sub }) => <div className="card"><div className="title" style={{ marginBottom: 2 }}>{t}</div>{sub && <div className="meta" style={{ marginBottom: 8 }}>{sub}</div>}{children}</div>;
 
 export default function LiveNumbers({ user }) {
-  const [d, setD] = useState(null), [cfg, setCfg] = useState(null), [url, setUrl] = useState(""), [busy, setBusy] = useState(false), [msg, setMsg] = useState(""), [open, setOpen] = useState(false);
+  const [sec, setSec] = useState("conv"), [d, setD] = useState(null), [cfg, setCfg] = useState(null), [url, setUrl] = useState(""), [busy, setBusy] = useState(false), [msg, setMsg] = useState(""), [open, setOpen] = useState(false);
   const load = () => api.liveNumbers().then(setD).catch((e) => setMsg(e.message));
   const loadCfg = () => user.role === "admin" && api.liveConfig().then((c) => { setCfg(c); setUrl(c.url || ""); }).catch(() => {});
   useEffect(() => { load(); loadCfg(); const t = setInterval(load, 60000); window.addEventListener("hub-refresh", load); return () => { clearInterval(t); window.removeEventListener("hub-refresh", load); }; }, []);
-  const x = d?.data, isAdmin = user.role === "admin";
+  const x = d?.data, hv = d?.heavy, isAdmin = user.role === "admin";
   const copy = (t) => { navigator.clipboard?.writeText(t); setMsg("Copied."); };
   return (
     <div style={{ display: "grid", gap: 14 }}>
       {isAdmin && (
         <div className="card">
           <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-            <div className="meta">{d?.status || "Not connected yet."} {x?.updatedAt ? `· numbers as of ${x.updatedAt}` : ""}</div>
+            <div className="meta">{d?.status || "Not connected yet."} {x?.updatedAt ? `· numbers as of ${x.updatedAt}` : ""}{d?.heavyStatus ? ` · big sheets: ${d.heavyStatus}` : ""}</div>
             <div style={{ display: "flex", gap: 6 }}>
-              <button className="btn btn-outline btn-sm" disabled={busy || !cfg?.url} onClick={async () => { setBusy(true); setMsg(""); try { await api.refreshLive(); await load(); await loadCfg(); setMsg("Updated."); } catch (e) { setMsg(e.message); } setBusy(false); }}>{busy ? "Reading sheets…" : "Update now"}</button>
+              <button className="btn btn-outline btn-sm" disabled={busy || !cfg?.url} onClick={async () => { setBusy(true); setMsg(""); try { const rr = await api.refreshLive(); await load(); await loadCfg(); setMsg(rr?.heavy === false ? `Updated. Big sheets: ${rr.heavyError || "not read"}` : "Updated."); } catch (e) { setMsg(e.message); } setBusy(false); }}>{busy ? "Reading sheets…" : "Update now"}</button>
               <button className="btn btn-ghost btn-sm" onClick={() => setOpen(!open)}>{open ? "Hide setup" : "Setup"}</button>
             </div>
           </div>
@@ -68,20 +68,27 @@ export default function LiveNumbers({ user }) {
       {!x && <div className="empty">{d?.configured ? "Waiting for the first update (up to 10 minutes). Admin can press Update now." : "Live numbers are not connected yet. Ask the admin to finish the setup."}</div>}
       {x && Object.keys(x.errors || {}).length > 0 && <div className="card meta">Some sheets could not be read: {Object.entries(x.errors).map(([k, v]) => `${k} (${v})`).join(" · ")}</div>}
 
-      {x?.revenue && (<>
+      {(x || hv) && (
+        <div className="pill-row">
+          {[["conv", "Conversions"], ["daily", "Daily Procedures"], ["sales", "Clinic Sales"], ["pack", "Package Sheet"], ["pharm", "Purchase & Pharmacy"], ["deliv", "Procedure Delivery"], ["leads", "Leads"]].map(([k, l]) => <button key={k} className={`pill ${sec === k ? "active" : ""}`} onClick={() => setSec(k)}>{l}</button>)}
+        </div>)}
+      {hv && Object.keys(hv.errors || {}).length > 0 && <div className="card meta">Some big sheets could not be read: {Object.entries(hv.errors).map(([k, v]) => `${k} (${v})`).join(" · ")}</div>}
+      {!hv && x && ["conv", "pack", "pharm", "deliv"].includes(sec) && <div className="empty">{isAdmin ? "The big sheets are not connected yet. Open Setup, copy the new script into your Google script and deploy a new version, then press Update now." : "Still loading. Try again in a few minutes."}</div>}
+      {(() => { const fk = (n) => (n >= 10000000 ? (n / 10000000).toFixed(1) + "Cr" : n >= 100000 ? (n / 100000).toFixed(1) + "L" : n >= 1000 ? Math.round(n / 1000) + "k" : n); return (<>
+
+      {sec === "conv" && hv?.conv && (<>
         <div className="kpi-row">
-          <Kpi l={`Sales · ${mon(x.revenue.focus)}`} v={rs(x.revenue.thisMonth)} c={GREEN} sub={`${x.revenue.invoices} invoices`} />
-          <Kpi l="Received" v={rs(x.revenue.paid)} c={GREEN} />
-          <Kpi l="Pending this month" v={rs(x.revenue.pending)} c={GOLD} />
-          <Kpi l="Pending, all months" v={rs(x.revenue.pendingAll)} c="#d4432a" />
+          {hv.conv.years.slice(-1).map((y) => <Kpi key="a" l={`Conversion rate · ${y.y}`} v={y.rate + "%"} c={GREEN} sub={`${y.done} done of ${y.sug} suggested`} />)}
+          {hv.conv.years.slice(-1).map((y) => <Kpi key="b" l="Not done yet" v={y.sug - y.done} c={GOLD} />)}
         </div>
         <div className="dept-grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))" }}>
-          <Card t="Sales by month" sub="Invoice total"><Columns items={x.revenue.byMonth} val={(r) => r.total} label={(r) => mon(r.m)} color={GREEN} fmt={(n) => (n >= 100000 ? (n / 100000).toFixed(1) + "L" : Math.round(n / 1000) + "k")} /></Card>
-          <Card t={`Sales by category · ${mon(x.revenue.focus)}`}><Bars items={x.revenue.byCategory} fmt={rs} color={GREEN} /></Card>
+          <Card t="Suggested vs done, by year" sub="Done rate %"><Columns items={hv.conv.years} val={(r) => r.rate} label={(r) => r.y} color={GREEN} fmt={(n) => n + "%"} /></Card>
+          <Card t="By month" sub="Done rate %"><Columns items={hv.conv.byMonth} val={(r) => (r.sug ? Math.round((r.done / r.sug) * 100) : 0)} label={(r) => mon(r.m)} color={GOLD} fmt={(n) => n + "%"} /></Card>
+          <Card t={`By category · ${hv.conv.years.slice(-1)[0]?.y}`} sub="Suggested (done in brackets)"><Bars items={hv.conv.byCategory[hv.conv.years.slice(-1)[0]?.y] || []} val={(r) => r.sug} label={(r) => `${r.k} (${r.done} done)`} color={GOLD} /></Card>
         </div>
       </>)}
 
-      {x?.procedures && (<>
+      {sec === "daily" && x?.procedures && (<>
         <div className="kpi-row">
           <Kpi l={`Procedures · ${mon(x.procedures.focus)}`} v={x.procedures.thisMonth} />
           <Kpi l="Patients this month" v={x.procedures.patients} />
@@ -95,27 +102,72 @@ export default function LiveNumbers({ user }) {
         </div>
       </>)}
 
-      {x?.suggested && (<>
+      {sec === "sales" && x?.revenue && (<>
         <div className="kpi-row">
-          <Kpi l="Suggested (this year)" v={x.suggested.total} />
-          <Kpi l="Done" v={x.suggested.done} c={GREEN} />
-          <Kpi l="Still pending" v={x.suggested.pending} c={GOLD} />
-          <Kpi l="Done rate" v={x.suggested.rate + "%"} c={GREEN} />
+          <Kpi l={`Sales · ${mon(x.revenue.focus)}`} v={rs(x.revenue.thisMonth)} c={GREEN} sub={`${x.revenue.invoices} invoices`} />
+          <Kpi l="Received" v={rs(x.revenue.paid)} c={GREEN} />
+          <Kpi l="Pending this month" v={rs(x.revenue.pending)} c={GOLD} />
+          <Kpi l="Pending, all months" v={rs(x.revenue.pendingAll)} c="#d4432a" />
         </div>
         <div className="dept-grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))" }}>
-          <Card t="Suggested vs done by month" sub="Done rate %"><Columns items={x.suggested.byMonth} val={(r) => (r.sug ? Math.round((r.done / r.sug) * 100) : 0)} label={(r) => mon(r.m)} color={GREEN} fmt={(n) => n + "%"} /></Card>
-          <Card t="By category" sub="Done of suggested"><Bars items={x.suggested.byCategory} val={(r) => r.sug} fmt={(n) => n} label={(r) => `${r.k} (${r.done} done)`} color={GOLD} /></Card>
+          <Card t="Sales by month" sub="Invoice total"><Columns items={x.revenue.byMonth} val={(r) => r.total} label={(r) => mon(r.m)} color={GREEN} fmt={fk} /></Card>
+          <Card t={`Sales by category · ${mon(x.revenue.focus)}`}><Bars items={x.revenue.byCategory} fmt={rs} color={GREEN} /></Card>
         </div>
       </>)}
 
-      {x?.leads && (<>
+      {sec === "pack" && hv?.pack && (<>
+        <div className="kpi-row">
+          <Kpi l="Packages sold" v={hv.pack.total.n} />
+          <Kpi l="Package value" v={rs(hv.pack.total.amt)} c={GREEN} />
+          <Kpi l="Paid" v={rs(hv.pack.total.paid)} c={GREEN} />
+          <Kpi l="Balance to collect" v={rs(hv.pack.total.bal)} c="#d4432a" />
+        </div>
+        <div className="dept-grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))" }}>
+          <Card t="Package value by month"><Columns items={hv.pack.byMonth} val={(r) => r.amt} label={(r) => mon(r.m)} color={GREEN} fmt={fk} /></Card>
+          <Card t="Packages sold by month"><Columns items={hv.pack.byMonth} val={(r) => r.n} label={(r) => mon(r.m)} /></Card>
+          <Card t="Top procedures by value"><Bars items={hv.pack.byProc} fmt={rs} color={GOLD} label={(r) => `${r.k} (${r.count})`} /></Card>
+          <Card t="New vs existing patients"><Bars items={hv.pack.byPatientType} color={GREEN} /></Card>
+        </div>
+      </>)}
+
+      {sec === "pharm" && hv?.pharm && (<>
+        {(() => { const l = hv.pharm.byMonth.slice(-1)[0] || {}; return (
+          <div className="kpi-row">
+            <Kpi l={`Pharmacy sales · ${mon(hv.pharm.focus)}`} v={rs(l.sales)} c={GREEN} sub={`${l.orders || 0} orders`} />
+            <Kpi l="Profit" v={rs(l.profit)} c={GREEN} sub={l.sales ? `${Math.round((l.profit / l.sales) * 100)}% margin` : ""} />
+            <Kpi l="Items sold" v={l.qty || 0} c={GOLD} />
+          </div>); })()}
+        <div className="dept-grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))" }}>
+          <Card t="Pharmacy sales by month"><Columns items={hv.pharm.byMonth} val={(r) => r.sales} label={(r) => mon(r.m)} color={GREEN} fmt={fk} /></Card>
+          <Card t="Profit by month"><Columns items={hv.pharm.byMonth} val={(r) => r.profit} label={(r) => mon(r.m)} color={GOLD} fmt={fk} /></Card>
+          <Card t={`Sales by category · ${mon(hv.pharm.focus)}`}><Bars items={hv.pharm.byCategory} fmt={rs} color={GREEN} /></Card>
+          <Card t={`Top medicines · ${mon(hv.pharm.focus)}`}><Bars items={hv.pharm.topMedicines} fmt={rs} color={GOLD} /></Card>
+        </div>
+      </>)}
+
+      {sec === "deliv" && hv?.deliv && (<>
+        <div className="kpi-row">
+          <Kpi l={`Procedures delivered · ${mon(hv.deliv.focus)}`} v={hv.deliv.byMonth.slice(-1)[0]?.n || 0} />
+          {hv.deliv.byUnique.map((u) => <Kpi key={u.k} l={u.k} v={u.n} c={GOLD} />)}
+        </div>
+        <div className="dept-grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))" }}>
+          <Card t="Procedures delivered by month"><Columns items={hv.deliv.byMonth} val={(r) => r.n} label={(r) => mon(r.m)} /></Card>
+          <Card t={`By therapist · ${mon(hv.deliv.focus)}`}><Bars items={hv.deliv.byTherapist} color={GREEN} /></Card>
+          <Card t={`By procedure · ${mon(hv.deliv.focus)}`}><Bars items={hv.deliv.byProc} color={GOLD} /></Card>
+          <Card t={`By category · ${mon(hv.deliv.focus)}`}><Bars items={hv.deliv.byCategory} /></Card>
+        </div>
+      </>)}
+
+      {sec === "leads" && x?.leads && (<>
         <div className="kpi-row"><Kpi l="Leads (TeleCRM)" v={x.leads.total} /></div>
+        {x.leads.total === 0 ? <div className="empty">No leads in the TeleCRM sheet yet. They appear here once TeleCRM sends them.</div> : (
         <div className="dept-grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))" }}>
           <Card t="Leads, last 14 days"><Columns items={x.leads.last14} val={(r) => r.n} label={(r) => r.d.slice(8)} /></Card>
           <Card t="By status"><Bars items={x.leads.byStatus} /></Card>
           <Card t="By source"><Bars items={x.leads.bySource} color={GOLD} /></Card>
           <Card t="By stage"><Bars items={x.leads.byStage} color={GREEN} /></Card>
-        </div>
+        </div>)}
       </>)}
+      </>); })()}
     </div>);
 }
