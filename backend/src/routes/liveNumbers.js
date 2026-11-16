@@ -47,7 +47,7 @@ function ym(s) {
   m = /^(\\d{1,2})-([A-Za-z]{3})[a-z]*-(\\d{4})/.exec(s); if (m && MON[m[2].toLowerCase()]) return m[3] + "-" + ("0" + MON[m[2].toLowerCase()]).slice(-2);
   return "";
 }
-function load(id, tab) { var v = SpreadsheetApp.openById(id).getSheetByName(tab).getDataRange().getDisplayValues(); return { head: v[0].map(function (h) { return String(h).trim(); }), rows: v.slice(1) }; }
+function load(id, tab) { var ss = SpreadsheetApp.openById(id), sh = ss.getSheetByName(tab); if (!sh) { ss.getSheets().forEach(function (x) { if (!sh && x.getName().trim() === tab) sh = x; }); } var v = sh.getDataRange().getDisplayValues(); return { head: v[0].map(function (h) { return String(h).trim(); }), rows: v.slice(1) }; }
 function bump(o, k, f, n) { if (!k) return; var r = (o[k] = o[k] || {}); r[f] = (r[f] || 0) + n; }
 function heavy() {
   var out = {};
