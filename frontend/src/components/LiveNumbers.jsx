@@ -186,7 +186,7 @@ export default function LiveNumbers({ user }) {
         </nav>
         <div className="sidebar-foot"><span className="pill"><span className="dot" />Live from Google Sheets</span></div>
       </aside>
-      <div className="main" style={{ display: "grid", gap: 14, alignContent: "start" }}>
+      <div className="main" style={{ display: "grid", gap: 14, alignContent: "start", gridTemplateColumns: "minmax(0,1fr)" }}>
       {isAdmin && SETUP && (
         <div className="card">
           <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
@@ -293,7 +293,7 @@ export default function LiveNumbers({ user }) {
       {sec === "master" && hv?.master && (<>
         <div className="kpi-row">
           <Kpi l="Patients on file" v={hv.master.total.toLocaleString("en-IN")} />
-          {hv.master.byGender.map((g) => <Kpi key={g.k} l={g.k} v={g.n.toLocaleString("en-IN")} c={GOLD} />)}
+          {Object.values(hv.master.byGender.reduce((a, g) => { const k = g.k.charAt(0).toUpperCase() + g.k.slice(1).toLowerCase(); a[k] = a[k] || { k, n: 0 }; a[k].n += g.n; return a; }, {})).map((g) => <Kpi key={g.k} l={g.k} v={g.n.toLocaleString("en-IN")} />)}
         </div>
         <div className="dept-grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))" }}>
           <Card t="Patient visit recency" sub="How overdue their next visit is"><Bars items={hv.master.byDue} color={GREEN} /></Card>
