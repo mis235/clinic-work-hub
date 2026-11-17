@@ -4,6 +4,25 @@ import { api } from "../api.js";
 import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
 
+function ConnectCard({ status, onChanged }) {
+  const [wa, setWa] = useState(""), [ai, setAi] = useState(""), [msg, setMsg] = useState(null);
+  const run = async (fn, okText, clear) => { try { await fn(); setMsg({ ok: true, t: okText }); clear(""); onChanged(); } catch (e) { setMsg({ ok: false, t: e.message }); } };
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <div className="card-head"><div><span className="name">Connect WhatsApp and AI</span><span className="dept">Paste once. It stays saved on this server.</span></div></div>
+      <div className="form-grid">
+        <div><label className="field-label">WhatsApp: TeleCRM link {status?.whatsappConfigured ? "(connected)" : "(not connected)"}</label>
+          <input className="field" value={wa} onChange={(e) => setWa(e.target.value)} placeholder="https://… (the TeleCRM webhook link)" />
+          <button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} disabled={!wa.trim()} onClick={() => run(() => api.setWhatsappLink(wa.trim()), "WhatsApp connected.", setWa)}>Save WhatsApp link</button></div>
+        <div><label className="field-label">AI key {status?.aiConfigured ? "(connected)" : "(not connected)"}</label>
+          <input className="field" type="password" value={ai} onChange={(e) => setAi(e.target.value)} placeholder="sk-ant-…" />
+          <button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} disabled={!ai.trim()} onClick={() => run(() => api.saveAiKey(ai.trim()), "AI connected.", setAi)}>Save AI key</button></div>
+      </div>
+      {msg && <div className={msg.ok ? "note" : "login-error"} style={{ marginTop: 10 }}>{msg.t}</div>}
+    </div>
+  );
+}
+
 function PasswordCard() {
   const [cur, setCur] = useState(""), [pw, setPw] = useState(""), [again, setAgain] = useState(""), [msg, setMsg] = useState(null);
   async function save() {
@@ -244,6 +263,7 @@ export default function SystemPage({ user, onLogout, onBack }) {
         <BackupCopyCard onChanged={load} />
         <StorageCard />
         <EmailCard onChanged={load} />
+        <ConnectCard status={status} onChanged={load} />
         <ImportCard onDone={load} />
 
         <div className="section-head"><h2>Activity Log</h2><span className="sub">Latest 100 actions</span></div>

@@ -103,6 +103,7 @@ export const api = {
   downloadGenerated: (id, name) => downloadFile(`/api/doc-templates/generated/${id}/file`, name),
   downloadGeneratedZip: (ids) => downloadFile("/api/doc-templates/generated/zip", "documents.zip", { method: "POST", body: { ids } }),
   emailGenerated: (ids) => req("/api/doc-templates/generated/email", { method: "POST", body: { ids } }),
+  saveAiKey: (key) => req("/api/admin/ai-key", { method: "PUT", body: { key } }),
   emailSettings: () => req("/api/admin/email"),
   saveEmailSettings: (body) => req("/api/admin/email", { method: "PUT", body }),
   testEmail: (to) => req("/api/admin/email/test", { method: "POST", body: { to } }),

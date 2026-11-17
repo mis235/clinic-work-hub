@@ -69,8 +69,18 @@ app.get("/health", (req, res) => {
   }
 });
 
+// The AI key can be saved from the System page (kept on this server); a key in .env still works.
+try { const k = db.prepare("SELECT value FROM app_settings WHERE key = 'anthropic_key'").get()?.value; if (k && !process.env.ANTHROPIC_API_KEY) process.env.ANTHROPIC_API_KEY = k; } catch {}
+
 // Admin-only: system status, activity log and backups.
 const adminOnly = [requireAuth, requirePermission("payroll:manage")];
+app.put("/api/admin/ai-key", ...adminOnly, (req, res) => {
+  const k = String(req.body?.key || "").trim();
+  if (k && !/^sk-ant-[\w-]{20,}$/.test(k)) return res.status(400).json({ error: "That does not look like an Anthropic key (it starts with sk-ant-)" });
+  if (k) { db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('anthropic_key', ?)").run(k); process.env.ANTHROPIC_API_KEY = k; }
+  else { db.prepare("DELETE FROM app_settings WHERE key = 'anthropic_key'").run(); delete process.env.ANTHROPIC_API_KEY; }
+  res.json({ ok: true, configured: !!k });
+});
 app.get("/api/admin/status", ...adminOnly, (req, res) => {
   const count = (t) => db.prepare(`SELECT COUNT(*) c FROM ${t}`).get().c;
   const backups = listBackups();
@@ -78,7 +88,7 @@ app.get("/api/admin/status", ...adminOnly, (req, res) => {
     ok: true, uptimeSec: Math.round((Date.now() - startedAt) / 1000),
     users: count("users"), tasks: count("tasks"), shiftSubmissions: count("shift_checklist_submissions"),
     lastBackup: backups[0] || null, backups: backups.length,
-    whatsappConfigured: !!process.env.WHATSAPP_ACCESS_TOKEN, emailConfigured: isEmailConfigured(),
+    whatsappConfigured: !!process.env.WHATSAPP_ACCESS_TOKEN || !!db.prepare("SELECT value FROM app_settings WHERE key = 'telecrm_webhook'").get()?.value, emailConfigured: isEmailConfigured(),
     aiConfigured: !!process.env.ANTHROPIC_API_KEY, persistentDisk: !!process.env.DATA_DIR,
   });
 });
