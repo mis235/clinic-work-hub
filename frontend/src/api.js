@@ -321,6 +321,7 @@ export const api = {
   leaveSignature: () => req("/api/leave/signature"),
   saveLeaveSignature: (dataUrl) => req("/api/leave/signature", { method: "PUT", body: { dataUrl } }),
   deleteLeaveSignature: () => req("/api/leave/signature", { method: "DELETE" }),
+  leaveMyWork: () => req("/api/leave/my-work"),
   leaveColleagues: () => req("/api/leave/colleagues"),
   leaveApprovals: () => req("/api/leave/approvals"),
   approveLeave: (id, body) => req(`/api/leave/${id}/approve`, { method: "POST", body }),

@@ -3,6 +3,7 @@
 // Each message shows as a banner in the app, goes by email when set up, and by WhatsApp through TeleCRM when connected.
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
+import { birthdayMD } from "./leave.js";
 import db from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { accessFor } from "../access.js";
@@ -142,14 +143,14 @@ export function runAutoMessages() {
     else if (m.trigger_type === "once") { if (m.once_date !== t.date) continue; targets = people; }
     else if (m.trigger_type === "birthday_team") {
       // Someone has a birthday today: everyone else is told so they can wish them.
-      const celebrants = people.filter((u) => u.birthday && String(new Date(u.birthday).toISOString()).slice(5, 10) === t.md);
+      const celebrants = people.filter((u) => birthdayMD(u.birthday) === t.md);
       for (const c of celebrants) for (const u of people) {
         if (u.id === c.id || !inAudience(m, u)) continue;
         try { deliver(u, m, { kind: `auto:${m.id}:${c.id}`, date: t.date, vars: { person: c.name } }); } catch (e) { console.error("auto message:", e.message); }
       }
       db.prepare("UPDATE auto_messages SET last_run = ? WHERE id = ?").run(t.date, m.id); continue;
     }
-    else if (m.trigger_type === "birthday") targets = people.filter((u) => u.birthday && String(new Date(u.birthday).toISOString()).slice(5, 10) === t.md);
+    else if (m.trigger_type === "birthday") targets = people.filter((u) => birthdayMD(u.birthday) === t.md);
     else if (m.trigger_type === "anniversary") targets = people.filter((u) => { if (!u.joined_at) return false; const d = new Date(u.joined_at); return !Number.isNaN(d.getTime()) && d.toISOString().slice(5, 10) === t.md && Number(t.date.slice(0, 4)) - d.getUTCFullYear() >= 1; });
     else if (m.trigger_type === "event") {
       const ev = db.prepare("SELECT title FROM clinic_events WHERE event_date = ? OR event_date = ?").get(t.date, t.md); if (!ev) { db.prepare("UPDATE auto_messages SET last_run = ? WHERE id = ?").run(t.date, m.id); continue; }

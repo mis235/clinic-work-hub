@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
+import Avatar from "./Avatar.jsx";
 
 const dmy = (d) => new Date(d + "T00:00:00Z").toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
 const range = (r) => (r.from_date === r.to_date ? dmy(r.from_date) : `${dmy(r.from_date)} – ${dmy(r.to_date)}`);
@@ -51,10 +52,7 @@ export default function HrOverview({ user, onNavigate }) {
             {d.upcoming.length > 0 && <Section title="Coming up (14 days)">{d.upcoming.map((r) => <Line key={r.id} a={r.staff_name} b={range(r)} />)}</Section>}
           </div>
           <div className="card" style={{ marginBottom: 0 }}>
-            <div className="card-head"><div className="name">Birthdays</div></div>
-            {d.birthdaysToday.length > 0 && <div className="note" style={{ marginBottom: 8 }}>🎂 Today: <b>{d.birthdaysToday.map((b) => b.name).join(", ")}</b></div>}
-            <Section title="This month" empty="No birthdays this month.">{d.birthdaysMonth.filter((b) => b.inDays > 0).map((b) => <Line key={b.id} a={b.name} b={dmy(b.next)} />)}</Section>
-            {d.birthdaysSoon.filter((b) => !d.birthdaysMonth.some((m) => m.id === b.id)).length > 0 && <Section title="Next 30 days">{d.birthdaysSoon.filter((b) => !d.birthdaysMonth.some((m) => m.id === b.id)).map((b) => <Line key={b.id} a={b.name} b={dmy(b.next)} />)}</Section>}
+            <BirthdayCard d={d} />
             {d.late.length > 0 && <Section title={`Late arrivals this month (fine after every ${d.lateRules.late_limit})`}>{d.late.map((l) => <Line key={l.id} a={l.name} b={`${l.count} late`} badge={l.count >= d.lateRules.late_limit ? "Fine" : null} cls="overdue" />)}</Section>}
           </div>
         </div>
@@ -64,8 +62,19 @@ export default function HrOverview({ user, onNavigate }) {
           <div className="meta">Free leave left this month: <b>{d.mine.summary.freeLeft}</b> of {d.mine.summary.allowed}{d.mine.waiting ? ` · ${d.mine.waiting} request${d.mine.waiting === 1 ? "" : "s"} waiting for HR` : ""}{d.mine.summary.lopDays ? ` · ${d.mine.summary.lopDays} unpaid day(s) this month` : ""}</div>
         </div>
       )}
+      {!lead && <div className="card"><BirthdayCard d={d} /></div>}
     </>
   );
+}
+function BirthdayCard({ d }) {
+  const today = new Date(Date.now() + 19800000).toISOString().slice(0, 10), list = d.birthdaysMonth || [], soon = d.birthdaysSoon || [];
+  const row = (b, k) => { const t = b.thisYear || b.next, cls = t === today ? "today" : t < today ? "past" : ""; return (
+    <div key={b.id + k} className={`bday-row ${cls}`}><Avatar id={b.id} name={b.name} hasPhoto={b.hasPhoto} size={34} /><div style={{ flex: 1 }}><div className="title" style={{ fontSize: 13 }}>{b.name}{t === today ? " 🎂" : ""}</div><div className="meta">{b.designation || b.department || ""}</div></div><div className="meta">{t === today ? "Today" : dmy(t)}</div></div>); };
+  return (<>
+    <div className="card-head"><div className="name">Birthdays</div></div>
+    <Section title={`This month (${list.length})`} empty="No birthdays this month.">{list.map((b) => row(b, "m"))}</Section>
+    {soon.length > 0 && <Section title="Next 30 days">{soon.map((b) => row(b, "s"))}</Section>}
+  </>);
 }
 const Section = ({ title, empty, children }) => { const arr = [].concat(children).flat().filter(Boolean); return <div style={{ marginTop: 10 }}><div className="meta" style={{ fontWeight: 700, fontSize: 11, letterSpacing: ".04em" }}>{title}</div>{arr.length ? arr : empty && <div className="meta" style={{ padding: "6px 0" }}>{empty}</div>}</div>; };
 const Line = ({ a, b, badge, cls }) => <div className="task-row" style={{ padding: "7px 0" }}><div><div className="title" style={{ fontSize: 13 }}>{a}</div><div className="meta">{b}</div></div>{badge && <span className={`badge ${cls || ""}`}>{badge}</span>}</div>;

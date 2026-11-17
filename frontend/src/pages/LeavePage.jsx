@@ -41,11 +41,28 @@ export default function LeavePage({ user, onLogout, onBack, isStaffLayout }) {
   );
 }
 
+function Handover({ r }) {
+  if (!r.handover?.length) return null;
+  return <div className="meta" style={{ marginTop: 4 }}>Handover: {r.handover.map((h) => `${h.title} → ${h.cover_name}`).join(" · ")}</div>;
+}
+function HoSelect({ covers, value, onChange, noSkip }) {
+  return <select className="field ho-sel" value={value} onChange={(e) => onChange(e.target.value)}>{covers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}{!noSkip && <option value="none">Not needed</option>}</select>;
+}
+
 function Mine({ cfg }) {
   const [d, setD] = useState(null);
   const [mates, setMates] = useState([]);
   useEffect(() => { api.leaveColleagues().then(setMates).catch(() => {}); }, []);
   const [f, setF] = useState({ fromDate: todayIST(), toDate: todayIST(), halfDay: false, reasonType: "sick", reason: "", coverUserIds: [], coverNote: "" });
+  const [work, setWork] = useState(null), [asg, setAsg] = useState({}), [extra, setExtra] = useState([]), [ex, setEx] = useState({ title: "", coverUserId: "" });
+  useEffect(() => { api.leaveMyWork().then(setWork).catch(() => setWork({ sections: [], tasks: [] })); }, []);
+  const covers = mates.filter((m) => f.coverUserIds.includes(m.id));
+  const who = (key) => (covers.some((c) => c.id === asg[key]) ? asg[key] : covers[0]?.id || "");
+  const handover = !covers.length ? [] : [
+    ...(work?.sections || []).filter((x) => asg["s:" + x.section] !== "none").map((x) => ({ kind: "checklist", title: `${x.section} checklist`, detail: x.items.join("; "), coverUserId: who("s:" + x.section) })),
+    ...(work?.tasks || []).filter((x) => asg["t:" + x.id] !== "none").map((x) => ({ kind: "task", title: x.title, ref: x.id, coverUserId: who("t:" + x.id) })),
+    ...extra.map((x) => ({ kind: "custom", title: x.title, coverUserId: covers.some((c) => c.id === x.coverUserId) ? x.coverUserId : covers[0].id })),
+  ];
   const [msg, setMsg] = useState(null); const [busy, setBusy] = useState(false);
   const load = () => api.myLeave().then(setD).catch((e) => setMsg({ ok: false, t: e.message }));
   useEffect(() => { load(); }, []);
@@ -53,7 +70,7 @@ function Mine({ cfg }) {
   const days = f.halfDay ? 0.5 : Math.max(1, Math.round((new Date(f.toDate) - new Date(f.fromDate)) / 86400000) + 1);
   async function apply() {
     setBusy(true); setMsg(null);
-    try { const r = await api.applyLeave(f); setMsg({ ok: true, t: "Sent to HR. It then goes to COS, the Director and Dr. Nishita for signature. " + (r.warning || "You will see the answer here and on your home screen.") }); setF({ ...f, reason: "", coverNote: "" }); load(); }
+    try { const r = await api.applyLeave({ ...f, handover }); setMsg({ ok: true, t: r.warning || "Sent." }); setF({ ...f, reason: "", coverNote: "" }); load(); }
     catch (e) { setMsg({ ok: false, t: e.message }); }
     setBusy(false);
   }
@@ -71,7 +88,6 @@ function Mine({ cfg }) {
       )}
       <div className="card">
         <div className="title" style={{ marginBottom: 4 }}>Apply for Leave</div>
-        <p className="meta" style={{ marginTop: 0 }}>Only casual leave. You get {cfg.settings.casual_per_month} free day{cfg.settings.casual_per_month === 1 ? "" : "s"} a month — each extra day cuts one day's salary. It is shown on your payslip.</p>
         <div className="form-grid">
           <div><label className="field-label">From</label><input className="field" type="date" value={f.fromDate} onChange={(e) => setF({ ...f, fromDate: e.target.value, toDate: e.target.value > f.toDate ? e.target.value : f.toDate })} /></div>
           <div><label className="field-label">To</label><input className="field" type="date" min={f.fromDate} value={f.toDate} onChange={set("toDate")} disabled={f.halfDay} /></div>
@@ -79,15 +95,31 @@ function Mine({ cfg }) {
             <select className="field" value={f.reasonType} onChange={set("reasonType")}>{cfg.reasons.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}</select></div>
         </div>
         <label className="field-label" style={{ marginTop: 10 }}>Details {f.reasonType === "other" ? "(required)" : "(optional)"}</label>
-        <input className="field" value={f.reason} onChange={set("reason")} placeholder="e.g. fever, doctor visit / travelling to hometown" />
+        <input className="field" value={f.reason} onChange={set("reason")} placeholder="Details" />
         <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10, fontSize: 13 }}><input type="checkbox" checked={f.halfDay} onChange={(e) => setF({ ...f, halfDay: e.target.checked, toDate: f.fromDate })} /> Half day only</label>
         <div className="form-grid" style={{ marginTop: 10 }}>
-          <div><label className="field-label">Who will do your work while you are away? (one or more people)</label>
+          <div><label className="field-label">Cover person(s)</label>
             <div className="cover-pick">{mates.map((m) => (
               <label key={m.id} className="ms-row"><input type="checkbox" checked={f.coverUserIds.includes(m.id)} onChange={() => setF({ ...f, coverUserIds: f.coverUserIds.includes(m.id) ? f.coverUserIds.filter((x) => x !== m.id) : [...f.coverUserIds, m.id] })} /> {m.name}{m.designation ? <span className="meta"> ({m.designation})</span> : null}</label>))}</div></div>
-          <div><label className="field-label">Handover note (optional)</label><input className="field" value={f.coverNote} onChange={set("coverNote")} placeholder="e.g. keys with front desk, pending calls list" /></div>
+          <div><label className="field-label">Handover note (optional)</label><input className="field" value={f.coverNote} onChange={set("coverNote")} placeholder="Note for your cover" /></div>
         </div>
-        <div className="meta" style={{ marginTop: 4 }}>Once your leave is approved, your colleague sees your checklist and tasks in their own login for those days.</div>
+        {covers.length > 0 && (
+          <div className="handover">
+            <div className="title" style={{ marginBottom: 6 }}>Work for your cover</div>
+            {(work?.sections || []).map((x) => (
+              <div key={x.section} className="ho-row"><div><b>{x.section} checklist</b><div className="meta">{x.items.length} items</div></div>
+                <HoSelect covers={covers} value={asg["s:" + x.section] === "none" ? "none" : who("s:" + x.section)} onChange={(v) => setAsg({ ...asg, ["s:" + x.section]: v })} /></div>))}
+            {(work?.tasks || []).map((x) => (
+              <div key={x.id} className="ho-row"><div><b>{x.title}</b>{x.due_date && <div className="meta">Due {dmy(x.due_date)}</div>}</div>
+                <HoSelect covers={covers} value={asg["t:" + x.id] === "none" ? "none" : who("t:" + x.id)} onChange={(v) => setAsg({ ...asg, ["t:" + x.id]: v })} /></div>))}
+            {extra.map((x, i) => (
+              <div key={i} className="ho-row"><div><b>{x.title}</b></div>
+                <div style={{ display: "flex", gap: 6 }}><HoSelect covers={covers} value={covers.some((c) => c.id === x.coverUserId) ? x.coverUserId : covers[0].id} onChange={(v) => setExtra(extra.map((y, j) => (j === i ? { ...y, coverUserId: v } : y)))} noSkip /><button type="button" className="btn btn-ghost btn-sm" onClick={() => setExtra(extra.filter((_, j) => j !== i))}>✕</button></div></div>))}
+            <div className="ho-add">
+              <input className="field" placeholder="Add other work" value={ex.title} onChange={(e) => setEx({ ...ex, title: e.target.value })} />
+              <button type="button" className="btn btn-outline btn-sm" disabled={!ex.title.trim()} onClick={() => { setExtra([...extra, { title: ex.title.trim(), coverUserId: covers[0].id }]); setEx({ title: "", coverUserId: "" }); }}>Add</button>
+            </div>
+          </div>)}
         {s && s.taken + s.pending + days > s.allowed && <div className="note" style={{ marginTop: 10 }}>⚠ This will use more than your {s.allowed} free day{s.allowed === 1 ? "" : "s"}. Extra days are unpaid.</div>}
         {msg && <div className={msg.ok ? "note" : "login-error"} style={{ marginTop: 10 }}>{msg.t}</div>}
         <button className="btn btn-primary" style={{ marginTop: 12 }} disabled={busy} onClick={apply}>{busy ? "Sending…" : `Send to HR (${days} day${days === 1 ? "" : "s"})`}</button>
@@ -99,7 +131,7 @@ function Mine({ cfg }) {
           <div key={r.id} className="task-row">
             <div><div className="title">{range(r)} · {r.days} day{r.days === 1 ? "" : "s"}</div>
               <div className="meta">{cfg.reasons.find((x) => x.key === r.reason_type)?.label}{r.reason ? ` — ${r.reason}` : ""}{r.hr_note ? ` · HR: ${r.hr_note}` : ""}{r.mgmt_ok ? ` · approved by ${r.mgmt_ok}` : ""}{(r.cover_names || r.cover_name) ? ` · work covered by ${r.covers?.length ? r.covers.map((c) => c.name + (c.signed ? " ✓" : " (waiting to sign)")).join(", ") : (r.cover_names || r.cover_name)}` : ""}</div>
-              <Chain r={r} /></div>
+              <Chain r={r} /><Handover r={r} /></div>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <span className={`badge ${STATUS[r.status][1]}`}>{STATUS[r.status][0]}</span>
               <button className="btn btn-ghost btn-sm" onClick={() => api.openLeaveLetter(r.id)}>Open letter (PDF)</button>
@@ -125,14 +157,13 @@ function Requests({ cfg, status }) {
   return (
     <>
       {msg && <div className="login-error">{msg}</div>}
-      {status === "open" && <div className="meta" style={{ marginBottom: 10 }}>1) Check the leave letter and press <b>Letter received</b>. 2) It goes by itself to COS, then the Director, then Dr. Nishita — each signs on their own login. 3) After the last signature the leave is approved, signatures appear on the letter and the staff member is told. <i>Approve / Reject</i> below are only for leave signed on paper (HR records who signed).</div>}
       {rows?.length === 0 && <div className="empty">{status === "open" ? "No requests are waiting. 🎉" : "No requests."}</div>}
       {rows?.map((r) => (
         <div key={r.id} className="card">
           <div className="card-head"><div><span className="name">{r.staff_name}</span><span className="dept">{r.department || r.designation}{r.hr_confirmed_at ? " · HR received the letter" : ""}</span></div><span className={`badge ${STATUS[r.status][1]}`}>{STATUS[r.status][0]}</span></div>
           <div className="title">{range(r)} · {r.days} day{r.days === 1 ? "" : "s"}</div>
           <div className="meta">{cfg.reasons.find((x) => x.key === r.reason_type)?.label}{r.reason ? ` — ${r.reason}` : ""}{(r.cover_names || r.cover_name) ? ` · work covered by ${r.covers?.length ? r.covers.map((c) => c.name + (c.signed ? " ✓" : " (waiting to sign)")).join(", ") : (r.cover_names || r.cover_name)}` : ""}</div>
-          <Chain r={r} />
+          <Chain r={r} /><Handover r={r} />
           <div className="meta" style={{ marginTop: 4 }}>This month: {r.summary.taken} taken, {r.summary.pending} waiting, {r.summary.freeLeft} free left{r.summary.lopDays ? ` · ${r.summary.lopDays} unpaid` : ""}{["pending", "with_management"].includes(r.status) && r.summary.taken + r.days > r.summary.allowed ? " · ⚠ approving this cuts salary for the extra day(s)" : ""}</div>
           {!["pending", "with_management"].includes(r.status) && <div className="meta">{r.status === "approved" ? `Approved by ${r.mgmt_ok} (recorded by ${r.decided_by_name})` : `Not approved (${r.decided_by_name})`}{r.hr_note ? ` · ${r.hr_note}` : ""}</div>}
           {(r.status === "pending" || r.status === "with_management") && <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
@@ -165,7 +196,6 @@ function Late() {
   return (
     <>
       <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-        <div className="meta">{d ? `Late = more than ${d.rules.late_grace_min} min after the shift starts. Every ${d.rules.late_limit} late arrivals adds a ₹${d.rules.late_fine} fine, added to the payslip automatically.` : ""}</div>
         <input className="field" type="month" style={{ width: 170 }} value={month} onChange={(e) => setMonth(e.target.value)} />
       </div>
       {d?.rows.length === 0 && <div className="empty">No late arrivals this month.</div>}
@@ -228,7 +258,7 @@ function ToSign() {
           <div className="card-head"><div><span className="name">{r.staff_name}</span><span className="dept">{r.department || r.designation}</span></div></div>
           <div className="title">{range(r)} · {r.days} day{r.days === 1 ? "" : "s"}</div>
           <div className="meta">{r.reason || ""}{(r.cover_names || r.cover_name) ? ` · work covered by ${r.covers?.length ? r.covers.map((c) => c.name + (c.signed ? " ✓" : " (waiting to sign)")).join(", ") : (r.cover_names || r.cover_name)}` : ""}</div>
-          <Chain r={r} />
+          <Chain r={r} /><Handover r={r} />
           <input className="field" style={{ marginTop: 8 }} placeholder="Note (optional)" value={note[r.id] || ""} onChange={(e) => setNote({ ...note, [r.id]: e.target.value })} />
           <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
             <button className="btn btn-primary btn-sm" onClick={() => act(r.id, "approved")}>Approve &amp; sign</button>
@@ -251,7 +281,6 @@ function MySignature() {
   return (
     <div className="card">
       <div className="title" style={{ marginBottom: 4 }}>My Signature</div>
-      <p className="meta" style={{ marginTop: 0 }}>Draw it once with your finger or mouse. It is put on leave letters only when you approve, and on your own leave letters.</p>
       {sig?.has && !editing && <><img src={sig.dataUrl} alt="My signature" style={{ background: "#fff", border: "1px solid var(--line, #ddd)", borderRadius: 8, maxWidth: 300, width: "100%" }} />
         <div style={{ marginTop: 10 }}><button className="btn btn-outline btn-sm" onClick={() => setEditing(true)}>Draw again</button></div></>}
       {editing && <SignaturePad onSave={save} />}

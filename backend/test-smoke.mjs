@@ -472,7 +472,7 @@ try {
       const coverUser = users.find((u) => u.role === "staff" && u.id !== lvTarget.id && u.id !== staff.id && u.id !== hrUser.id);
       const coverTok = (await call("POST", "/api/auth/login", { userId: coverUser.id, pin: "1234" })).body?.token;
       const dC = ymd(new Date(t0.getTime() + 45 * 86400000));
-      const ch = await call("POST", "/api/leave/apply", { fromDate: dC, toDate: dC, reasonType: "family", coverUserId: coverUser.id, coverNote: "keys at desk" }, lvTok);
+      const ch = await call("POST", "/api/leave/apply", { fromDate: dC, toDate: dC, reasonType: "family", coverUserId: coverUser.id, coverNote: "keys at desk", handover: [{ kind: "custom", title: "Call pending patients", coverUserId: coverUser.id }, { kind: "checklist", title: "Opening checklist", coverUserId: coverUser.id }, { kind: "custom", title: "Not allowed", coverUserId: "someone-else" }] }, lvTok);
       ok("apply with a covering colleague", ch.status === 201, JSON.stringify(ch.body));
       ok("cannot cover yourself", (await call("POST", "/api/leave/apply", { fromDate: ymd(new Date(t0.getTime() + 60 * 86400000)), reasonType: "travel", coverUserId: lvTarget.id }, lvTok)).status === 400);
       ok("other staff cannot see someone else's leave letter", (await call("GET", `/api/leave/${ch.body.id}/letter.pdf`, null, coverTok)).status === 404);
@@ -505,6 +505,11 @@ try {
       ok("approved leave is in the attendance register", brd2.body.rows?.find((r) => r.id === lvTarget.id)?.mark === "LV");
       const cov = await call("GET", "/api/leave/covering", null, coverTok);
       ok("cover person now sees the absent person's work", cov.body.length === 1 && cov.body[0].staffName === lvTarget.name && cov.body[0].note === "keys at desk", JSON.stringify(cov.body));
+      {
+        const tk = await call("GET", "/api/tasks?mine=1", null, coverTok);
+        const list = Array.isArray(tk.body) ? tk.body : tk.body?.tasks || [];
+        ok("handed-over work became tasks for the cover person", list.filter((t) => t.category === "Leave cover").length === 2, JSON.stringify(list.map((t) => t.title)));
+      }
       ok("covering banner in overview", (await call("GET", "/api/leave/overview", null, coverTok)).body.mine.covering.length === 1);
       const pdfRes = await fetch(base + `/api/leave/${ch.body.id}/letter.pdf`, { headers: { Authorization: `Bearer ${lvTok}` } });
       const pdfBuf = Buffer.from(await pdfRes.arrayBuffer());

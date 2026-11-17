@@ -743,3 +743,10 @@ button:active:not(:disabled) { transform: scale(.97); }
 .rota-slot .t { width:78px; font-weight:700; }
 .rota-chip { display:inline-flex; align-items:center; gap:6px; padding:4px 6px 4px 12px; border-radius:99px; background:var(--pink-50, #fdf2f8); border:1px solid var(--line, #eadfe5); font-size:13px; }
 .rota-chip button { border:0; background:transparent; cursor:pointer; font-size:14px; color:#9f1239; }
+.handover { margin-top: 14px; border: 1px solid var(--line, #eadfe5); border-radius: 14px; padding: 12px 14px; background: #fff; }
+.ho-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line, #f1e7ed); }
+.ho-sel { width: 170px; min-height: 38px; }
+.ho-add { display: flex; gap: 8px; margin-top: 10px; }
+.bday-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
+.bday-row.past { opacity: .6; }
+.bday-row.today { background: #fdf2f8; border-radius: 10px; padding: 7px 8px; }

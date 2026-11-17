@@ -90,6 +90,32 @@ export function lopAmount(userId, month, profile) {
   return { ...ls, perDay: Math.round(daily * 100) / 100, amount: Math.round(ls.lopDays * daily) };
 }
 
+db.exec(`CREATE TABLE IF NOT EXISTS leave_handover (
+  id TEXT PRIMARY KEY, leave_id TEXT NOT NULL, cover_user_id TEXT NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL, detail TEXT, source_task TEXT
+);`);
+/** The work a person could hand over: their shift checklist sections and open tasks. */
+function workOf(userId) {
+  const role = db.prepare("SELECT shift_role FROM users WHERE id = ?").get(userId)?.shift_role;
+  const items = role ? db.prepare("SELECT section, item_text FROM shift_checklist_templates WHERE role_name = ? ORDER BY sort_order").all(role) : [];
+  const sections = []; for (const i of items) { let sec = sections.find((x) => x.section === i.section); if (!sec) sections.push(sec = { section: i.section, items: [] }); sec.items.push(i.item_text); }
+  const tasks = db.prepare("SELECT id, title, due_date FROM tasks WHERE user_id = ? AND status <> 'done' ORDER BY due_date IS NULL, due_date LIMIT 30").all(userId);
+  return { role: role || null, sections, tasks };
+}
+/** When leave is approved, the handed-over work becomes real tasks for the cover people (one per leave day for checklists). */
+function createHandoverTasks(r) {
+  const items = db.prepare("SELECT * FROM leave_handover WHERE leave_id = ?").all(r.id);
+  if (!items.length) return;
+  const who = db.prepare("SELECT name FROM users WHERE id = ?").get(r.user_id)?.name || "colleague";
+  const ins = db.prepare("INSERT INTO tasks (id, user_id, title, category, notes, due_date, status, created_by) VALUES (?,?,?,?,?,?, 'pending', ?)");
+  const days = []; for (let d = r.from_date; d <= r.to_date && days.length < 14; d = addDays(d, 1)) days.push(d);
+  const per = new Map();
+  db.transaction(() => { for (const it of items) {
+    const due = it.kind === "checklist" ? days : [days[0]];
+    for (const d of due) { ins.run(randomUUID(), it.cover_user_id, `Cover for ${who}: ${it.title}`, "Leave cover", it.detail || null, d, r.user_id); per.set(it.cover_user_id, (per.get(it.cover_user_id) || 0) + 1); }
+  } })();
+  for (const [uid, n] of per) tellOne(uid, `leavework:${r.id}:${uid}`, `Work assigned while ${who} is on leave`, `${n} task${n === 1 ? "" : "s"} added to your task board. Complete them and mark each one done.`);
+}
+
 // ---- late arrivals ----------------------------------------------------------------------------
 /** Is arriving at hh:mm on this date late? (more than the grace period after the shift start; falls back to 10:00 with no shift planned) */
 export function shiftWindow(userId, date) {
@@ -162,14 +188,21 @@ export function stampPayslip(id, profile) {
 }
 
 // ---- birthdays -------------------------------------------------------------------------------
+/** "MM-DD" from a saved date of birth in any usual format (2000-11-17, 17/11/2000, 17-11-2000, 11-17). */
+export function birthdayMD(b) {
+  const t = String(b || "").trim(); let m;
+  if ((m = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/.exec(t))) return `${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+  if ((m = /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/.exec(t))) return `${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  if ((m = /^(\d{1,2})[-/.](\d{1,2})$/.exec(t))) return `${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}`;
+  return null;
+}
 export function birthdays(limitDays = 365) {
   const t = today(), y = +t.slice(0, 4);
-  return db.prepare("SELECT u.id, u.name, u.birthday, u.designation, d.name AS department FROM users u LEFT JOIN departments d ON d.id = u.department_id WHERE u.active = 1 AND u.birthday IS NOT NULL").all()
+  return db.prepare("SELECT u.id, u.name, u.birthday, u.designation, (u.photo_path IS NOT NULL) AS has_photo, d.name AS department FROM users u LEFT JOIN departments d ON d.id = u.department_id WHERE u.active = 1 AND u.birthday IS NOT NULL AND u.birthday <> ''").all()
     .map((u) => {
-      const md = String(u.birthday).slice(-5);
-      if (!/^\d{2}-\d{2}$/.test(md)) return null;
+      const md = birthdayMD(u.birthday); if (!md) return null;
       let next = `${y}-${md}`; if (next < t) next = `${y + 1}-${md}`;
-      return { id: u.id, name: u.name, designation: u.designation, department: u.department, date: md, next, inDays: Math.round((new Date(next) - new Date(t)) / 86400000) };
+      return { id: u.id, name: u.name, designation: u.designation, department: u.department, hasPhoto: !!u.has_photo, date: md, thisYear: `${y}-${md}`, next, inDays: Math.round((new Date(next) - new Date(t)) / 86400000) };
     }).filter((b) => b && b.inDays <= limitDays).sort((a, b) => a.inDays - b.inDays);
 }
 
@@ -215,7 +248,7 @@ function chainOf(leaveId) {
   return db.prepare("SELECT a.step, a.label, a.user_id, a.status, a.decided_at, a.note, u.name FROM leave_approvals a JOIN users u ON u.id = a.user_id WHERE a.leave_id = ? ORDER BY a.step").all(leaveId);
 }
 const coversOf = (leaveId) => db.prepare("SELECT lc.user_id AS id, u.name, lc.signed_at IS NOT NULL AS signed FROM leave_cover lc JOIN users u ON u.id = lc.user_id WHERE lc.leave_id = ? ORDER BY u.name").all(leaveId).map((c) => ({ ...c, signed: !!c.signed }));
-function attachChain(rows) { for (const r of rows) { r.chain = chainOf(r.id); r.covers = coversOf(r.id); } return rows; }
+function attachChain(rows) { for (const r of rows) { r.chain = chainOf(r.id); r.covers = coversOf(r.id); r.handover = db.prepare("SELECT h.title, h.kind, u.name AS cover_name FROM leave_handover h JOIN users u ON u.id = h.cover_user_id WHERE h.leave_id = ? ORDER BY u.name, h.kind").all(r.id); } return rows; }
 function tellOne(userId, kind, title, body) {
   try { db.prepare("INSERT OR IGNORE INTO staff_messages (id, user_id, kind, msg_date, title, body, email_status) VALUES (?,?,?,?,?,?,?)").run(randomUUID(), userId, kind, today(), title, body, "in-app"); } catch {}
 }
@@ -275,6 +308,12 @@ router.post("/apply", requireAuth, (req, res) => {
   if (fs.existsSync(sigFile(req.user.userId))) { appSig = path.join(SIG_DIR, `leave-${id}-0.png`); fs.copyFileSync(sigFile(req.user.userId), appSig); }
   db.prepare("INSERT INTO leave_requests (id, user_id, from_date, to_date, days, reason_type, reason, cover_user_id, cover_note, applicant_signature) VALUES (?,?,?,?,?,?,?,?,?,?)")
     .run(id, req.user.userId, fromDate, to, days, reasonType, reason ? String(reason).slice(0, 500) : null, cover?.id || null, coverNote ? String(coverNote).slice(0, 300) : null, appSig);
+  const okCover = new Set(covers.map((c) => c.id));
+  for (const h of (Array.isArray(req.body?.handover) ? req.body.handover : []).slice(0, 60)) {
+    const title = String(h?.title || "").trim().slice(0, 160), kind = ["checklist", "task", "custom"].includes(h?.kind) ? h.kind : "custom";
+    if (!title || !okCover.has(String(h?.coverUserId))) continue;
+    db.prepare("INSERT INTO leave_handover (id, leave_id, cover_user_id, kind, title, detail, source_task) VALUES (?,?,?,?,?,?,?)").run(randomUUID(), id, String(h.coverUserId), kind, title, h.detail ? String(h.detail).slice(0, 400) : null, h.ref ? String(h.ref).slice(0, 60) : null);
+  }
   for (const c of covers) { db.prepare("INSERT OR IGNORE INTO leave_cover (leave_id, user_id) VALUES (?,?)").run(id, c.id); tellOne(c.id, `coverask:${id}:${c.id}`, "Please cover a colleague", `${db.prepare("SELECT name FROM users WHERE id = ?").get(req.user.userId)?.name || "A colleague"} will be on leave ${fromDate}${to !== fromDate ? " to " + to : ""}. Open Leave & HR → Covering for others to sign.`); }
   audit({ userId: req.user.userId, action: "LEAVE_APPLIED", detail: `${fromDate}..${to} ${reasonType}` });
   const ls = leaveSummary(req.user.userId, fromDate.slice(0, 7));
@@ -337,6 +376,7 @@ router.post("/:id/decide", requireAuth, (req, res) => {
 function finalize(r, decision, mgmtOk, note, byUserId) {
   db.prepare("UPDATE leave_requests SET status=?, decided_by=?, decided_at=datetime('now'), mgmt_ok=?, hr_note=COALESCE(?, hr_note), seen_at=NULL WHERE id=?")
     .run(decision, byUserId, mgmtOk, note ? String(note).slice(0, 300) : null, r.id);
+  if (decision === "approved") createHandoverTasks(r);
   if (decision === "approved") {   // show it in the attendance register as leave
     for (let d = r.from_date; d <= r.to_date; d = addDays(d, 1)) {
       db.prepare(`INSERT INTO attendance_marks (user_id, mark_date, status, note, marked_by) VALUES (?,?,'LV',?,?)
@@ -394,6 +434,7 @@ router.post("/:id/approve", requireAuth, (req, res) => {
 });
 
 // ---- colleagues who can cover, and the work I am covering --------------------------------------------------------------
+router.get("/my-work", requireAuth, (req, res) => res.json(workOf(req.user.userId)));
 router.get("/colleagues", requireAuth, (req, res) => res.json(db.prepare("SELECT id, name, designation FROM users WHERE active = 1 AND id <> ? ORDER BY name").all(req.user.userId)));
 router.get("/covering", requireAuth, (req, res) => {
   const t = today();
@@ -453,6 +494,10 @@ router.get("/overview", requireAuth, (req, res) => {
   };
   mine.covering = db.prepare(withName + " WHERE (l.cover_user_id = ? OR EXISTS (SELECT 1 FROM leave_cover lc WHERE lc.leave_id = l.id AND lc.user_id = ?)) AND l.status = 'approved' AND l.to_date >= ? ORDER BY l.from_date").all(req.user.userId, req.user.userId, t).map((r) => ({ id: r.id, staffName: r.staff_name, from_date: r.from_date, to_date: r.to_date, active: r.from_date <= t }));
   const out = { isHr: hr, mine };
+  const bAll = birthdays(366);
+  out.birthdaysToday = bAll.filter((x) => x.inDays === 0);
+  out.birthdaysMonth = bAll.filter((x) => x.thisYear.slice(0, 7) === month).sort((a, b) => a.thisYear.localeCompare(b.thisYear));
+  out.birthdaysSoon = bAll.filter((x) => x.inDays > 0 && x.inDays <= 30 && x.thisYear.slice(0, 7) !== month);
   const approver = !!db.prepare("SELECT 1 FROM leave_approvals WHERE user_id = ? AND status = 'waiting'").get(req.user.userId);
   out.toSign = approver ? db.prepare(withName + " JOIN leave_approvals a ON a.leave_id = l.id AND a.user_id = ? AND a.status = 'waiting' AND a.step = l.step WHERE l.status = 'with_management'").all(req.user.userId) : [];
   // Other people's leave is private: only HR and the people who sign leave (COS, Director, Dr. Nishita) can see it.
@@ -462,10 +507,6 @@ router.get("/overview", requireAuth, (req, res) => {
     out.recent = db.prepare(withName + " WHERE l.status IN ('approved','rejected') AND date(l.decided_at) >= ? ORDER BY l.decided_at DESC LIMIT 20").all(addDays(t, -7));
     out.onLeaveToday = db.prepare(withName + " WHERE l.status = 'approved' AND l.from_date <= ? AND l.to_date >= ?").all(t, t);
     out.upcoming = db.prepare(withName + " WHERE l.status = 'approved' AND l.from_date > ? AND l.from_date <= ? ORDER BY l.from_date").all(t, addDays(t, 14));
-    const b = birthdays(60);
-    out.birthdaysToday = b.filter((x) => x.inDays === 0);
-    out.birthdaysMonth = b.filter((x) => x.next.slice(0, 7) === month || x.inDays === 0);
-    out.birthdaysSoon = b.filter((x) => x.inDays > 0 && x.inDays <= 30);
     syncLateFines(month);
     const s = settings();
     out.late = db.prepare("SELECT id, name FROM users WHERE active = 1").all().map((u) => ({ id: u.id, name: u.name, count: lateDays(u.id, month).length })).filter((x) => x.count > 0).sort((a, b) => b.count - a.count).slice(0, 8);
