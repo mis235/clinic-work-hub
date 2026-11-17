@@ -35,6 +35,7 @@ db.exec(`CREATE TABLE IF NOT EXISTS leave_approvals (
   user_id TEXT NOT NULL REFERENCES users(id), status TEXT NOT NULL DEFAULT 'waiting', decided_at TEXT, note TEXT, signature_file TEXT,
   UNIQUE(leave_id, step)
 );`);
+db.exec("CREATE TABLE IF NOT EXISTS leave_cover (leave_id TEXT NOT NULL, user_id TEXT NOT NULL, PRIMARY KEY (leave_id, user_id))");
 for (const sql of [
   "ALTER TABLE leave_requests ADD COLUMN cover_user_id TEXT", "ALTER TABLE leave_requests ADD COLUMN cover_note TEXT", "ALTER TABLE leave_requests ADD COLUMN step INTEGER NOT NULL DEFAULT 0", "ALTER TABLE leave_requests ADD COLUMN applicant_signature TEXT",
   "ALTER TABLE fines ADD COLUMN auto_key TEXT", "ALTER TABLE leave_requests ADD COLUMN hr_confirmed_at TEXT", "ALTER TABLE leave_requests ADD COLUMN hr_confirmed_by TEXT",
@@ -176,7 +177,7 @@ router.put("/settings", requireAuth, (req, res) => {
   res.json(settings());
 });
 
-const withName = `SELECT l.*, u.name AS staff_name, u.designation, d.name AS department, h.name AS decided_by_name, c.name AS cover_name
+const withName = `SELECT l.*, u.name AS staff_name, u.designation, d.name AS department, h.name AS decided_by_name, c.name AS cover_name, (SELECT group_concat(u2.name, ', ') FROM leave_cover lc2 JOIN users u2 ON u2.id = lc2.user_id WHERE lc2.leave_id = l.id) AS cover_names
   FROM leave_requests l JOIN users u ON u.id = l.user_id LEFT JOIN departments d ON d.id = u.department_id LEFT JOIN users h ON h.id = l.decided_by LEFT JOIN users c ON c.id = l.cover_user_id`;
 
 // ---- approval chain: HR -> COS -> Director -> Owner (Dr. Nishita) --------------------------------------------------
@@ -211,7 +212,7 @@ router.get("/mine", requireAuth, (req, res) => {
 });
 
 router.post("/apply", requireAuth, (req, res) => {
-  const { fromDate, toDate, halfDay, reasonType, reason, coverUserId, coverNote } = req.body || {};
+  const { fromDate, toDate, halfDay, reasonType, reason, coverUserId, coverUserIds, coverNote } = req.body || {};
   if (!DATE.test(fromDate || "")) return res.status(400).json({ error: "Choose the first day of leave" });
   const to = DATE.test(toDate || "") ? toDate : fromDate;
   if (to < fromDate) return res.status(400).json({ error: "The last day cannot be before the first day" });
@@ -222,16 +223,21 @@ router.post("/apply", requireAuth, (req, res) => {
   if (days > 31) return res.status(400).json({ error: "Too many days in one request" });
   const clash = db.prepare("SELECT 1 FROM leave_requests WHERE user_id = ? AND status IN ('pending','with_management','approved') AND from_date <= ? AND to_date >= ?").get(req.user.userId, to, fromDate);
   if (clash) return res.status(409).json({ error: "You already have a leave request on these days" });
-  let cover = null;
-  if (coverUserId) {
-    cover = db.prepare("SELECT id FROM users WHERE id = ? AND active = 1").get(coverUserId);
-    if (!cover || cover.id === req.user.userId) return res.status(400).json({ error: "Choose a colleague (not yourself) to cover your work" });
+  // One or more colleagues can cover the work (some roles need two or more people).
+  const wanted = [...new Set([...(Array.isArray(coverUserIds) ? coverUserIds : []), ...(coverUserId ? [coverUserId] : [])].map(String))].slice(0, 6);
+  const covers = [];
+  for (const cid of wanted) {
+    const c = db.prepare("SELECT id FROM users WHERE id = ? AND active = 1").get(cid);
+    if (!c || c.id === req.user.userId) return res.status(400).json({ error: "Choose colleagues (not yourself) to cover your work" });
+    covers.push(c);
   }
+  const cover = covers[0] || null;
   const id = randomUUID();
   let appSig = null;
   if (fs.existsSync(sigFile(req.user.userId))) { appSig = path.join(SIG_DIR, `leave-${id}-0.png`); fs.copyFileSync(sigFile(req.user.userId), appSig); }
   db.prepare("INSERT INTO leave_requests (id, user_id, from_date, to_date, days, reason_type, reason, cover_user_id, cover_note, applicant_signature) VALUES (?,?,?,?,?,?,?,?,?,?)")
     .run(id, req.user.userId, fromDate, to, days, reasonType, reason ? String(reason).slice(0, 500) : null, cover?.id || null, coverNote ? String(coverNote).slice(0, 300) : null, appSig);
+  for (const c of covers) db.prepare("INSERT OR IGNORE INTO leave_cover (leave_id, user_id) VALUES (?,?)").run(id, c.id);
   audit({ userId: req.user.userId, action: "LEAVE_APPLIED", detail: `${fromDate}..${to} ${reasonType}` });
   const ls = leaveSummary(req.user.userId, fromDate.slice(0, 7));
   res.status(201).json({ id, summary: ls, warning: ls.pending + ls.taken > ls.allowed ? `Only ${ls.allowed} day(s) a month are free. Each extra day cuts one day's salary.` : null });
@@ -349,7 +355,7 @@ router.post("/:id/approve", requireAuth, (req, res) => {
 router.get("/colleagues", requireAuth, (req, res) => res.json(db.prepare("SELECT id, name, designation FROM users WHERE active = 1 AND id <> ? ORDER BY name").all(req.user.userId)));
 router.get("/covering", requireAuth, (req, res) => {
   const t = today();
-  const rows = db.prepare(withName + " WHERE l.cover_user_id = ? AND l.status = 'approved' AND l.to_date >= ? ORDER BY l.from_date").all(req.user.userId, t);
+  const rows = db.prepare(withName + " WHERE (l.cover_user_id = ? OR EXISTS (SELECT 1 FROM leave_cover lc WHERE lc.leave_id = l.id AND lc.user_id = ?)) AND l.status = 'approved' AND l.to_date >= ? ORDER BY l.from_date").all(req.user.userId, req.user.userId, t);
   const out = rows.map((r) => {
     const tasks = db.prepare("SELECT id, title, category, due_date, status, notes FROM tasks WHERE user_id = ? AND status <> 'done' ORDER BY due_date IS NULL, due_date LIMIT 40").all(r.user_id);
     const role = db.prepare("SELECT shift_role FROM users WHERE id = ?").get(r.user_id)?.shift_role;
@@ -403,7 +409,7 @@ router.get("/overview", requireAuth, (req, res) => {
     waiting: db.prepare("SELECT COUNT(*) n FROM leave_requests WHERE user_id = ? AND status IN ('pending','with_management')").get(req.user.userId).n,
     news: db.prepare(withName + " WHERE l.user_id = ? AND l.status IN ('approved','rejected') AND l.seen_at IS NULL ORDER BY l.decided_at DESC").all(req.user.userId),
   };
-  mine.covering = db.prepare(withName + " WHERE l.cover_user_id = ? AND l.status = 'approved' AND l.to_date >= ? ORDER BY l.from_date").all(req.user.userId, t).map((r) => ({ id: r.id, staffName: r.staff_name, from_date: r.from_date, to_date: r.to_date, active: r.from_date <= t }));
+  mine.covering = db.prepare(withName + " WHERE (l.cover_user_id = ? OR EXISTS (SELECT 1 FROM leave_cover lc WHERE lc.leave_id = l.id AND lc.user_id = ?)) AND l.status = 'approved' AND l.to_date >= ? ORDER BY l.from_date").all(req.user.userId, req.user.userId, t).map((r) => ({ id: r.id, staffName: r.staff_name, from_date: r.from_date, to_date: r.to_date, active: r.from_date <= t }));
   const out = { isHr: hr, mine };
   const approver = !!db.prepare("SELECT 1 FROM leave_approvals WHERE user_id = ? AND status = 'waiting'").get(req.user.userId);
   out.toSign = approver ? db.prepare(withName + " JOIN leave_approvals a ON a.leave_id = l.id AND a.user_id = ? AND a.status = 'waiting' AND a.step = l.step WHERE l.status = 'with_management'").all(req.user.userId) : [];

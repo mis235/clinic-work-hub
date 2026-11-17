@@ -704,3 +704,4 @@ button:active:not(:disabled) { transform: scale(.97); }
 .groom-book td.nm, .groom-book th.nm { text-align: left; position: sticky; left: 0; background: #fffbe0; min-width: 130px; }
 .groom-book td.g { cursor: pointer; min-width: 26px; }
 .groom-book td.g.good { color: #15803d; font-weight: 700; } .groom-book td.g.bad { background: #fee2e2; color: #b91c1c; font-weight: 700; } .groom-book td.g.warn { background: #fef3c7; color: #92400e; font-weight: 700; } .groom-book td.g.mute { background: #eee; color: #555; }
+.cover-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 2px 10px; max-height: 190px; overflow-y: auto; border: 1px solid var(--line, #f3dcea); border-radius: 12px; padding: 6px 8px; background: #fff; }

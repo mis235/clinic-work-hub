@@ -45,7 +45,7 @@ function Mine({ cfg }) {
   const [d, setD] = useState(null);
   const [mates, setMates] = useState([]);
   useEffect(() => { api.leaveColleagues().then(setMates).catch(() => {}); }, []);
-  const [f, setF] = useState({ fromDate: todayIST(), toDate: todayIST(), halfDay: false, reasonType: "sick", reason: "", coverUserId: "", coverNote: "" });
+  const [f, setF] = useState({ fromDate: todayIST(), toDate: todayIST(), halfDay: false, reasonType: "sick", reason: "", coverUserIds: [], coverNote: "" });
   const [msg, setMsg] = useState(null); const [busy, setBusy] = useState(false);
   const load = () => api.myLeave().then(setD).catch((e) => setMsg({ ok: false, t: e.message }));
   useEffect(() => { load(); }, []);
@@ -82,8 +82,9 @@ function Mine({ cfg }) {
         <input className="field" value={f.reason} onChange={set("reason")} placeholder="e.g. fever, doctor visit / travelling to hometown" />
         <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10, fontSize: 13 }}><input type="checkbox" checked={f.halfDay} onChange={(e) => setF({ ...f, halfDay: e.target.checked, toDate: f.fromDate })} /> Half day only</label>
         <div className="form-grid" style={{ marginTop: 10 }}>
-          <div><label className="field-label">Who will do your work while you are away?</label>
-            <select className="field" value={f.coverUserId} onChange={set("coverUserId")}><option value="">— choose a colleague —</option>{mates.map((m) => <option key={m.id} value={m.id}>{m.name}{m.designation ? ` (${m.designation})` : ""}</option>)}</select></div>
+          <div><label className="field-label">Who will do your work while you are away? (one or more people)</label>
+            <div className="cover-pick">{mates.map((m) => (
+              <label key={m.id} className="ms-row"><input type="checkbox" checked={f.coverUserIds.includes(m.id)} onChange={() => setF({ ...f, coverUserIds: f.coverUserIds.includes(m.id) ? f.coverUserIds.filter((x) => x !== m.id) : [...f.coverUserIds, m.id] })} /> {m.name}{m.designation ? <span className="meta"> ({m.designation})</span> : null}</label>))}</div></div>
           <div><label className="field-label">Handover note (optional)</label><input className="field" value={f.coverNote} onChange={set("coverNote")} placeholder="e.g. keys with front desk, pending calls list" /></div>
         </div>
         <div className="meta" style={{ marginTop: 4 }}>Once your leave is approved, your colleague sees your checklist and tasks in their own login for those days.</div>
@@ -97,7 +98,7 @@ function Mine({ cfg }) {
         {d?.requests.map((r) => (
           <div key={r.id} className="task-row">
             <div><div className="title">{range(r)} · {r.days} day{r.days === 1 ? "" : "s"}</div>
-              <div className="meta">{cfg.reasons.find((x) => x.key === r.reason_type)?.label}{r.reason ? ` — ${r.reason}` : ""}{r.hr_note ? ` · HR: ${r.hr_note}` : ""}{r.mgmt_ok ? ` · approved by ${r.mgmt_ok}` : ""}{r.cover_name ? ` · work covered by ${r.cover_name}` : ""}</div>
+              <div className="meta">{cfg.reasons.find((x) => x.key === r.reason_type)?.label}{r.reason ? ` — ${r.reason}` : ""}{r.hr_note ? ` · HR: ${r.hr_note}` : ""}{r.mgmt_ok ? ` · approved by ${r.mgmt_ok}` : ""}{(r.cover_names || r.cover_name) ? ` · work covered by ${r.cover_names || r.cover_name}` : ""}</div>
               <Chain r={r} /></div>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <span className={`badge ${STATUS[r.status][1]}`}>{STATUS[r.status][0]}</span>
@@ -130,7 +131,7 @@ function Requests({ cfg, status }) {
         <div key={r.id} className="card">
           <div className="card-head"><div><span className="name">{r.staff_name}</span><span className="dept">{r.department || r.designation}{r.hr_confirmed_at ? " · HR received the letter" : ""}</span></div><span className={`badge ${STATUS[r.status][1]}`}>{STATUS[r.status][0]}</span></div>
           <div className="title">{range(r)} · {r.days} day{r.days === 1 ? "" : "s"}</div>
-          <div className="meta">{cfg.reasons.find((x) => x.key === r.reason_type)?.label}{r.reason ? ` — ${r.reason}` : ""}{r.cover_name ? ` · work covered by ${r.cover_name}` : ""}</div>
+          <div className="meta">{cfg.reasons.find((x) => x.key === r.reason_type)?.label}{r.reason ? ` — ${r.reason}` : ""}{(r.cover_names || r.cover_name) ? ` · work covered by ${r.cover_names || r.cover_name}` : ""}</div>
           <Chain r={r} />
           <div className="meta" style={{ marginTop: 4 }}>This month: {r.summary.taken} taken, {r.summary.pending} waiting, {r.summary.freeLeft} free left{r.summary.lopDays ? ` · ${r.summary.lopDays} unpaid` : ""}{["pending", "with_management"].includes(r.status) && r.summary.taken + r.days > r.summary.allowed ? " · ⚠ approving this cuts salary for the extra day(s)" : ""}</div>
           {!["pending", "with_management"].includes(r.status) && <div className="meta">{r.status === "approved" ? `Approved by ${r.mgmt_ok} (recorded by ${r.decided_by_name})` : `Not approved (${r.decided_by_name})`}{r.hr_note ? ` · ${r.hr_note}` : ""}</div>}
@@ -226,7 +227,7 @@ function ToSign() {
         <div key={r.id} className="card">
           <div className="card-head"><div><span className="name">{r.staff_name}</span><span className="dept">{r.department || r.designation}</span></div></div>
           <div className="title">{range(r)} · {r.days} day{r.days === 1 ? "" : "s"}</div>
-          <div className="meta">{r.reason || ""}{r.cover_name ? ` · work covered by ${r.cover_name}` : ""}</div>
+          <div className="meta">{r.reason || ""}{(r.cover_names || r.cover_name) ? ` · work covered by ${r.cover_names || r.cover_name}` : ""}</div>
           <Chain r={r} />
           <input className="field" style={{ marginTop: 8 }} placeholder="Note (optional)" value={note[r.id] || ""} onChange={(e) => setNote({ ...note, [r.id]: e.target.value })} />
           <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
