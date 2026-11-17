@@ -6,7 +6,7 @@ import { withFines } from "./fines.js";
 import { stampPayslip } from "./leave.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
 import { generatePayslipPdf } from "../payslip-pdf.js";
-import { sendEmail, isEmailConfigured } from "../email.js";
+import { sendEmail, isEmailConfigured, payslipCc } from "../email.js";
 import { accessFor } from "../access.js";
 
 const router = Router();
@@ -106,6 +106,7 @@ async function generateOneSlip({ profile: baseProfile, period, payDate, adminUse
     try {
       await sendEmail({
         to: user.email,
+        cc: payslipCc(),
         subject: `Payslip — ${period} — ${company.name}`,
         html: `<p>Hi ${user.name},</p><p>Please find attached your payslip for ${period} from ${company.name}.</p>`,
         attachments: [{ filename: pdfPath.split("/").pop(), path: pdfPath }],

@@ -15,7 +15,7 @@ import leaveRoutes from "./routes/leave.js";
 import { tidyExistingNames } from "./names.js";
 import { ensureSingleAdmin, requireLeadership, seedAccess } from "./access.js";
 import { startHttps } from "./https.js";
-import { isEmailConfigured, mailSettings, saveMailSettings, clearMailSettings, sendEmail, friendlyMailError } from "./email.js";
+import { payslipCc, savePayslipCc, cleanCcList, DEFAULT_SENDER, isEmailConfigured, mailSettings, saveMailSettings, clearMailSettings, sendEmail, friendlyMailError } from "./email.js";
 import express from "express";
 import cors from "cors";
 import path from "node:path";
@@ -93,12 +93,13 @@ app.get("/api/admin/status", ...adminOnly, (req, res) => {
   });
 });
 // Email (payslips, digest): settings saved here so nobody has to edit backend/.env
-app.get("/api/admin/email", ...adminOnly, (req, res) => { const m = mailSettings(); res.json({ configured: isEmailConfigured(), user: m.user, hasPassword: !!m.pass }); });
+app.get("/api/admin/email", ...adminOnly, (req, res) => { const m = mailSettings(); res.json({ configured: isEmailConfigured(), user: m.user || DEFAULT_SENDER, hasPassword: !!m.pass, cc: payslipCc() }); });
 app.put("/api/admin/email", ...adminOnly, (req, res) => {
-  const { user, pass } = req.body || {};
+  const { user, pass, cc } = req.body || {};
+  if (cc !== undefined && !cleanCcList(cc)) return res.status(400).json({ error: "Check the CC email addresses" });
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(user || ""))) return res.status(400).json({ error: "Enter the Gmail address that will send the emails" });
   if (!pass && !mailSettings().pass) return res.status(400).json({ error: "Enter the app password" });
-  saveMailSettings({ user, pass }); res.json({ ok: true });
+  saveMailSettings({ user, pass }); if (cc !== undefined) savePayslipCc(cc); res.json({ ok: true });
 });
 app.delete("/api/admin/email", ...adminOnly, (req, res) => { clearMailSettings(); res.json({ ok: true }); });
 app.post("/api/admin/email/test", ...adminOnly, async (req, res) => {

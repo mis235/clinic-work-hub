@@ -6,7 +6,7 @@ import { refreshLive, refreshHeavy } from "./routes/liveNumbers.js";
 import { pushMonth } from "./attendanceSheet.js";
 import { stampPayslip, syncLateFines } from "./routes/leave.js";
 import { autoMarkLeave } from "./routes/attendance.js";
-import { sendEmail, isEmailConfigured } from "./email.js";
+import { sendEmail, isEmailConfigured, payslipCc } from "./email.js";
 import { syncChecklistSheet } from "./routes/shiftChecklist.js";
 import { generatePayslipPdf } from "./payslip-pdf.js";
 import { randomUUID } from "node:crypto";
@@ -60,7 +60,8 @@ export async function runMonthlyPayroll() {
       try {
         await sendEmail({
           to: user.email,
-          subject: `Payslip — ${period} — ${company.name}`,
+          cc: payslipCc(),
+        subject: `Payslip — ${period} — ${company.name}`,
           html: `<p>Hi ${user.name},</p><p>Please find attached your payslip for ${period} from ${company.name}.</p>`,
           attachments: [{ filename: pdfPath.split("/").pop(), path: pdfPath }],
         });

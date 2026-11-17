@@ -820,6 +820,11 @@ try {
     const eo = await call("GET", "/api/hr/eom", null, stoken);
     ok("Employee of the Month endpoint answers", eo.status === 200 && "current" in eo.body);
   }
+  {
+    const g = await call("GET", "/api/admin/email", null, admin);
+    ok("email settings show sender and payslip CC", g.status === 200 && !!g.body.user && /accounts@/i.test(g.body.cc) && /COO@/i.test(g.body.cc));
+    ok("bad CC address is refused", (await call("PUT", "/api/admin/email", { user: "cos@drnishitaranka.com", pass: "abcdabcdabcdabcd", cc: "not-an-email" }, admin)).status === 400);
+  }
   ok("unknown API route returns 404 JSON", (await call("GET", "/api/nope", null, admin)).status === 404);
 } catch (e) {
   fail++; console.log("  FAIL  unexpected error:", e.message);

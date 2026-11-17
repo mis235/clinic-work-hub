@@ -11,6 +11,12 @@ export function mailSettings() {
   const pass = getSetting("mail_pass") || process.env.GMAIL_APP_PASSWORD || "";
   return { user, pass: String(pass).replace(/\s+/g, "") }; // Google shows app passwords in groups of 4 with spaces
 }
+export const DEFAULT_SENDER = "cos@drnishitaranka.com";
+const DEFAULT_CC = "accounts@drnishitaranka.com, COO@drnishitaranka.com";
+/** People copied on every payslip email (comma separated). */
+export function payslipCc() { return getSetting("payslip_cc") || DEFAULT_CC; }
+export function savePayslipCc(v) { putSetting("payslip_cc", String(v || "").split(/[,;\s]+/).filter(Boolean).join(", ")); }
+export function cleanCcList(v) { const l = String(v || "").split(/[,;\s]+/).filter(Boolean); return l.every((x) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x)) ? l : null; }
 export function saveMailSettings({ user, pass }) {
   putSetting("mail_user", String(user || "").trim());
   if (pass) putSetting("mail_pass", String(pass).replace(/\s+/g, ""));
@@ -46,9 +52,9 @@ export function friendlyMailError(e) {
 }
 
 /** Sends an email through Gmail using an App Password. */
-export async function sendEmail({ to, subject, html, attachments }) {
+export async function sendEmail({ to, cc, subject, html, attachments }) {
   const t = getTransporter();
   if (!t) throw new Error("Email is not set up yet. Open System & Backups → Email settings and add the clinic Gmail address and app password.");
   const { user } = mailSettings();
-  return t.sendMail({ from: `"Dr. Nishita's Clinic — Work Hub" <${user}>`, to, subject, html, attachments });
+  return t.sendMail({ from: `"Dr. Nishita's Clinic — Work Hub" <${user}>`, to, cc: cc || undefined, subject, html, attachments });
 }
