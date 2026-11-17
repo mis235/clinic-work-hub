@@ -825,6 +825,12 @@ try {
     ok("email settings show sender and payslip CC", g.status === 200 && !!g.body.user && /accounts@/i.test(g.body.cc) && /COO@/i.test(g.body.cc));
     ok("bad CC address is refused", (await call("PUT", "/api/admin/email", { user: "cos@drnishitaranka.com", pass: "abcdabcdabcdabcd", cc: "not-an-email" }, admin)).status === 400);
   }
+  {
+    const mine = await call("GET", "/api/payroll", null, stoken);
+    ok("staff can list their own payslips", mine.status === 200 && Array.isArray(mine.body));
+    ok("staff cannot email a payslip", (await call("POST", "/api/payroll/none/send", null, stoken)).status === 403);
+    ok("sending a missing payslip says not found", (await call("POST", "/api/payroll/none/send", null, admin)).status === 404);
+  }
   ok("unknown API route returns 404 JSON", (await call("GET", "/api/nope", null, admin)).status === 404);
 } catch (e) {
   fail++; console.log("  FAIL  unexpected error:", e.message);

@@ -25,10 +25,14 @@ export default function PayrollPage({ user, onLogout, onBack }) {
   function flash(msg) { setToast(msg); setTimeout(() => setToast(null), 3500); }
 
   async function generateFor(userId) {
-    const period = new Date().toISOString().slice(0, 7);
+    const period = new Date().toISOString().slice(0, 7), who = profiles?.find((p) => p.user_id === userId)?.name || "staff";
     try {
-      await api.generatePayroll({ period, userId, sendEmail: false });
-      flash(`Payslip generated for ${period}. To email it, use Documents → Payslips → Email, after setting up email in System & Backups.`);
+      const ready = await api.emailSettings().then((r) => r.configured).catch(() => false);
+      const out = await api.generatePayroll({ period, userId, sendEmail: ready });
+      const slip = out?.[0];
+      if (!ready) flash(`Payslip generated for ${period}. Email is not set up yet (System & Backups → Email settings). ${who} can see it in their login.`);
+      else if (slip?.emailed_at && !slip?.email_error) flash(`Payslip for ${period} emailed to ${who}, copy to accounts and COO. It is also in their login.`);
+      else flash(`Payslip generated and visible in ${who}'s login, but the email did not go: ${slip?.email_error || "no email address on their profile. Add it in Staff Profiles → Edit."}`);
     } catch (e) { flash(e.message); }
   }
 
@@ -82,7 +86,7 @@ export default function PayrollPage({ user, onLogout, onBack }) {
               <span>Basic: ₹{p.basic_salary.toLocaleString("en-IN")} · Retention: ₹{p.retention.toLocaleString("en-IN")}</span>
               <span style={{ display: "flex", gap: 6 }}>
                 <button className="btn btn-ghost btn-sm" onClick={() => setEditing(p)}>Edit</button>
-                <button className="btn-wa btn-sm" onClick={() => generateFor(p.user_id)}>PDF slip (this month)</button></span>
+                <button className="btn-wa btn-sm" onClick={() => generateFor(p.user_id)}>Send payslip (this month)</button></span>
             </div>
           </div>
         ))}

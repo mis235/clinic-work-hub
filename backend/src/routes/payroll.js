@@ -6,7 +6,7 @@ import { withFines } from "./fines.js";
 import { stampPayslip } from "./leave.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
 import { generatePayslipPdf } from "../payslip-pdf.js";
-import { sendEmail, isEmailConfigured, payslipCc } from "../email.js";
+import { sendEmail, isEmailConfigured, payslipCc, friendlyMailError } from "../email.js";
 import { accessFor } from "../access.js";
 
 const router = Router();
@@ -113,7 +113,7 @@ async function generateOneSlip({ profile: baseProfile, period, payDate, adminUse
       });
       db.prepare("UPDATE payslips SET emailed_at = datetime('now'), email_error = NULL WHERE id = ?").run(id);
     } catch (err) {
-      db.prepare("UPDATE payslips SET email_error = ? WHERE id = ?").run(err.message, id);
+      db.prepare("UPDATE payslips SET email_error = ? WHERE id = ?").run(friendlyMailError(err), id);
     }
   }
 
@@ -142,6 +142,21 @@ router.post("/generate", requireAuth, requirePermission("payroll:manage"), async
     results.push(slip);
   }
   res.status(201).json(results);
+});
+
+// POST /api/payroll/:id/send — (re)email one payslip to its owner, copying accounts and COO.
+router.post("/:id/send", requireAuth, requirePermission("payroll:manage"), async (req, res) => {
+  const slip = db.prepare("SELECT * FROM payslips WHERE id = ?").get(req.params.id);
+  if (!slip) return res.status(404).json({ error: "Payslip not found" });
+  if (!isEmailConfigured()) return res.status(503).json({ error: "Email is not set up yet. Open System & Backups → Email settings first." });
+  const user = db.prepare("SELECT name, email FROM users WHERE id = ?").get(slip.user_id), company = db.prepare("SELECT name FROM companies WHERE id = ?").get(slip.company_id);
+  if (!user?.email) return res.status(400).json({ error: `${user?.name || "This person"} has no email address on their profile. Add it in Staff Profiles → Edit.` });
+  if (!slip.pdf_path || !fs.existsSync(slip.pdf_path)) return res.status(404).json({ error: "PDF not found. Generate the payslip again." });
+  try {
+    await sendEmail({ to: user.email, cc: payslipCc(), subject: `Payslip — ${slip.pay_period} — ${company?.name || "Clinic"}`, html: `<p>Hi ${user.name},</p><p>Please find attached your payslip for ${slip.pay_period} from ${company?.name || "the clinic"}.</p>`, attachments: [{ filename: slip.pdf_path.split("/").pop(), path: slip.pdf_path }] });
+    db.prepare("UPDATE payslips SET emailed_at = datetime('now'), email_error = NULL WHERE id = ?").run(slip.id);
+    res.json({ ok: true, to: user.email });
+  } catch (err) { db.prepare("UPDATE payslips SET email_error = ? WHERE id = ?").run(friendlyMailError(err), slip.id); res.status(502).json({ error: friendlyMailError(err) }); }
 });
 
 // GET /api/payroll — own payslips, or all with payroll:view_all

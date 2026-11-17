@@ -305,6 +305,16 @@ export const api = {
   setPayProfile: (payload) => req("/api/payroll/profile", { method: "POST", body: payload }),
   generatePayroll: (payload) => req("/api/payroll/generate", { method: "POST", body: payload }),
   listPayslips: () => req("/api/payroll"),
+  sendPayslip: (id) => req(`/api/payroll/${id}/send`, { method: "POST" }),
+  async openPayslip(id) {
+    const w = window.open("", "_blank");
+    try {
+      const res = await fetch(`${BASE}/api/payroll/${id}/pdf`, { headers: authHeaders() });
+      if (!res.ok) throw new Error("Could not open the payslip");
+      const url = URL.createObjectURL(await res.blob());
+      if (w) w.location.href = url; else window.location.href = url;
+    } catch (e) { if (w) w.close(); alert(e.message); }
+  },
   runMonthlyPayrollNow: () => req("/api/jobs/run-monthly-payroll", { method: "POST" }),
   runChecklistDigestNow: () => req("/api/jobs/run-checklist-digest", { method: "POST" }),
 

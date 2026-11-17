@@ -10,6 +10,7 @@ import WorkspacePanel from "../components/WorkspacePanel.jsx";
 import MyDayCard from "../components/MyDayCard.jsx";
 import MyFinesCard from "../components/MyFinesCard.jsx";
 import MyAttendanceCard from "../components/MyAttendanceCard.jsx";
+import MyPayslips from "../components/MyPayslips.jsx";
 import DocumentsPage from "./DocumentsPage.jsx";
 import LearningPage from "./LearningPage.jsx";
 import ConnectedToolPage from "./ConnectedToolPage.jsx";
@@ -118,6 +119,7 @@ export default function StaffDashboard({ user, onLogout }) {
         <MyDayCard onNavigate={setView} />
         <MyAttendanceCard />
         <MyFinesCard />
+        <MyPayslips />
         <HrOverview user={user} onNavigate={(k) => setView(VIEW_FOR_LABEL[k] || "checklist")} />
 
         {loading && <div className="empty">Loading…</div>}
