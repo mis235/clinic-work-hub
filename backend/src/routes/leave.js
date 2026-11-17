@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import db from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { audit } from "../audit.js";
-import { shiftFor, getTypes } from "./roster.js";
+import { shiftFor, getTypes, shiftOn, fmtRange } from "./roster.js";
 import { accessFor } from "../access.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -93,9 +93,8 @@ export function lopAmount(userId, month, profile) {
 // ---- late arrivals ----------------------------------------------------------------------------
 /** Is arriving at hh:mm on this date late? (more than the grace period after the shift start; falls back to 10:00 with no shift planned) */
 export function shiftWindow(userId, date) {
-  const u = db.prepare("SELECT shift_start, shift_end FROM users WHERE id = ?").get(userId) || {};
-  const st = shiftFor(userId, date), t = (st && getTypes()[st]) || {};
-  return { start: u.shift_start || t.start || process.env.LATE_AFTER_FALLBACK || "10:00", end: u.shift_end || t.end || "19:30" };
+  const w = shiftOn(userId, date);
+  return { start: w.start || process.env.LATE_AFTER_FALLBACK || "10:00", end: w.end || "19:30" };
 }
 export function isLateArrival(userId, date, hhmm) {
   return mins(hhmm) > mins(shiftWindow(userId, date).start) + settings().late_grace_min;
@@ -142,11 +141,23 @@ export function payslipExtras(profile, month) {
   const lateCount = lateDays(profile.user_id, month).length;
   return { lop, lateCount };
 }
+for (const [c, t] of [["shift_label", "TEXT"], ["days_present", "REAL"], ["days_absent", "REAL"], ["late_minutes", "INTEGER"]]) { try { db.exec(`ALTER TABLE payslips ADD COLUMN ${c} ${t}`); } catch { /* already there */ } }
+/** Shift hours, days worked, absences and late minutes for one person in a month (for payslips and dashboards). */
+export function attendanceFacts(userId, month) {
+  const marks = db.prepare("SELECT mark_date, status, in_time FROM attendance_marks WHERE user_id = ? AND substr(mark_date,1,7) = ?").all(userId, month);
+  const days_present = marks.reduce((a, r) => a + (r.status === "P" || r.status === "L" ? 1 : r.status === "H" ? 0.5 : 0), 0);
+  const days_absent = marks.filter((r) => r.status === "A").length;
+  let late_minutes = 0;
+  for (const r of marks) if (r.in_time && isLateArrival(userId, r.mark_date, r.in_time)) late_minutes += Math.max(0, mins(r.in_time) - mins(shiftWindow(userId, r.mark_date).start));
+  const w = shiftOn(userId, `${month}-15`), mid = shiftOn(userId, `${month}-01`);
+  return { shift_label: fmtRange(w.start ? w : mid), days_present, days_absent, late_minutes };
+}
 export function stampPayslip(id, profile) {
   const l = profile.lop;
   if (!l) return;
-  db.prepare("UPDATE payslips SET leave_taken=?, leave_allowed=?, lop_days=?, lop_amount=?, late_count=?, fine_amount=? WHERE id=?")
-    .run(l.taken, l.allowed, l.lopDays, l.amount, profile.lateCount || 0, profile.fines || 0, id);
+  const slip = db.prepare("SELECT user_id, pay_period FROM payslips WHERE id = ?").get(id), a = slip ? attendanceFacts(slip.user_id, slip.pay_period) : {};
+  db.prepare("UPDATE payslips SET leave_taken=?, leave_allowed=?, lop_days=?, lop_amount=?, late_count=?, fine_amount=?, shift_label=?, days_present=?, days_absent=?, late_minutes=? WHERE id=?")
+    .run(l.taken, l.allowed, l.lopDays, l.amount, profile.lateCount || 0, profile.fines || 0, a.shift_label || null, a.days_present ?? null, a.days_absent ?? null, a.late_minutes ?? null, id);
 }
 
 // ---- birthdays -------------------------------------------------------------------------------

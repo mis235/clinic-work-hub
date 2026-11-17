@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Avatar from "./Avatar.jsx";
 import { api } from "../api.js";
 
 const TYPE = { holiday: ["Holiday", "#b45309", "#fef3c7"], festival: ["Festival", "#be185d", "#fce7f3"], important_date: ["Important date", "#1d4ed8", "#dbeafe"], event: ["Event", "#6d28d9", "#ede9fe"] };
@@ -18,7 +19,7 @@ export default function TeamBoard() {
         <div className="eom-card">
           <div className="eom-badge">🏆 Employee of the Month · {cur.label}</div>
           <div className="eom-body">
-            <div className="eom-avatar">{initials(cur.name)}</div>
+            <Avatar id={cur.userId} name={cur.name} hasPhoto={cur.hasPhoto} size={84} className="eom-photo" />
             <div><div className="eom-name">{cur.name}</div><div className="eom-meta">{[cur.designation, cur.department].filter(Boolean).join(" · ")}</div>{cur.note && <div className="eom-note">“{cur.note}”</div>}</div>
           </div>
         </div>)}

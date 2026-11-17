@@ -131,6 +131,14 @@ export function generatePayslipPdf({ company, employee, payslip }) {
       `Casual leave allowed: ${payslip.leave_allowed}   Leave taken: ${payslip.leave_taken}   Unpaid days: ${payslip.lop_days}${payslip.lop_amount ? ` (deducted ${inr(payslip.lop_amount)})` : ""}   Late arrivals: ${payslip.late_count || 0}   Fines: ${inr(payslip.fine_amount || 0)}`, colA, ry, { width: 495 });
     ry += 14;
   }
+  if (payslip.days_present != null) {
+    ry += 8;
+    doc.font("Helvetica-Bold").fontSize(9).fillColor("#0F766E").text("Shift & attendance", colA, ry);
+    ry += 13;
+    doc.font("Helvetica").fontSize(9).fillColor("#334155").text(
+      `Shift: ${payslip.shift_label || "-"}   Days present: ${payslip.days_present}   Days absent: ${payslip.days_absent || 0}   Late minutes: ${payslip.late_minutes || 0}`, colA, ry, { width: 495 });
+    ry += 14;
+  }
   ry += 30;
 
   doc.moveTo(50, ry).lineTo(545, ry).stroke();

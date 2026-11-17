@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import PageShell from "../components/PageShell.jsx";
+import { UsualHours, DoctorRota } from "../components/RosterPanels.jsx";
 
 const todayIST = () => new Date(Date.now() + 19800000).toISOString().slice(0, 10);
 const addDays = (d, n) => new Date(new Date(d + "T00:00:00Z").getTime() + n * 86400000).toISOString().slice(0, 10);
@@ -22,7 +23,7 @@ export default function RosterPage({ user, onLogout, onBack }) {
     try { const r = await api.copyWeek(addDays(data.start, -7), data.start); flash(`Copied ${r.copied} shifts from last week.`); load(); } catch (e) { flash(e.message); }
   }
   const types = data?.types || {};
-  const [panel, setPanel] = useState(false);
+  const [panel, setPanel] = useState(false), [tab, setTab] = useState("week");
   const [nw, setNw] = useState({ start: "09:00", end: "18:30", label: "" });
   async function addType(e) {
     e.preventDefault();
@@ -37,6 +38,12 @@ export default function RosterPage({ user, onLogout, onBack }) {
 
   return (
     <PageShell user={user} active="Roster" title="Shift roster" onLogout={onLogout} onBack={onBack}>
+      <div className="rt-tabs">
+        {[["week", "Weekly roster"], ["usual", "Usual hours"], ["docs", "Doctors' rota"]].map(([k, l]) => <button key={k} className={"chip" + (tab === k ? " active" : "")} onClick={() => setTab(k)}>{l}</button>)}
+      </div>
+      {tab === "usual" && <UsualHours flash={flash} />}
+      {tab === "docs" && <DoctorRota flash={flash} />}
+      {tab === "week" && <>
       <div className="page-head row">
         <div><div className="eyebrow">People</div><h1>Shift Roster</h1></div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -88,7 +95,8 @@ export default function RosterPage({ user, onLogout, onBack }) {
           </table>
         </div>
       )}
-      {msg && data && <div className="toast">{msg}</div>}
+      </>}
+      {msg && <div className="toast">{msg}</div>}
     </PageShell>
   );
 }

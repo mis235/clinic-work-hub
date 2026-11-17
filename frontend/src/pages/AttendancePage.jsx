@@ -97,7 +97,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
           <table className="reg-table">
             <thead><tr><th>Staff</th>{Array.from({ length: reg.daysInMonth }, (_, i) => <th key={i}>{i + 1}</th>)}<th>Pres</th><th>Late</th><th>Late min</th><th>Abs</th><th>Leave</th><th>Fines</th></tr></thead>
             <tbody>{reg.rows.map((r) => (
-              <tr key={r.id}><td className="nm">{r.name}<div className="meta">{r.designation || r.department}{r.designation && r.department ? ` · ${r.department}` : ""}</div></td>
+              <tr key={r.id}><td className="nm">{r.name}<div className="meta">{r.designation || r.department}{r.designation && r.department ? ` · ${r.department}` : ""}</div>{r.shift && <div className="meta">{r.shift}</div>}</td>
                 {r.days.map((d, i) => {
                   const day = `${reg.month}-${String(i + 1).padStart(2, "0")}`;
                   const future = day > todayIST();

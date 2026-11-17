@@ -411,8 +411,8 @@ router.get("/events/feed", requireAuth, (req, res) => {
 
 // ---- Employee of the Month ----
 db.exec("CREATE TABLE IF NOT EXISTS employee_of_month (id TEXT PRIMARY KEY, month TEXT NOT NULL, user_id TEXT NOT NULL, note TEXT, created_by TEXT, created_at TEXT DEFAULT (datetime('now')))");
-const eomRow = (r) => r && ({ id: r.id, month: r.month, label: new Date(r.month + "-01T00:00:00Z").toLocaleDateString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" }), note: r.note || "", userId: r.user_id, name: r.name, designation: r.designation || "", department: r.department || "" });
-const EOM_SQL = "SELECT e.*, u.name, u.designation, d.name AS department FROM employee_of_month e JOIN users u ON u.id = e.user_id LEFT JOIN departments d ON d.id = u.department_id";
+const eomRow = (r) => r && ({ id: r.id, month: r.month, label: new Date(r.month + "-01T00:00:00Z").toLocaleDateString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" }), note: r.note || "", userId: r.user_id, hasPhoto: !!r.has_photo, name: r.name, designation: r.designation || "", department: r.department || "" });
+const EOM_SQL = "SELECT e.*, u.name, u.designation, (u.photo_path IS NOT NULL) AS has_photo, d.name AS department FROM employee_of_month e JOIN users u ON u.id = e.user_id LEFT JOIN departments d ON d.id = u.department_id";
 router.get("/eom", requireAuth, (req, res) => {
   // This month's winner; in the first days of a month the last month's winner stays up.
   const m = istMonth(), prev = new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5)) - 2, 1)).toISOString().slice(0, 7);

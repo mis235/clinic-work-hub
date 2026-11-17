@@ -26,7 +26,8 @@ export default function MyAttendanceCard() {
         <div className="myatt-stats">
           {stat(me.present, "Days present", "#16a34a")}{stat(me.late, "Late", "#d97706")}{stat(me.absent, "Absent", "#dc2626")}{stat(me.leave, "Leave", "#7c3aed")}{stat(`₹${me.fine_total}`, "Fines", "#b91c1c")}
         </div>
-        <div className="meta" style={{ margin: "6px 0" }}>Late means more than {d.rule.grace} minutes after shift start. Every {d.rule.limit} lates add a ₹{d.rule.fine} fine to your payslip.</div>
+        {me.shift && <div className="myatt-shift"><b>Today's shift</b><span>{me.shift}</span></div>}
+        {d.upcoming?.some((u) => u.label) && <div className="myatt-up">{d.upcoming.map((u) => <div key={u.date} className={"myatt-upd" + (u.label ? "" : " off")}><b>{new Date(u.date + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", timeZone: "UTC" })}</b><span>{u.label ? u.label.replace(/ AM/g, "a").replace(/ PM/g, "p") : "Off"}</span></div>)}</div>}
         <div className="myatt-days">
           {me.days.map((st, i) => {
             const t = me.times[i];

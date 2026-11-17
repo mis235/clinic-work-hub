@@ -782,6 +782,24 @@ try {
     const fin = await call("POST", `/api/rooms/sessions/${st.body.id}/finish`, { checkOut: "12:00" }, admin);
     ok("room check-out saved", fin.status === 200 && fin.body.checkOut === "12:00");
   }
+  {
+    const imp = await call("POST", "/api/roster/times/import", { text: "Jyothi – 10:00 AM to 6:30 PM\nSivama – 6:00 PM to 8:00 PM\nNobody Here – 9:00 AM to 5:00 PM", apply: true }, admin);
+    ok("shift list import matches names and flags unknown", imp.status === 200 && imp.body.result.length === 3 && imp.body.missing.length === 1 && imp.body.result[1].start === "18:00");
+    const tm = await call("GET", "/api/roster/times", null, admin);
+    ok("shift times list shows saved hours", tm.status === 200 && tm.body.rows.some((r) => r.name === "Jyothi" && r.start === "10:00" && r.end === "18:30"));
+    ok("staff cannot read the shift list", (await call("GET", "/api/roster/times", null, stoken)).status === 403);
+    const docs = await call("GET", "/api/roster/doctor-rota", null, admin);
+    ok("doctor rota loads", docs.status === 200 && Array.isArray(docs.body.blocks));
+    const dr = docs.body.doctors[0];
+    if (dr) {
+      ok("doctor rota entry added", (await call("POST", "/api/roster/doctor-rota", { from: "2031-01-01", to: "2031-01-14", userId: dr.id, start: "10:30" }, admin)).status === 201);
+      const again = await call("GET", "/api/roster/doctor-rota", null, admin);
+      const blk = again.body.blocks.find((b) => b.from === "2031-01-01");
+      ok("doctor rota shows the 10:30 slot", !!blk && blk.slots["10:30"]?.[0]?.userId === dr.id);
+      ok("doctor rota entry removed", (await call("DELETE", `/api/roster/doctor-rota/${blk.slots["10:30"][0].id}`, null, admin)).status === 200);
+    }
+    ok("shift start must be before end", (await call("PUT", `/api/roster/times/${tm.body.rows[0].id}`, { start: "19:00", end: "09:00" }, admin)).status === 400);
+  }
   ok("unknown API route returns 404 JSON", (await call("GET", "/api/nope", null, admin)).status === 404);
 } catch (e) {
   fail++; console.log("  FAIL  unexpected error:", e.message);

@@ -9,6 +9,7 @@ import {
 import db from "../db.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
 import { syncLateFines, shiftWindow, isLateArrival } from "./leave.js";
+import { shiftOn, fmtRange, upcomingFor } from "./roster.js";
 import { queueSheet, pushAll, sheetState, saveSheetSettings, sheetScript } from "../attendanceSheet.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -367,7 +368,7 @@ router.get("/timesheet", requireAuth, requirePermission("attendance:view_all"), 
     const earlyMin = m.out_time ? Math.max(0, mm(w.end) - mm(m.out_time)) : null;
     const worked = m.in_time && m.out_time ? Math.max(0, mm(m.out_time) - mm(m.in_time)) : null;
     return { id: u.id, name: u.name, department: u.department || "", designation: u.designation || "", shiftStart: w.start, shiftEnd: w.end,
-      status: m.status || "", inTime: m.in_time || "", outTime: m.out_time || "", lateMin, isLate: !!(m.in_time && isLateArrival(u.id, date, m.in_time)),
+      shift: fmtRange(shiftOn(u.id, date)), status: m.status || "", inTime: m.in_time || "", outTime: m.out_time || "", lateMin, isLate: !!(m.in_time && isLateArrival(u.id, date, m.in_time)),
       earlyMin, workedMin: worked, monthLate: lateSum.get(u.id) || { days: 0, minutes: 0 }, note: m.note || "" };
   });
   res.json({ date, month, rows, manualCutoff: manualCutoff(), graceMin: Number(db.prepare("SELECT value FROM app_settings WHERE key = 'late_grace_min'").get()?.value || 15) });
@@ -425,10 +426,10 @@ function registerFor(req, res, onlyUser) {
       times.push(t && (t.in_time || t.out_time) ? { i: t.in_time || "", o: t.out_time || "", l: late } : null);
     }
     const f = fineBy.get(u.id);
-    return { ...u, days, times, lateMinutes, present: c.P + c.L + c.H * 0.5, late: c.L, absent: c.A, leave: c.LV, fine_count: f?.n || 0, fine_total: f?.total || 0 };
+    return { ...u, shift: fmtRange(shiftOn(u.id, now)), days, times, lateMinutes, present: c.P + c.L + c.H * 0.5, late: c.L, absent: c.A, leave: c.LV, fine_count: f?.n || 0, fine_total: f?.total || 0 };
   });
   const st = (k, d) => Number(db.prepare("SELECT value FROM app_settings WHERE key = ?").get(k)?.value || d);
-  res.json({ month, daysInMonth, today: now, labels: MARKS, rows, rule: { grace: st("late_grace_min", 15), limit: st("late_limit", 3), fine: st("late_fine", 100) } });
+  res.json({ month, daysInMonth, today: now, upcoming: onlyUser ? upcomingFor(onlyUser, 7) : undefined, labels: MARKS, rows, rule: { grace: st("late_grace_min", 15), limit: st("late_limit", 3), fine: st("late_fine", 100) } });
 }
 
 // Download the month as an Excel sheet: every person, every day: status, login time, logout time, hours.
