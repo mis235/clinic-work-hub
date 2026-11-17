@@ -1,6 +1,7 @@
 import "dotenv/config"; // MUST stay the first line: every other file reads its settings from backend/.env when it loads
 import { documentsRouter, templatesRouter, linksRouter } from "./routes/documents.js";
 import finesRoutes from "./routes/fines.js";
+import groomingRoutes from "./routes/grooming.js";
 import portalRoutes from "./routes/portal.js";
 import rosterRoutes from "./routes/roster.js";
 import exitRoutes from "./routes/exits.js";
@@ -142,6 +143,7 @@ app.use("/api/documents", documentsRouter);
 app.use("/api/doc-templates", templatesRouter);
 app.use("/api/links", linksRouter);
 app.use("/api/fines", finesRoutes);
+app.use("/api/grooming", groomingRoutes);
 app.use("/api/portal", portalRoutes);
 app.use("/api/roster", rosterRoutes);
 app.use("/api/exits", exitRoutes);

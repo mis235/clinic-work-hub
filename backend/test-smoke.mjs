@@ -688,6 +688,25 @@ try {
     ok("live numbers closed to staff", (await call("GET", "/api/live-numbers", null, stoken)).status === 403);
     ok("patient search closed to staff", (await call("GET", "/api/live-numbers/patient-search?q=ravi", null, stoken)).status === 403);
     ok("patient search needs 3 characters", (await call("GET", "/api/live-numbers/patient-search?q=ra", null, admin)).status === 400);
+    // grooming book: assigned inspectors mark, fine is automatic
+    const gm = new Date(Date.now() + 19800000).toISOString().slice(0, 7), gday = new Date(Date.now() + 19800000).toISOString().slice(0, 10);
+    const others = (await call("GET", "/api/users", null, admin)).body.filter((u) => u.id !== staff.id && u.role !== "admin");
+    const victim = others[0];
+    ok("staff cannot choose grooming inspectors", (await call("PUT", "/api/grooming/assign", { month: gm, userIds: [staff.id] }, stoken)).status === 403);
+    ok("not-assigned staff cannot mark grooming", (await call("PUT", "/api/grooming/mark", { userId: victim.id, date: gday, session: "AM", code: "no_uniform" }, stoken)).status === 403);
+    ok("admin assigns two inspectors", (await call("PUT", "/api/grooming/assign", { month: gm, userIds: [staff.id, others[1]?.id || staff.id] }, admin)).status === 200);
+    ok("assigned staff can mark grooming", (await call("PUT", "/api/grooming/mark", { userId: victim.id, date: gday, session: "AM", code: "no_uniform" }, stoken)).status === 200);
+    const fb = await call("GET", "/api/fines?month=" + gm + "&userId=" + victim.id, null, admin);
+    ok("grooming mark adds the fine once", fb.status === 200 && fb.body.rows.filter((r) => r.category === "dress_code").length === 1);
+    await call("PUT", "/api/grooming/mark", { userId: victim.id, date: gday, session: "PM", code: "grooming" }, stoken);
+    const fb2 = await call("GET", "/api/fines?month=" + gm + "&userId=" + victim.id, null, admin);
+    ok("two bad marks in a day still one fine", fb2.body.rows.filter((r) => r.category === "dress_code").length === 1);
+    await call("PUT", "/api/grooming/mark", { userId: victim.id, date: gday, session: "AM", code: "ok" }, stoken);
+    await call("PUT", "/api/grooming/mark", { userId: victim.id, date: gday, session: "PM", code: "ok" }, stoken);
+    const fb3 = await call("GET", "/api/fines?month=" + gm + "&userId=" + victim.id, null, admin);
+    ok("correcting the marks removes the fine", fb3.body.rows.filter((r) => r.category === "dress_code").length === 0);
+    ok("inspector cannot mark own grooming", (await call("PUT", "/api/grooming/mark", { userId: staff.id, date: gday, session: "AM", code: "ok" }, stoken)).status === 403);
+    ok("grooming book loads", (await call("GET", "/api/grooming/book?month=" + gm, null, stoken)).body.canMark === true);
     // events, holidays and Employee of the Month reach every staff member
     const evNew = await call("POST", "/api/hr/events", { title: "Diwali Holiday", eventType: "holiday", eventDate: "2030-11-12" }, admin);
     ok("holiday can be added", evNew.status === 201);

@@ -65,7 +65,7 @@ router.get("/summary", requireAuth, (req, res) => {
 });
 
 // The person who is fined is told straight away: app banner, email (if set up) and WhatsApp (if TeleCRM is connected).
-function tellStaff(userId, fineId, date, reason, amount, note) {
+export function tellStaff(userId, fineId, date, reason, amount, note) {
   try {
     const u = db.prepare("SELECT id, name, email, phone FROM users WHERE id = ?").get(userId); if (!u) return;
     const first = String(u.name || "").trim().split(/\s+/)[0] || "there";

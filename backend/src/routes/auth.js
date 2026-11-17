@@ -24,6 +24,7 @@ function userWithRole(row) {
     ...accessFor(row.id, role?.name),
     designation: row.designation || null,
     roomsAccess: /3rd floor|procedure/i.test(row.shift_role || ""),
+    groomingInspector: (() => { try { return !!db.prepare("SELECT 1 FROM grooming_assign WHERE month = ? AND user_id = ?").get(new Date(Date.now() + 19800000).toISOString().slice(0, 7), row.id); } catch { return false; } })(),
   };
 }
 
