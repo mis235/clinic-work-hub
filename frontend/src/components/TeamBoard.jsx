@@ -7,14 +7,19 @@ const dm = (d) => new Date(d + "T00:00:00Z").toLocaleDateString("en-IN", { weekd
 const initials = (n) => String(n || "").split(" ").filter(Boolean).slice(0, 2).map((x) => x[0]).join("").toUpperCase();
 
 // What everyone in the clinic sees on their dashboard: this month's Employee of the Month and the next events and holidays.
-export default function TeamBoard() {
+export default function TeamBoard({ canAnnounce = false, onNavigate }) {
   const [eom, setEom] = useState(null), [feed, setFeed] = useState(null);
   const load = () => { api.eom().then(setEom).catch(() => {}); api.eventsFeed().then(setFeed).catch(() => {}); };
   useEffect(() => { load(); const t = setInterval(load, 60000); window.addEventListener("hub-refresh", load); return () => { clearInterval(t); window.removeEventListener("hub-refresh", load); }; }, []);
   const cur = eom?.current, items = feed?.items || [];
-  if (!cur && items.length === 0) return null;
+  if (!cur && items.length === 0 && !canAnnounce) return null;
   return (
     <div className="team-board">
+      {!cur && canAnnounce && (
+        <div className="eom-card">
+          <div className="eom-badge">🏆 Employee of the Month</div>
+          <div className="eom-body"><div><div className="eom-name">Not announced yet</div></div><button className="btn btn-sm" style={{ marginLeft: "auto", background: "#fff" }} onClick={() => onNavigate?.("Events")}>Announce</button></div>
+        </div>)}
       {cur && (
         <div className="eom-card">
           <div className="eom-badge">🏆 Employee of the Month · {cur.label}</div>

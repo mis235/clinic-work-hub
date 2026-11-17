@@ -119,7 +119,7 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
           <Kpi icon="fingerprint" tone="violet" value={`${checkedIn}/${board?.total ?? assignable.length}`} label="Present today" hint="Open Attendance to mark" />
         </div>
 
-        <TeamBoard />
+        <TeamBoard canAnnounce onNavigate={onNavigate} />
         <MyFinesCard />
         <HrOverview user={user} onNavigate={onNavigate} />
         <RoomsCard onNavigate={onNavigate} />

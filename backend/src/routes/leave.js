@@ -219,6 +219,11 @@ function attachChain(rows) { for (const r of rows) { r.chain = chainOf(r.id); r.
 function tellOne(userId, kind, title, body) {
   try { db.prepare("INSERT OR IGNORE INTO staff_messages (id, user_id, kind, msg_date, title, body, email_status) VALUES (?,?,?,?,?,?,?)").run(randomUUID(), userId, kind, today(), title, body, "in-app"); } catch {}
 }
+/** Tells the next person in the chain that a leave letter is waiting for their signature. */
+function tellSigner(leaveId, step) {
+  const a = db.prepare("SELECT a.user_id, u.name AS who, l.from_date, l.to_date FROM leave_approvals a JOIN leave_requests l ON l.id = a.leave_id JOIN users u ON u.id = l.user_id WHERE a.leave_id = ? AND a.step = ?").get(leaveId, step);
+  if (a) tellOne(a.user_id, `leavesign:${leaveId}:${step}`, "Leave waiting for your signature", `${a.who} · ${a.from_date === a.to_date ? a.from_date : a.from_date + " to " + a.to_date}. Open Leave → To sign.`);
+}
 // Cover colleagues must sign first; HR sees the request only once everyone has signed.
 router.get("/cover-requests", requireAuth, (req, res) => {
   const rows = db.prepare(withName + " JOIN leave_cover lcm ON lcm.leave_id = l.id WHERE lcm.user_id = ? AND l.status IN ('pending','with_management','approved') AND l.to_date >= ? ORDER BY lcm.signed_at IS NOT NULL, l.from_date").all(req.user.userId, today());
@@ -310,6 +315,7 @@ router.post("/:id/confirm", requireAuth, (req, res) => {
   db.prepare("DELETE FROM leave_approvals WHERE leave_id = ?").run(r.id);
   chain.forEach((a, i) => db.prepare("INSERT INTO leave_approvals (id, leave_id, step, label, user_id) VALUES (?,?,?,?,?)").run(randomUUID(), r.id, i + 1, a.label, a.userId));
   audit({ userId: req.user.userId, action: "LEAVE_CONFIRMED_BY_HR", detail: `${r.user_id} ${r.from_date}..${r.to_date}` });
+  tellSigner(r.id, 1);
   res.json({ ok: true });
 });
 
@@ -381,7 +387,8 @@ router.post("/:id/approve", requireAuth, (req, res) => {
   const last = !db.prepare("SELECT 1 FROM leave_approvals WHERE leave_id = ? AND step > ?").get(r.id, a.step);
   if (decision === "rejected") finalize(r, "rejected", null, note, req.user.userId);
   else if (last) finalize(r, "approved", chainOf(r.id).map((c) => LABEL_TEXT[c.label] || c.label).join(" + "), note, req.user.userId);
-  else db.prepare("UPDATE leave_requests SET step = step + 1 WHERE id = ?").run(r.id);
+  else { db.prepare("UPDATE leave_requests SET step = step + 1 WHERE id = ?").run(r.id); tellSigner(r.id, a.step + 1); }
+  if (decision === "rejected" || last) tellOne(r.user_id, "leavedone:" + r.id, decision === "rejected" ? "Your leave was not approved" : "Your leave is approved", `${r.from_date === r.to_date ? r.from_date : r.from_date + " to " + r.to_date}`);
   audit({ userId: req.user.userId, action: "LEAVE_SIGN_" + decision.toUpperCase(), detail: `${r.user_id} ${r.from_date}..${r.to_date} step ${a.step}` });
   res.json({ ok: true, final: decision === "rejected" || last });
 });
@@ -450,7 +457,8 @@ router.get("/overview", requireAuth, (req, res) => {
   out.toSign = approver ? db.prepare(withName + " JOIN leave_approvals a ON a.leave_id = l.id AND a.user_id = ? AND a.status = 'waiting' AND a.step = l.step WHERE l.status = 'with_management'").all(req.user.userId) : [];
   // Other people's leave is private: only HR and the people who sign leave (COS, Director, Dr. Nishita) can see it.
   if (canSeeAllLeave(req.user.userId, req.user.roleName)) {
-    out.pending = hr ? db.prepare(withName + " WHERE l.status IN ('pending','with_management') ORDER BY l.from_date").all() : [];
+    out.pending = attachChain(db.prepare(withName + " WHERE l.status IN ('pending','with_management') ORDER BY l.from_date").all());
+    for (const r of out.pending) r.withName = r.status === "with_management" ? (r.chain.find((c) => c.step === r.step)?.name || "") : "HR";
     out.recent = db.prepare(withName + " WHERE l.status IN ('approved','rejected') AND date(l.decided_at) >= ? ORDER BY l.decided_at DESC LIMIT 20").all(addDays(t, -7));
     out.onLeaveToday = db.prepare(withName + " WHERE l.status = 'approved' AND l.from_date <= ? AND l.to_date >= ?").all(t, t);
     out.upcoming = db.prepare(withName + " WHERE l.status = 'approved' AND l.from_date > ? AND l.from_date <= ? ORDER BY l.from_date").all(t, addDays(t, 14));

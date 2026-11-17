@@ -417,7 +417,7 @@ router.get("/eom", requireAuth, (req, res) => {
   // This month's winner; in the first days of a month the last month's winner stays up.
   const m = istMonth(), prev = new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5)) - 2, 1)).toISOString().slice(0, 7);
   let row = db.prepare(EOM_SQL + " WHERE e.month = ? ORDER BY e.created_at DESC LIMIT 1").get(m);
-  if (!row && Number(todayIst().slice(8)) <= 10) row = db.prepare(EOM_SQL + " WHERE e.month = ? ORDER BY e.created_at DESC LIMIT 1").get(prev);
+  if (!row) row = db.prepare(EOM_SQL + " WHERE e.month <= ? ORDER BY e.month DESC, e.created_at DESC LIMIT 1").get(m); // stays up until the next winner is announced
   const history = db.prepare(EOM_SQL + " ORDER BY e.month DESC, e.created_at DESC LIMIT 12").all().map(eomRow);
   res.json({ current: eomRow(row) || null, history });
 });

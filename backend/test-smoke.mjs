@@ -800,6 +800,12 @@ try {
     }
     ok("shift start must be before end", (await call("PUT", `/api/roster/times/${tm.body.rows[0].id}`, { start: "19:00", end: "09:00" }, admin)).status === 400);
   }
+  {
+    const ov = await call("GET", "/api/leave/overview", null, admin);
+    ok("approvers see the waiting list", ov.status === 200 && Array.isArray(ov.body.pending));
+    const eo = await call("GET", "/api/hr/eom", null, stoken);
+    ok("Employee of the Month endpoint answers", eo.status === 200 && "current" in eo.body);
+  }
   ok("unknown API route returns 404 JSON", (await call("GET", "/api/nope", null, admin)).status === 404);
 } catch (e) {
   fail++; console.log("  FAIL  unexpected error:", e.message);
