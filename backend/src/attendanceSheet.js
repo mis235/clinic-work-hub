@@ -30,12 +30,12 @@ export function buildMonth(month) {
       if (r?.in_time && isLateArrival(u.id, date, r.in_time)) late = Math.max(0, mins(r.in_time) - mins(sh.start));
       const hrs = r?.in_time && r?.out_time && mins(r.out_time) > mins(r.in_time) ? Math.round((mins(r.out_time) - mins(r.in_time)) / 6) / 10 : "";
       c[r?.status || "none"]++; lateMin += late; worked += hrs || 0;
-      daily.push([date, u.code || "", u.name, u.dept || "", u.designation || "", sh.start, sh.end, LABEL[r?.status] || "Not marked", r?.in_time || "", r?.out_time || "", late || "", hrs, r?.note || ""]);
+      daily.push([date, u.code || "", u.name, u.dept || "", sh.start, sh.end, LABEL[r?.status] || "Not marked", r?.in_time || "", r?.out_time || "", late || "", hrs, r?.note || ""]);
     }
     summary.push([month, u.name, u.dept || "", c.P, c.L, c.H, c.LV, c.A, c.W, c.none, lateMin || "", Math.round(worked * 10) / 10, fines.get(u.id) || ""]);
   }
   return [
-    { name: month, header: ["Date", "Employee code", "Name", "Department", "Designation", "Shift start", "Shift end", "Status", "Check-in", "Check-out", "Late (min after shift start)", "Hours", "Note"], rows: daily },
+    { name: month, header: ["Date", "Employee code", "Name", "Department", "Shift start", "Shift end", "Status", "Check-in", "Check-out", "Late (min after shift start)", "Hours", "Note"], rows: daily },
     { name: month + " Summary", header: ["Month", "Name", "Department", "Present", "Late", "Half day", "Leave", "Absent", "Week off", "Not marked", "Late minutes", "Hours worked", "Fines (Rs)"], rows: summary },
   ];
 }
