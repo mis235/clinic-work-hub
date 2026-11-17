@@ -645,3 +645,16 @@ button:active:not(:disabled) { transform: scale(.97); }
 .reg-table .reg-time.out { opacity: .75; }
 .reg-table .reg-late { font-size: 9.5px; color: #b91c1c; font-weight: 700; }
 .reg-table td { min-width: 38px; vertical-align: top; }
+
+/* Procedure Rooms log: table on large screens, cards on phones */
+.rooms-cards { display: none; }
+.rooms-card { border: 1px solid var(--line, #f0d6e6); border-radius: 14px; padding: 12px 14px; margin-top: 10px; background: #fff; }
+.rooms-card .rc-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.rooms-card .rc-patient { font-weight: 700; margin-top: 4px; }
+.rooms-card .rc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin-top: 10px; font-size: 13px; }
+.rooms-card .rc-grid span { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #9a8aa3; }
+.rooms-card .rc-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line, #f0d6e6); font-size: 13px; }
+@media (max-width: 760px) {
+  .rooms-table { display: none; }
+  .rooms-cards { display: block; }
+}

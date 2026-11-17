@@ -118,15 +118,32 @@ export default function RoomsPage({ user, isStaffLayout, onLogout, onBack }) {
             <h3 style={{ margin: 0 }}>{date && date !== data.nowDate ? `Log For ${date}` : "Today's Log"}</h3>
             <label className="muted" style={{ fontSize: 12 }}>Day <input type="date" value={date || data.date} max={data.nowDate} onChange={(e) => setDate(e.target.value)} /></label>
           </div>
-          {data.sessions.length === 0 ? <p className="muted">No entries yet.</p> : (
-            <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
+          {data.sessions.length === 0 ? <p className="muted">No entries yet.</p> : (<>
+          {data.sessions.length > 0 && (
+            <div className="rooms-cards">
+              {[...data.sessions].sort((a, b) => a.room.localeCompare(b.room) || a.checkIn.localeCompare(b.checkIn)).map((s) => (
+                <div key={s.id} className="rooms-card">
+                  <div className="rc-top"><b>{s.roomLabel}</b><span className={`badge ${s.checkOut ? "done" : "in_progress"}`}>{s.checkOut ? "Done" : "Running"}</span></div>
+                  <div className="rc-patient">{s.patient}</div>
+                  <div className="meta">{s.procedure}</div>
+                  <div className="rc-grid">
+                    <div><span>Therapist</span>{s.therapist || "—"}</div>
+                    <div><span>Doctor</span>{s.doctor || "—"}</div>
+                    <div><span>In</span>{t12(s.checkIn)}</div>
+                    <div><span>Out</span>{s.checkOut ? t12(s.checkOut) : "—"}</div>
+                  </div>
+                  <div className="rc-foot"><span className="meta">{dur(s.checkIn, s.checkOut, data.nowTime) || "—"}{s.checkOut ? "" : " (running)"}</span><a href={waLink(msgFor(s, !!s.checkOut))} target="_blank" rel="noreferrer">Share</a></div>
+                </div>))}
+            </div>)}
+
+            <table className="rooms-table" style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
               <thead><tr style={{ textAlign: "left" }}><th>Room</th><th>Patient</th><th>Procedure</th><th>Therapist</th><th>Doctor</th><th>In</th><th>Out</th><th>Duration</th><th></th></tr></thead>
               <tbody>{[...data.sessions].sort((a, b) => a.room.localeCompare(b.room) || a.checkIn.localeCompare(b.checkIn)).map((s) => (
                 <tr key={s.id}><td>{s.roomLabel}</td><td>{s.patient}</td><td>{s.procedure}</td><td>{s.therapist}</td><td>{s.doctor}</td><td>{t12(s.checkIn)}</td><td>{s.checkOut ? t12(s.checkOut) : "—"}</td><td>{dur(s.checkIn, s.checkOut, data.nowTime) || "—"}{s.checkOut ? "" : " (running)"}</td>
                   <td><a href={waLink(msgFor(s, !!s.checkOut))} target="_blank" rel="noreferrer">Share</a></td></tr>
               ))}</tbody>
             </table>
-          )}
+          </>)}
         </div>
       )}
     </>

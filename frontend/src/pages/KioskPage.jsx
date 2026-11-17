@@ -36,7 +36,7 @@ export default function KioskPage() {
       try {
         if (!kioskApi.key()) throw new Error("NOKEY");
         const info = await kioskApi.call("ping");
-        if (info.enrolled === 0) { setState({ phase: "error", text: "No faces are registered yet. Ask the admin to register staff faces first." }); return; }
+        if (info.enrolled === 0) { setState({ phase: "error", text: "No faces are enrolled yet. Ask the admin to enroll staff faces first." }); return; }
         await loadFace(); stop = await startCamera(video.current);
         setState({ phase: "look", text: "Look at the camera" });
         while (!dead) {

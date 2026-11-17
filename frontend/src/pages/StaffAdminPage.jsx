@@ -105,7 +105,7 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
                   {s.active
                     ? <>
                         <button className="btn btn-ghost btn-sm" onClick={() => setEditing(s)}>Edit details</button>
-                        <button className="btn btn-ghost btn-sm" onClick={() => setFaceFor(s)}>{faces[s.id] ? "Re-do face" : "Register face"}</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setFaceFor(s)}>{faces[s.id] ? "Re-enroll face" : "Enroll face"}</button>
                         {s.id !== user.id && <button className="btn btn-ghost btn-sm" onClick={() => remove(s)}>Remove</button>}
                       </>
                     : <button className="btn btn-outline btn-sm" onClick={async () => { await api.restoreStaff(s.id); flash(`${s.name} restored.`); refresh(); }}>Restore</button>}
@@ -186,7 +186,7 @@ function AddStaffModal({ departments, shiftRoles, onClose, onDone }) {
         ) : cam ? (
           <FaceCapture who={f.name || "the new staff member"} onCaptured={async (r) => {
             const d = await api.checkFaceDuplicate(r.descriptors);
-            if (d.duplicate) throw new Error(`This face is already registered to ${d.name}. One face can belong to only one person.`);
+            if (d.duplicate) throw new Error(`This face is already enrolled for ${d.name}. One face can belong to only one person.`);
             setFace(r); setCam(false);
           }} />
         ) : <button className="btn btn-outline btn-sm" onClick={() => setCam(true)}>📷 Take photo with camera</button>}

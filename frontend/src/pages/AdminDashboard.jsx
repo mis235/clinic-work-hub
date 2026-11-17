@@ -105,17 +105,7 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
         <div className="hero">
           <Lumi mood="wave" size={118} className="hero-lumi" />
           <div style={{ position: "relative", zIndex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.02em", opacity: 0.85, marginBottom: 8 }}>{dateLabel}</div>
             <h2>{greeting()}, {firstName(user.name)}</h2>
-            <p>
-              {loading ? "Loading today's picture…" : (
-                <>
-                  {submitted.length} of {expected} shift checklists submitted
-                  {inProgress.length > 0 && <>, {inProgress.length} in progress</>}
-                  {overdueTasks > 0 ? <> · <strong>{overdueTasks} overdue task{overdueTasks > 1 ? "s" : ""}</strong> need attention.</> : <> · no overdue tasks.</>}
-                </>
-              )}
-            </p>
             <div className="hero-actions">
               {canAssign && <button className="btn btn-light" onClick={() => setShowForm(true)}><Icon name="plus" size={16} /> Assign task</button>}
               <button className="btn btn-outline" onClick={() => onNavigate("Dashboards")}>Open dashboard</button>
