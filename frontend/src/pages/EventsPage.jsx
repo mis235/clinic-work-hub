@@ -7,7 +7,31 @@ import MobileTopBar from "../components/MobileTopBar.jsx";
 const istMonth = () => new Date(Date.now() + 19800000).toISOString().slice(0, 7);
 const shift = (month, n) => { const [y, m] = month.split("-").map(Number); const d = new Date(Date.UTC(y, m - 1 + n, 1)); return d.toISOString().slice(0, 7); };
 const KIND = { birthday: ["Birthday", "accepted", "🎂"], anniversary: ["Work anniversary", "done", "⭐"], event: ["", "in_progress", "🎉"] };
-const TYPE_LABEL = { festival: "Festival", important_date: "Important date", event: "Event" };
+const TYPE_LABEL = { holiday: "Holiday", festival: "Festival", important_date: "Important date", event: "Event" };
+
+function EomCard() {
+  const [people, setPeople] = useState([]), [cur, setCur] = useState(null), [uid, setUid] = useState(""), [note, setNote] = useState(""), [msg, setMsg] = useState(""), [busy, setBusy] = useState(false);
+  const load = () => api.eom().then((d) => setCur(d.current)).catch(() => {});
+  useEffect(() => { load(); api.listRosterAll().then((l) => setPeople((l || []).filter((u) => u.active !== 0 && u.active !== false).sort((a, b) => a.name.localeCompare(b.name)))).catch(() => {}); }, []);
+  async function save() {
+    setBusy(true); setMsg("");
+    try { await api.setEom({ userId: uid, note }); setMsg("Announced. Every staff dashboard now shows it, and everyone got a notification."); setUid(""); setNote(""); load(); } catch (e) { setMsg(e.message); }
+    setBusy(false);
+  }
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card-head"><div className="name">🏆 Employee of the Month</div>{cur && <span className="badge done">{cur.name} · {cur.label}</span>}</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <select className="field" style={{ maxWidth: 260 }} value={uid} onChange={(e) => setUid(e.target.value)}>
+          <option value="">Choose staff member</option>
+          {people.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+        </select>
+        <input className="field" style={{ flex: "1 1 220px" }} value={note} onChange={(e) => setNote(e.target.value)} placeholder="A line about why (optional)" />
+        <button className="btn btn-primary btn-sm" disabled={!uid || busy} onClick={save}>{busy ? "Announcing…" : "Announce"}</button>
+      </div>
+      {msg && <div className="meta" style={{ marginTop: 8 }}>{msg}</div>}
+    </div>);
+}
 
 export default function EventsPage({ user, onLogout, onBack }) {
   const [month, setMonth] = useState(istMonth());
@@ -45,9 +69,11 @@ export default function EventsPage({ user, onLogout, onBack }) {
       <div className="main">
         <MobileTopBar title="Events" onOpenMenu={() => setMobileOpen(true)} />
         <div className="page-head row">
-          <div><h1>Events &amp; Culture</h1><p>Birthdays, work anniversaries, festivals and clinic events, one month at a time. Add photos and videos to any event to keep the memories.</p></div>
+          <div><h1>Events &amp; Culture</h1><p>Birthdays, anniversaries, holidays, festivals and clinic events. Everyone gets a notification when one is added.</p></div>
           {canManage && <button className="btn btn-primary btn-sm" onClick={() => setForm({})}>+ Add event</button>}
         </div>
+
+        {canManage && <EomCard />}
 
         <div className="month-bar">
           <button className="btn btn-outline btn-sm" onClick={() => setMonth(shift(month, -1))} aria-label="Previous month">‹</button>
@@ -135,6 +161,7 @@ function EventForm({ item, month, onClose, onSave }) {
         <input className="field" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Diwali" />
         <label className="field-label">Type</label>
         <select className="field" value={eventType} onChange={(e) => setEventType(e.target.value)}>
+          <option value="holiday">Holiday</option>
           <option value="festival">Festival</option>
           <option value="important_date">Important date</option>
           <option value="event">Clinic event</option>

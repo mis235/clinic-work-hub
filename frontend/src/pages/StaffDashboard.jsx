@@ -1,3 +1,4 @@
+import TeamBoard from "../components/TeamBoard.jsx";
 import AskLumiBar from "../components/AskLumiBar.jsx";
 import Lumi from "../components/Lumi.jsx";
 import { useEffect, useState, useCallback } from "react";
@@ -111,6 +112,7 @@ export default function StaffDashboard({ user, onLogout }) {
           </div>
         </div>
 
+        <TeamBoard />
         <MyDayCard onNavigate={setView} />
         <MyFinesCard />
         <HrOverview user={user} onNavigate={(k) => setView(VIEW_FOR_LABEL[k] || "checklist")} />

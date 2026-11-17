@@ -1,3 +1,4 @@
+import TeamBoard from "../components/TeamBoard.jsx";
 import AskLumiBar from "../components/AskLumiBar.jsx";
 import Lumi from "../components/Lumi.jsx";
 import HrOverview from "../components/HrOverview.jsx";
@@ -120,6 +121,7 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
           <Kpi icon="fingerprint" tone="violet" value={`${checkedIn}/${board?.total ?? assignable.length}`} label="Present today" hint="Open Attendance to mark" />
         </div>
 
+        <TeamBoard />
         <HrOverview user={user} onNavigate={onNavigate} />
         <RoomsCard onNavigate={onNavigate} />
 

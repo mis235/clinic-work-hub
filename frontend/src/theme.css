@@ -658,3 +658,22 @@ button:active:not(:disabled) { transform: scale(.97); }
   .rooms-table { display: none; }
   .rooms-cards { display: block; }
 }
+
+/* Team board: Employee of the Month + events */
+.team-board { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+@media (max-width: 800px) { .team-board { grid-template-columns: 1fr; } }
+.eom-card { border-radius: 20px; padding: 20px; color: #3b2a00; background: linear-gradient(135deg, #fde68a, #f59e0b); box-shadow: 0 6px 20px rgba(245, 158, 11, .25); }
+.eom-badge { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; opacity: .85; }
+.eom-body { display: flex; gap: 14px; align-items: center; margin-top: 14px; }
+.eom-avatar { width: 64px; height: 64px; border-radius: 50%; background: #fff; color: #b45309; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 22px; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+.eom-name { font-size: 22px; font-weight: 800; line-height: 1.2; }
+.eom-meta { font-size: 13px; opacity: .8; margin-top: 2px; }
+.eom-note { font-size: 13px; margin-top: 8px; font-style: italic; }
+.ev-card { margin-bottom: 0; }
+.ev-row { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line, #f3dcea); }
+.ev-row:first-of-type { border-top: none; }
+.ev-date { width: 46px; text-align: center; border-radius: 12px; background: #fdf2f8; padding: 5px 0; flex-shrink: 0; }
+.ev-date b { display: block; font-size: 18px; line-height: 1.1; }
+.ev-date span { font-size: 10.5px; text-transform: uppercase; color: #9d174d; }
+.ev-main { flex: 1; min-width: 0; }
+.ev-tag { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 99px; white-space: nowrap; }

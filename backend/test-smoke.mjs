@@ -688,6 +688,19 @@ try {
     ok("live numbers closed to staff", (await call("GET", "/api/live-numbers", null, stoken)).status === 403);
     ok("patient search closed to staff", (await call("GET", "/api/live-numbers/patient-search?q=ravi", null, stoken)).status === 403);
     ok("patient search needs 3 characters", (await call("GET", "/api/live-numbers/patient-search?q=ra", null, admin)).status === 400);
+    // events, holidays and Employee of the Month reach every staff member
+    const evNew = await call("POST", "/api/hr/events", { title: "Diwali Holiday", eventType: "holiday", eventDate: "2030-11-12" }, admin);
+    ok("holiday can be added", evNew.status === 201);
+    ok("staff cannot add events", (await call("POST", "/api/hr/events", { title: "x", eventType: "event", eventDate: "2030-11-12" }, stoken)).status === 403);
+    const feed = await call("GET", "/api/hr/events/feed", null, stoken);
+    ok("staff can read the events feed", feed.status === 200 && Array.isArray(feed.body.items));
+    const stMsgs = await call("GET", "/api/messages/mine", null, stoken);
+    ok("staff get a notification for a new holiday", stMsgs.status === 200 && stMsgs.body.some((m) => /Diwali Holiday/.test(m.title)));
+    const eomSet = await call("POST", "/api/hr/eom", { userId: staff.id, note: "Always on time" }, admin);
+    ok("Employee of the Month can be set by admin", eomSet.status === 201);
+    ok("staff cannot set Employee of the Month", (await call("POST", "/api/hr/eom", { userId: staff.id }, stoken)).status === 403);
+    const eomGet = await call("GET", "/api/hr/eom", null, stoken);
+    ok("staff see Employee of the Month", eomGet.status === 200 && eomGet.body.current && eomGet.body.current.note === "Always on time");
     const lc = await call("GET", "/api/live-numbers/config", null, admin);
     ok("live numbers setup script", lc.status === 200 && /doGet/.test(lc.body.script || ""));
     ok("live numbers link must be Google script", (await call("PUT", "/api/live-numbers/config", { url: "https://evil.com/exec" }, admin)).status === 400);

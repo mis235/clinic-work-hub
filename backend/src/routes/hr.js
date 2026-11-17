@@ -299,7 +299,7 @@ router.get("/events", requireAuth, (req, res) => {
 
 function cleanEvent(body) {
   const { title, eventType, eventDate } = body || {};
-  const t = String(title || "").trim().slice(0, 120), type = ["festival", "important_date", "event"].includes(eventType) ? eventType : "event";
+  const t = String(title || "").trim().slice(0, 120), type = ["festival", "important_date", "event", "holiday"].includes(eventType) ? eventType : "event";
   const d = String(eventDate || "").trim();
   if (!t) return { error: "Please type a title" };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(d) && !/^\d{2}-\d{2}$/.test(d)) return { error: "Please choose a date" };
@@ -309,6 +309,8 @@ router.post("/events", requireAuth, requirePermission("staff:manage"), (req, res
   const c = cleanEvent(req.body); if (c.error) return res.status(400).json({ error: c.error });
   const id = randomUUID();
   db.prepare("INSERT INTO clinic_events (id, title, event_type, event_date, recurring) VALUES (?, ?, ?, ?, ?)").run(id, c.t, c.type, c.d, /^\d{2}-\d{2}$/.test(c.d) ? 1 : 0);
+  const when = /^\d{4}-/.test(c.d) ? new Date(c.d + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }) : new Date("2000-" + c.d + "T00:00:00Z").toLocaleDateString("en-IN", { day: "numeric", month: "long", timeZone: "UTC" }) + " (every year)";
+  notifyAll("event:" + id, `${c.type === "holiday" ? "Holiday" : c.type === "festival" ? "Festival" : "New event"}: ${c.t}`, `${c.t} — ${when}.`);
   res.status(201).json({ id });
 });
 router.put("/events/:id", requireAuth, requirePermission("staff:manage"), (req, res) => {
@@ -322,6 +324,59 @@ router.delete("/events/:id", requireAuth, requirePermission("staff:manage"), (re
   db.prepare("DELETE FROM event_media WHERE event_id = ?").run(req.params.id);
   const r = db.prepare("DELETE FROM clinic_events WHERE id = ?").run(req.params.id);
   if (!r.changes) return res.status(404).json({ error: "Event not found" });
+  res.json({ ok: true });
+});
+
+// ---- notify every active staff member (shows as a banner in their app) ----
+const todayIst = () => new Date(Date.now() + 19800000).toISOString().slice(0, 10);
+function notifyAll(kind, title, body) {
+  const ins = db.prepare("INSERT OR IGNORE INTO staff_messages (id, user_id, kind, msg_date, title, body, email_status) VALUES (?,?,?,?,?,?,?)");
+  for (const u of db.prepare("SELECT id FROM users WHERE active = 1").all()) ins.run(randomUUID(), u.id, kind, todayIst(), title, body, "in-app");
+}
+
+// ---- upcoming events + holidays for everyone's overview ----
+router.get("/events/feed", requireAuth, (req, res) => {
+  const t = todayIst(), t0 = new Date(t + "T00:00:00Z"), y = Number(t.slice(0, 4));
+  const items = [];
+  for (const e of db.prepare("SELECT * FROM clinic_events").all()) {
+    const d = String(e.event_date || ""); let date = null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) date = d;
+    else if (/^\d{2}-\d{2}$/.test(d)) { date = `${y}-${d}`; if (date < t) date = `${y + 1}-${d}`; }
+    if (!date || date < t) continue;
+    const inDays = Math.round((new Date(date + "T00:00:00Z") - t0) / 86400000);
+    if (inDays <= 60) items.push({ id: e.id, title: e.title, eventType: e.event_type, date, inDays });
+  }
+  items.sort((a, b) => a.inDays - b.inDays);
+  res.json({ today: t, items: items.slice(0, 8) });
+});
+
+// ---- Employee of the Month ----
+db.exec("CREATE TABLE IF NOT EXISTS employee_of_month (id TEXT PRIMARY KEY, month TEXT NOT NULL, user_id TEXT NOT NULL, note TEXT, created_by TEXT, created_at TEXT DEFAULT (datetime('now')))");
+const eomRow = (r) => r && ({ id: r.id, month: r.month, label: new Date(r.month + "-01T00:00:00Z").toLocaleDateString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" }), note: r.note || "", userId: r.user_id, name: r.name, designation: r.designation || "", department: r.department || "" });
+const EOM_SQL = "SELECT e.*, u.name, u.designation, d.name AS department FROM employee_of_month e JOIN users u ON u.id = e.user_id LEFT JOIN departments d ON d.id = u.department_id";
+router.get("/eom", requireAuth, (req, res) => {
+  // This month's winner; in the first days of a month the last month's winner stays up.
+  const m = istMonth(), prev = new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5)) - 2, 1)).toISOString().slice(0, 7);
+  let row = db.prepare(EOM_SQL + " WHERE e.month = ? ORDER BY e.created_at DESC LIMIT 1").get(m);
+  if (!row && Number(todayIst().slice(8)) <= 10) row = db.prepare(EOM_SQL + " WHERE e.month = ? ORDER BY e.created_at DESC LIMIT 1").get(prev);
+  const history = db.prepare(EOM_SQL + " ORDER BY e.month DESC, e.created_at DESC LIMIT 12").all().map(eomRow);
+  res.json({ current: eomRow(row) || null, history });
+});
+router.post("/eom", requireAuth, requirePermission("staff:manage"), (req, res) => {
+  const { userId, month, note } = req.body || {};
+  const u = db.prepare("SELECT id, name FROM users WHERE id = ? AND active = 1").get(userId);
+  if (!u) return res.status(400).json({ error: "Choose a staff member" });
+  const m = /^\d{4}-\d{2}$/.test(month || "") ? month : istMonth();
+  db.prepare("DELETE FROM employee_of_month WHERE month = ?").run(m);
+  const id = randomUUID();
+  db.prepare("INSERT INTO employee_of_month (id, month, user_id, note, created_by) VALUES (?,?,?,?,?)").run(id, m, u.id, String(note || "").trim().slice(0, 300), req.user.userId);
+  const label = new Date(m + "-01T00:00:00Z").toLocaleDateString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" });
+  notifyAll("eom:" + id, `Employee of the Month — ${u.name}`, `Congratulations ${u.name}! ${u.name} is our Employee of the Month for ${label}.${note ? " " + String(note).trim().slice(0, 300) : ""}`);
+  res.status(201).json({ id });
+});
+router.delete("/eom/:id", requireAuth, requirePermission("staff:manage"), (req, res) => {
+  const r = db.prepare("DELETE FROM employee_of_month WHERE id = ?").run(req.params.id);
+  if (!r.changes) return res.status(404).json({ error: "Not found" });
   res.json({ ok: true });
 });
 
