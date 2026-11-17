@@ -696,6 +696,7 @@ try {
     ok("not-assigned staff cannot mark grooming", (await call("PUT", "/api/grooming/mark", { userId: victim.id, date: gday, session: "AM", code: "no_uniform" }, stoken)).status === 403);
     ok("admin assigns two inspectors", (await call("PUT", "/api/grooming/assign", { month: gm, userIds: [staff.id, others[1]?.id || staff.id] }, admin)).status === 200);
     ok("assigned staff can mark grooming", (await call("PUT", "/api/grooming/mark", { userId: victim.id, date: gday, session: "AM", code: "no_uniform" }, stoken)).status === 200);
+    { const xr = await fetch(base + "/api/grooming/export?month=" + gm, { headers: { Authorization: "Bearer " + admin } }); const buf = Buffer.from(await xr.arrayBuffer()); ok("grooming Excel downloads", xr.status === 200 && buf.length > 2000 && buf.slice(0, 2).toString() === "PK"); }
     const fb = await call("GET", "/api/fines?month=" + gm + "&userId=" + victim.id, null, admin);
     ok("grooming mark adds the fine once", fb.status === 200 && fb.body.rows.filter((r) => r.category === "dress_code").length === 1);
     await call("PUT", "/api/grooming/mark", { userId: victim.id, date: gday, session: "PM", code: "grooming" }, stoken);

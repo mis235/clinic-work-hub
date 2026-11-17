@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import "../dashboard-original.css";
 import { api } from "../api.js";
 
@@ -49,7 +49,7 @@ function MultiSelect({ all, value, onChange, summary }) {
 const RING = 2 * Math.PI * 36, DONUT = 2 * Math.PI * 58;
 function ConvSection({ conv }) {
   const years = conv.years.map((y) => String(y.y)), latest = years[years.length - 1];
-  const [ys, setYs] = useState(null), [cs, setCs] = useState(null), [q, setQ] = useState("");
+  const [ys, setYs] = useState(null), [cs, setCs] = useState(null), [q, setQ] = useState(""), [openCat, setOpenCat] = useState(null);
   const selY = (ys && ys.length ? ys : [latest]).filter((y) => years.includes(y));
   const cats = [...new Set(selY.flatMap((y) => (conv.byCategory[y] || []).map((r) => r.k)))].filter((k) => k !== "All").sort();
   const catOn = cs && cs.length && cs.length < cats.length ? cs.filter((c) => cats.includes(c)) : null;
@@ -65,6 +65,7 @@ function ConvSection({ conv }) {
   const rate = t.sug ? Math.round((t.done / t.sug) * 100) : 0;
   const agg = {};
   selY.forEach((y) => (conv.byCategory[y] || []).forEach((r) => { if (r.k === "All" && cats.length) return; if (catOn && !catOn.includes(r.k)) return; const o = (agg[r.k] = agg[r.k] || { k: r.k, sug: 0, done: 0 }); o.sug += r.sug; o.done += r.done; }));
+  const procsOf = (cat) => { const m = {}; selY.forEach((y) => ((conv.byProc || {})[y]?.[cat] || []).forEach((r) => { const o = (m[r.k] = m[r.k] || { k: r.k, sug: 0, done: 0 }); o.sug += r.sug; o.done += r.done; })); return Object.values(m).sort((a, b) => b.sug - a.sug); };
   const catRows = Object.values(agg).filter((r) => r.k.toLowerCase().includes(q.toLowerCase())).sort((a, b) => b.sug - a.sug);
   const months = (conv.byMonth || []).filter((m) => selY.includes(String(m.m).slice(0, 4)) || selY.length === years.length);
   const mMax = Math.max(1, ...months.map((m) => m.sug));
@@ -141,8 +142,8 @@ function ConvSection({ conv }) {
         <div className="table-scroll" style={{ marginTop: 16 }}>
           <table className="cat-table"><thead><tr><th>#</th><th>Category</th><th>Suggested</th><th>Done</th><th>Pending</th><th>Conversion rate</th></tr></thead>
             <tbody>{catRows.map((r, i) => { const rt = r.sug ? Math.round((r.done / r.sug) * 100) : 0; return (
-              <tr key={r.k}><td><span className="cat-rank">{i + 1}</span></td><td>{r.k}</td><td className="data-font">{r.sug}</td><td className="data-font">{r.done}</td><td className="data-font">{r.sug - r.done}</td>
-                <td className="data-font"><span className="proc-rate-bar"><span className="proc-rate-fill" style={{ display: "block", width: rt + "%" }} /></span>{rt}%</td></tr>); })}</tbody></table>
+              <Fragment key={r.k}><tr className="cat-row" onClick={() => setOpenCat(openCat === r.k ? null : r.k)} style={{ cursor: "pointer" }}><td><span className="cat-rank">{i + 1}</span></td><td>{r.k}</td><td className="data-font">{r.sug}</td><td className="data-font">{r.done}</td><td className="data-font">{r.sug - r.done}</td>
+                <td className="data-font"><span className="proc-rate-bar"><span className="proc-rate-fill" style={{ display: "block", width: rt + "%" }} /></span>{rt}%</td></tr>{openCat === r.k && (<tr className="proc-row"><td colSpan={6}><div className="proc-pills">{procsOf(r.k).length === 0 ? <span className="note" style={{ margin: 0 }}>No procedure split for this category yet</span> : procsOf(r.k).map((p) => <span key={p.k} className={`proc-pill ${p.done > 0 ? "has" : ""}`}>{p.k}: {p.done}/{p.sug} ({p.sug ? Math.round((p.done / p.sug) * 100) : 0}%)</span>)}</div></td></tr>)}</Fragment>); })}</tbody></table>
         </div>
       </div>)}
   </>);

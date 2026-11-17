@@ -92,17 +92,43 @@ router.get("/export", requireAuth, async (req, res) => {
   const marks = {};
   for (const r of db.prepare("SELECT user_id, date, session, code FROM grooming_marks WHERE substr(date,1,7) = ?").all(month)) ((marks[r.user_id] ||= {})[r.date] ||= {})[r.session] = r.code;
   const short = (k) => CODES.find((c) => c.key === k)?.short || "";
-  const wb = new ExcelJS.Workbook(), ws = wb.addWorksheet("Grooming " + month);
-  const head = ["Sr", "Name"]; for (let d = 1; d <= days; d++) head.push(d + " AM", d + " PM"); head.push("Fines");
-  ws.addRow(["Grooming book — " + new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" })]).font = { bold: true, size: 14 };
-  ws.addRow(head).font = { bold: true };
+  const wb = new ExcelJS.Workbook(), ws = wb.addWorksheet("Grooming " + month, { pageSetup: { orientation: "landscape", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.3, right: 0.3, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 } }, views: [{ state: "frozen", xSplit: 2, ySplit: 5 }] });
+  const mName = new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" });
+  const lastCol = 2 + days * 2 + 2, thin = { style: "thin", color: { argb: "FFD9C2D3" } }, box = { top: thin, left: thin, bottom: thin, right: thin };
+  const PINK = "FFC42F8F", SOFT = "FFFDE6F3", RED = "FFFEE2E2", GREEN = "FFDCFCE7", AMBER = "FFFEF3C7", GREY = "FFE5E7EB";
+  const FILL = { ok: GREEN, late: AMBER, no_uniform: RED, grooming: RED, half_day: AMBER, absent: RED, off: GREY };
+  ws.mergeCells(1, 1, 1, lastCol); ws.getCell(1, 1).value = "DR. NISHITA'S CLINIC — FOR SKIN, HAIR & AESTHETICS";
+  ws.getCell(1, 1).font = { bold: true, size: 15, color: { argb: "FFFFFFFF" } }; ws.getCell(1, 1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: PINK } }; ws.getCell(1, 1).alignment = { vertical: "middle", horizontal: "left", indent: 1 }; ws.getRow(1).height = 28;
+  ws.mergeCells(2, 1, 2, lastCol); ws.getCell(2, 1).value = `Grooming Book — ${mName}`; ws.getCell(2, 1).font = { bold: true, size: 13 }; ws.getCell(2, 1).alignment = { indent: 1 };
+  const insp = db.prepare("SELECT u.name FROM grooming_assign g JOIN users u ON u.id = g.user_id WHERE g.month = ? ORDER BY u.name").all(month).map((r) => r.name);
+  ws.mergeCells(3, 1, 3, lastCol); ws.getCell(3, 1).value = `Inspector(s): ${insp.join(", ") || "—"}     Fine for no uniform / grooming issue: ₹${fineAmount()} per person per day`; ws.getCell(3, 1).font = { size: 10.5, color: { argb: "FF6F5E82" } }; ws.getCell(3, 1).alignment = { indent: 1 };
+  ws.mergeCells(4, 1, 4, lastCol); ws.getCell(4, 1).value = "Key:  ✓ Neat   " + CODES.filter((c) => c.key !== "ok").map((c) => `${c.short} = ${c.label}`).join("   "); ws.getCell(4, 1).font = { size: 10, italic: true, color: { argb: "FF6F5E82" } }; ws.getCell(4, 1).alignment = { indent: 1 };
+  const hr = ws.getRow(5), hd = ["Sr", "Name"]; for (let d = 1; d <= days; d++) hd.push(String(d), ""); hd.push("Marks", "Fine (₹)");
+  hr.values = hd; for (let d = 0; d < days; d++) ws.mergeCells(5, 3 + d * 2, 5, 4 + d * 2);
+  hr.height = 20; hr.eachCell((c) => { c.font = { bold: true, color: { argb: "FF4A1D3F" } }; c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: SOFT } }; c.alignment = { horizontal: "center", vertical: "middle" }; c.border = box; });
+  const sub = ws.addRow(["", ""].concat(Array.from({ length: days }, () => ["AM", "PM"]).flat(), ["", ""]));
+  sub.eachCell((c) => { c.font = { size: 8.5, color: { argb: "FF6F5E82" } }; c.alignment = { horizontal: "center" }; c.border = box; c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF7FB" } }; });
+  ws.views = [{ state: "frozen", xSplit: 2, ySplit: 6 }];
   people().forEach((p, i) => {
-    const row = [i + 1, p.name]; let fines = 0;
-    for (let d = 1; d <= days; d++) { const date = `${month}-${String(d).padStart(2, "0")}`; const mk = marks[p.id]?.[date] || {}; row.push(short(mk.AM), short(mk.PM)); if (CODES.some((c) => c.fine && (c.key === mk.AM || c.key === mk.PM))) fines++; }
-    row.push(fines ? "₹" + fines * fineAmount() : "");
-    ws.addRow(row);
+    const row = [i + 1, p.name]; let fineDays = 0, bad = 0;
+    for (let d = 1; d <= days; d++) {
+      const date = `${month}-${String(d).padStart(2, "0")}`, mk = marks[p.id]?.[date] || {};
+      row.push(mk.AM ? (mk.AM === "ok" ? "✓" : short(mk.AM)) : "", mk.PM ? (mk.PM === "ok" ? "✓" : short(mk.PM)) : "");
+      if (CODES.some((c) => c.fine && (c.key === mk.AM || c.key === mk.PM))) fineDays++;
+      for (const k of [mk.AM, mk.PM]) if (k && k !== "ok") bad++;
+    }
+    row.push(bad || "", fineDays ? fineDays * fineAmount() : "");
+    const r = ws.addRow(row);
+    r.eachCell((c, col) => { c.border = box; c.alignment = { horizontal: col === 2 ? "left" : "center", vertical: "middle" }; c.font = { size: col <= 2 ? 11 : 10, bold: col === 2 }; });
+    for (let d = 1; d <= days; d++) { const date = `${month}-${String(d).padStart(2, "0")}`, mk = marks[p.id]?.[date] || {};
+      [["AM", 3 + (d - 1) * 2], ["PM", 4 + (d - 1) * 2]].forEach(([ses, col]) => { const k = mk[ses]; if (k) { const c = r.getCell(col); c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FILL[k] || GREY } }; c.font = { size: 10, bold: k !== "ok", color: { argb: k === "ok" ? "FF166534" : "FF7F1D1D" } }; } }); }
+    if (fineDays) r.getCell(lastCol).font = { bold: true, color: { argb: "FFB91C1C" } };
   });
-  ws.getColumn(2).width = 24; ws.views = [{ state: "frozen", xSplit: 2, ySplit: 2 }];
+  ws.getColumn(1).width = 5; ws.getColumn(2).width = 26;
+  for (let c = 3; c <= 2 + days * 2; c++) ws.getColumn(c).width = 3.6;
+  ws.getColumn(lastCol - 1).width = 8; ws.getColumn(lastCol).width = 11;
+  const foot = ws.addRow([]); const fr = ws.rowCount + 1;
+  ws.mergeCells(fr, 1, fr, lastCol); ws.getCell(fr, 1).value = `Generated from Clinic Work Hub on ${new Date(Date.now() + 19800000).toISOString().slice(0, 16).replace("T", " ")} IST`; ws.getCell(fr, 1).font = { size: 9, italic: true, color: { argb: "FF9A8AA3" } };
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", `attachment; filename="grooming-${month}.xlsx"`);
   await wb.xlsx.write(res); res.end();

@@ -5,6 +5,31 @@ import { requireAuth, requirePermission } from "../middleware/auth.js";
 
 const router = Router();
 
+
+// The clinic's SOP documents in Google Drive: added once (skipped when a title is already there).
+const DRIVE = (id) => `https://drive.google.com/file/d/${id}/view`;
+const DRIVE_SOPS = [
+  ["SOP — Front Desk", "Appointment Booking & Scheduling SOP", "11hnwd44MTZpXmR4v0vOJelee6lbCU0GU"],
+  ["SOP — Front Desk", "Appointment Cancellation SOP", "1W_lYYr8r0QklQX395rsQL-cQw29NDjzv"],
+  ["SOP — Front Desk", "Existing Patient with Appointment SOP", "1-Dqs_QZSiExTr61MqA7MFPM9ZlMEAggU"],
+  ["SOP — Front Desk", "New Patient with Appointment SOP", "1fTdTgzYEhQLDv3e2oUncOFl7o6dSSSGg"],
+  ["SOP — Front Desk", "Same Day Appointment Slot Request SOP", "1Tk4pdujRN5UThpLJJ1IUBsNIdlQ5vWfu"],
+  ["SOP — Front Desk", "Pre-Consultation Formalities SOP", "1x_9x4frbK7oPxCUScPF8Cft12CPBnxqL"],
+  ["SOP — Front Desk", "Patient Enquiry Management Process SOP", "1dHq-d897pFXx1K5Quu4V2Yk4DyAXkCuo"],
+  ["SOP — Management", "Internal Booking (Family & Friends) Approval SOP", "1hj1wrIXQGlqzubi6f3G3UUEiVChfDQlD"],
+  ["SOP — General", "Clinic Advance Fee and Cancellation SOPs", "1U0y_tEEE8ggm8ZHmSmxWhCrcEqP1-Htd"],
+  ["SOP — Pharmacy", "Pharmacy SOP", "1if6C7fsVNuTg93bbw3vQt5nB6qFmITMa"],
+  ["SOP — Counsellor & Manager", "Counsellor & Manager SOP", "1IvB-gyNBpjThUx91ZxJWBaY484pzwEHZ"],
+  ["SOP — Accounts", "Accounts SOP", "1ootuQ9eTFZnNEH_2nsBbnu5SkD-myBgQ"],
+  ["SOP — Therapist", "Hydrafacial SOP", "1ZWmdnCaEGlSIXAuQLQE9lVByolhVdgEE"],
+  ["SOP — Therapist", "SOPs & Protocols (all procedures)", "1k5gB81MC3fOC1aqDv5cNGo3WXEm91SmP"],
+  ["SOP — General", "Procedures Overview SOPs (sheet)", "1Uu-l7zhOJTfHW901J8rto1hO8WV_Ywqe"],
+];
+try {
+  const has = db.prepare("SELECT 1 FROM policies WHERE title = ?"), ins = db.prepare("INSERT INTO policies (id, title, category, body, version) VALUES (?, ?, ?, ?, 1)");
+  for (const [cat, title, id] of DRIVE_SOPS) if (!has.get(title)) ins.run(randomUUID(), title, cat, `Open the full document:\n${DRIVE(id)}\n\nPlease read it carefully, then tap "I Have Read This".`);
+} catch {}
+
 // An SOP is "for" a person when its category/title names their department or job title
 // (e.g. "SOP — Front Desk" for someone in the Front Desk department). General SOPs (no team named) are for everyone.
 const isSopRow = (p) => /sop|procedure/i.test(`${p.category} ${p.title}`);
