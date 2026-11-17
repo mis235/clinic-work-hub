@@ -22,7 +22,6 @@ export default function ReportsPage({ user, onLogout, onBack }) {
         <MobileTopBar title="Reports" onOpenMenu={() => setMobileOpen(true)} />
         <div className="page-head">
           <h1>Reports & Insights</h1>
-          <p>Built entirely from live data — task completion, attendance, and policy sign-off.</p>
         </div>
 
         {!report ? <div className="empty">Loading…</div> : (

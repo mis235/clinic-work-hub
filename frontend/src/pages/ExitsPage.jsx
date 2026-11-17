@@ -26,8 +26,7 @@ export default function ExitsPage({ user, onLogout, onBack }) {
   return (
     <PageShell user={user} active="Exits" title="Staff exits" onLogout={onLogout} onBack={onBack}>
       <div className="page-head row">
-        <div><div className="eyebrow">People</div><h1>Staff Exits</h1>
-          <p>When someone leaves: record it, follow the steps, settle their dues, then issue the relieving letter and experience certificate.</p></div>
+        <div><div className="eyebrow">People</div><h1>Staff Exits</h1></div>
         <div style={{ display: "flex", gap: 8 }}>
           <button className="btn btn-outline" onClick={() => setWording((x) => !x)}>Letter wording</button>
           <button className="btn btn-primary" onClick={() => setAdding(true)}>+ Start an exit</button>

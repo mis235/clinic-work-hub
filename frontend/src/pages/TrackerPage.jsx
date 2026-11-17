@@ -26,7 +26,6 @@ export default function TrackerPage({ user, isStaffLayout, onLogout, onBack }) {
     <>
       <div className="page-head">
         <h1>Procedure Tracker</h1>
-        <p>A live view of your own progress — tasks, checklists and policy status, updated as you work.</p>
       </div>
 
       {!summary && <div className="empty">Loading…</div>}

@@ -48,7 +48,7 @@ export default function AutoMessagesPage({ user, onLogout, onBack }) {
       <div className="main">
         <MobileTopBar title="Auto Messages" onOpenMenu={() => setMobileOpen(true)} />
         <div className="page-head row">
-          <div><h1>Auto Messages</h1><p>Write a message once. It goes to your staff by itself, at the time you choose: in the app, by email, and by WhatsApp when TeleCRM is connected.</p></div>
+          <div><h1>Auto Messages</h1></div>
           <button className="btn btn-primary btn-sm" onClick={() => setForm({ ...BLANK })}>+ New Message</button>
         </div>
         {data && (

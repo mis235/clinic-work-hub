@@ -57,7 +57,6 @@ export default function OnboardingPage({ user, onLogout, onBack, onOpenProfile }
           <div>
             <div className="eyebrow">People</div>
             <h1>Staff Onboarding</h1>
-            <p>One complete record for every team member — personal details, employment, emergency contact and the documents HR must collect. The score shows what is still missing.</p>
           </div>
           <button className="btn btn-primary" onClick={() => setWizard(true)}><Icon name="userplus" size={17} /> Onboard new staff</button>
         </div>

@@ -26,7 +26,7 @@ export default function LeavePage({ user, onLogout, onBack, isStaffLayout }) {
   const tabs = [["mine", "My leave"], ["sign", "To sign"], ["cover", "Covering for others"], ["sig", "My signature"], ...(cfg.isHr ? [["approve", "Approvals"], ["all", "All requests"], ["late", "Late & fines"], ["bday", "Birthdays"], ["rules", "HR rules"]] : [])];
   return (
     <PageShell user={user} active="Leave" title="Leave & HR" isStaffLayout={isStaffLayout} onLogout={onLogout} onBack={onBack}>
-      <div className="page-head"><div className="eyebrow">People</div><h1>Leave &amp; HR</h1><p>Apply for leave, see your balance, and (for HR) approve requests, late arrivals and birthdays.</p></div>
+      <div className="page-head"><div className="eyebrow">People</div><h1>Leave &amp; HR</h1></div>
       {tabs.length > 1 && <div className="pills leave-tabs" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>{tabs.map(([k, l]) => <button key={k} className={`pill ${tab === k ? "active" : ""}`} onClick={() => setTab(k)}>{l}</button>)}</div>}
       {tab === "mine" && <Mine cfg={cfg} />}
       {tab === "sign" && <ToSign />}
@@ -98,7 +98,7 @@ function Mine({ cfg }) {
         {d?.requests.map((r) => (
           <div key={r.id} className="task-row">
             <div><div className="title">{range(r)} · {r.days} day{r.days === 1 ? "" : "s"}</div>
-              <div className="meta">{cfg.reasons.find((x) => x.key === r.reason_type)?.label}{r.reason ? ` — ${r.reason}` : ""}{r.hr_note ? ` · HR: ${r.hr_note}` : ""}{r.mgmt_ok ? ` · approved by ${r.mgmt_ok}` : ""}{(r.cover_names || r.cover_name) ? ` · work covered by ${r.cover_names || r.cover_name}` : ""}</div>
+              <div className="meta">{cfg.reasons.find((x) => x.key === r.reason_type)?.label}{r.reason ? ` — ${r.reason}` : ""}{r.hr_note ? ` · HR: ${r.hr_note}` : ""}{r.mgmt_ok ? ` · approved by ${r.mgmt_ok}` : ""}{(r.cover_names || r.cover_name) ? ` · work covered by ${r.covers?.length ? r.covers.map((c) => c.name + (c.signed ? " ✓" : " (waiting to sign)")).join(", ") : (r.cover_names || r.cover_name)}` : ""}</div>
               <Chain r={r} /></div>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <span className={`badge ${STATUS[r.status][1]}`}>{STATUS[r.status][0]}</span>
@@ -131,7 +131,7 @@ function Requests({ cfg, status }) {
         <div key={r.id} className="card">
           <div className="card-head"><div><span className="name">{r.staff_name}</span><span className="dept">{r.department || r.designation}{r.hr_confirmed_at ? " · HR received the letter" : ""}</span></div><span className={`badge ${STATUS[r.status][1]}`}>{STATUS[r.status][0]}</span></div>
           <div className="title">{range(r)} · {r.days} day{r.days === 1 ? "" : "s"}</div>
-          <div className="meta">{cfg.reasons.find((x) => x.key === r.reason_type)?.label}{r.reason ? ` — ${r.reason}` : ""}{(r.cover_names || r.cover_name) ? ` · work covered by ${r.cover_names || r.cover_name}` : ""}</div>
+          <div className="meta">{cfg.reasons.find((x) => x.key === r.reason_type)?.label}{r.reason ? ` — ${r.reason}` : ""}{(r.cover_names || r.cover_name) ? ` · work covered by ${r.covers?.length ? r.covers.map((c) => c.name + (c.signed ? " ✓" : " (waiting to sign)")).join(", ") : (r.cover_names || r.cover_name)}` : ""}</div>
           <Chain r={r} />
           <div className="meta" style={{ marginTop: 4 }}>This month: {r.summary.taken} taken, {r.summary.pending} waiting, {r.summary.freeLeft} free left{r.summary.lopDays ? ` · ${r.summary.lopDays} unpaid` : ""}{["pending", "with_management"].includes(r.status) && r.summary.taken + r.days > r.summary.allowed ? " · ⚠ approving this cuts salary for the extra day(s)" : ""}</div>
           {!["pending", "with_management"].includes(r.status) && <div className="meta">{r.status === "approved" ? `Approved by ${r.mgmt_ok} (recorded by ${r.decided_by_name})` : `Not approved (${r.decided_by_name})`}{r.hr_note ? ` · ${r.hr_note}` : ""}</div>}
@@ -227,7 +227,7 @@ function ToSign() {
         <div key={r.id} className="card">
           <div className="card-head"><div><span className="name">{r.staff_name}</span><span className="dept">{r.department || r.designation}</span></div></div>
           <div className="title">{range(r)} · {r.days} day{r.days === 1 ? "" : "s"}</div>
-          <div className="meta">{r.reason || ""}{(r.cover_names || r.cover_name) ? ` · work covered by ${r.cover_names || r.cover_name}` : ""}</div>
+          <div className="meta">{r.reason || ""}{(r.cover_names || r.cover_name) ? ` · work covered by ${r.covers?.length ? r.covers.map((c) => c.name + (c.signed ? " ✓" : " (waiting to sign)")).join(", ") : (r.cover_names || r.cover_name)}` : ""}</div>
           <Chain r={r} />
           <input className="field" style={{ marginTop: 8 }} placeholder="Note (optional)" value={note[r.id] || ""} onChange={(e) => setNote({ ...note, [r.id]: e.target.value })} />
           <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
@@ -260,12 +260,30 @@ function MySignature() {
   );
 }
 
+function CoverSign() {
+  const [reqs, setReqs] = useState(null), [err, setErr] = useState("");
+  const load = () => api.coverRequests().then(setReqs).catch(() => setReqs([]));
+  useEffect(() => { load(); }, []);
+  if (!reqs || reqs.length === 0) return null;
+  return (
+    <div className="card" style={{ borderLeft: "4px solid var(--primary)" }}>
+      <div className="card-head"><div className="name">Cover requests</div></div>
+      {err && <div className="login-error">{err}</div>}
+      {reqs.map((r) => (
+        <div key={r.id} className="task-row">
+          <div><div className="title">{r.staffName}</div><div className="meta">{range({ from_date: r.from_date, to_date: r.to_date })}{r.note ? ` · ${r.note}` : ""}</div></div>
+          {r.signed ? <span className="badge done">Signed</span> : <button className="btn btn-primary btn-sm" onClick={async () => { try { await api.coverSign(r.id); load(); } catch (e) { setErr(e.message); } }}>Agree &amp; sign</button>}
+        </div>))}
+    </div>
+  );
+}
+
 function Covering() {
   const [rows, setRows] = useState(null);
   useEffect(() => { api.leaveCovering().then(setRows).catch(() => setRows([])); }, []);
   if (!rows) return <div className="empty">Loading…</div>;
-  if (!rows.length) return <div className="empty">Nobody has asked you to cover their work.</div>;
-  return rows.map((c) => (
+  if (!rows.length) return <><CoverSign /><div className="empty">Nobody has asked you to cover their work.</div></>;
+  return <><CoverSign />{rows.map((c) => (
     <div key={c.id} className="card">
       <div className="card-head"><div className="name">Covering for {c.staffName}</div><span className={`badge ${c.active ? "in_progress" : ""}`}>{c.active ? "On leave now" : `From ${dmy(c.fromDate)}`}</span></div>
       <div className="meta">{range({ from_date: c.fromDate, to_date: c.toDate })}{c.note ? ` · Note: ${c.note}` : ""}</div>
@@ -275,5 +293,5 @@ function Covering() {
       {c.sections.length > 0 && <div className="title" style={{ marginTop: 10 }}>Their shift checklist ({c.roleName})</div>}
       {c.sections.map((s) => <div key={s.section} style={{ marginTop: 6 }}><div className="meta"><b>{s.section}</b></div>{s.items.map((i, k) => <div key={k} className="meta">☐ {i}</div>)}</div>)}
     </div>
-  ));
+  ))}</>;
 }

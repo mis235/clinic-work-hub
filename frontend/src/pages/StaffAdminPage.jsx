@@ -54,7 +54,6 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
           <div>
             <div className="eyebrow">People</div>
             <h1>Staff Directory</h1>
-            <p>Everyone on the team in one place — contact details, designation, reporting line and shift checklist role. Add new people, edit anyone’s details, or remove someone who has left (their history is kept).</p>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <input className="field" style={{ width: 200 }} placeholder="Search by name…" value={q} onChange={(e) => setQ(e.target.value)} />

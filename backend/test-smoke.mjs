@@ -442,6 +442,14 @@ try {
     ok("HR confirms receipt and sends to Sir/Mam", (await call("POST", `/api/leave/${ap1.body.id}/confirm`, { note: "letter received" }, hrTok)).status === 200);
     ok("waiting-for-Sir/Mam request still shows for HR", (await call("GET", "/api/leave/requests?status=with_management", null, hrTok)).body.some((r) => r.id === ap1.body.id));
     ok("staff cannot confirm", (await call("POST", `/api/leave/${ap1.body.id}/confirm`, {}, lvTok)).status === 403);
+    { const dC = ymd(new Date(t0.getTime() + 9 * 86400000));
+      const cv = await call("POST", "/api/leave/apply", { fromDate: dC, toDate: dC, reasonType: "travel", coverUserIds: [staff.id] }, lvTok);
+      ok("leave with a cover person is accepted", cv.status === 201);
+      ok("HR cannot confirm before the cover person signs", (await call("POST", `/api/leave/${cv.body.id}/confirm`, {}, hrTok)).status === 409);
+      const cr = await call("GET", "/api/leave/cover-requests", null, stoken);
+      ok("cover person sees the request", cr.status === 200 && cr.body.some((r) => r.id === cv.body.id && !r.signed));
+      ok("cover person signs", (await call("POST", `/api/leave/${cv.body.id}/cover-sign`, {}, stoken)).status === 200);
+      ok("HR can confirm after the cover person signs", (await call("POST", `/api/leave/${cv.body.id}/confirm`, {}, hrTok)).status === 200); }
     ok("HR approves with Sir & Mam", (await call("POST", `/api/leave/${ap1.body.id}/decide`, { decision: "approved", mgmtOk: "Sir & Mam" }, hrTok)).status === 200);
     const ap2 = await call("POST", "/api/leave/apply", { fromDate: dB, toDate: dB, reasonType: "family" }, lvTok);
     ok("second day warns about salary cut", ap2.status === 201 && /salary/i.test(ap2.body.warning || ""), JSON.stringify(ap2.body));
@@ -471,6 +479,7 @@ try {
       ok("other staff leave list does not include it", !(await call("GET", "/api/leave/mine", null, coverTok)).body.requests.some((r) => r.id === ch.body.id));
       ok("other staff overview hides other people's leave", !(await call("GET", "/api/leave/overview", null, coverTok)).body.pending);
       ok("cover person sees nothing before approval", (await call("GET", "/api/leave/covering", null, coverTok)).body.length === 0);
+      ok("cover person signs first", (await call("POST", `/api/leave/${ch.body.id}/cover-sign`, {}, coverTok)).status === 200);
       ok("HR sends it on", (await call("POST", `/api/leave/${ch.body.id}/confirm`, {}, hrTok)).status === 200);
       ok("Director cannot sign before COS", (await call("POST", `/api/leave/${ch.body.id}/approve`, { decision: "approved" }, shrTok)).status === 403);
       ok("COS sees it waiting", (await call("GET", "/api/leave/approvals", null, nagaTok)).body.waiting.some((r) => r.id === ch.body.id));

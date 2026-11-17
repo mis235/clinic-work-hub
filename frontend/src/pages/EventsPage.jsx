@@ -69,7 +69,7 @@ export default function EventsPage({ user, onLogout, onBack }) {
       <div className="main">
         <MobileTopBar title="Events" onOpenMenu={() => setMobileOpen(true)} />
         <div className="page-head row">
-          <div><h1>Events &amp; Culture</h1><p>Birthdays, anniversaries, holidays, festivals and clinic events. Everyone gets a notification when one is added.</p></div>
+          <div><h1>Events &amp; Culture</h1></div>
           {canManage && <button className="btn btn-primary btn-sm" onClick={() => setForm({})}>+ Add event</button>}
         </div>
 

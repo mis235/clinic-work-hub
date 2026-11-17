@@ -20,8 +20,7 @@ export default function ConnectedToolPage({ toolKey, active, user, isStaffLayout
   return (
     <PageShell user={user} active={active} title={link?.title || active} isStaffLayout={isStaffLayout} onLogout={onLogout} onBack={onBack}>
       <div className="page-head row">
-        <div><div className="eyebrow">Connected tool</div><h1>{link?.title || active}</h1>
-          <p>Runs inside the Work Hub so everything is in one place.</p></div>
+        <div><div className="eyebrow">Connected tool</div><h1>{link?.title || active}</h1></div>
         <div style={{ display: "flex", gap: 8 }}>
           {link && <a className="btn btn-outline" href={link.url} target="_blank" rel="noreferrer">Open in new tab</a>}
           {user.role === "admin" && <button className="btn btn-ghost" onClick={() => setEditing((x) => !x)}>Change address</button>}

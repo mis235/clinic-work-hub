@@ -50,7 +50,6 @@ export default function AdvisorsPage({ user, onLogout, onBack }) {
         <MobileTopBar title="AI Advisors" onOpenMenu={() => setMobileOpen(true)} />
         <div className="page-head">
           <h1>AI Advisors</h1>
-          <p>Specialist agents for workforce and staffing questions — advisory only, nothing here changes records automatically.</p>
         </div>
 
         {active ? (

@@ -223,7 +223,6 @@ export default function SystemPage({ user, onLogout, onBack }) {
         <div className="page-head">
           <div className="eyebrow">Administration</div>
           <h1>System &amp; Activity</h1>
-          <p>Is the app healthy, is your data backed up, and who did what.</p>
         </div>
         {msg && <div className="note">{msg}</div>}
 

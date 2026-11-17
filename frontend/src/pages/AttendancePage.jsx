@@ -97,7 +97,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
           <table className="reg-table">
             <thead><tr><th>Staff</th>{Array.from({ length: reg.daysInMonth }, (_, i) => <th key={i}>{i + 1}</th>)}<th>Pres</th><th>Late</th><th>Late min</th><th>Abs</th><th>Leave</th><th>Fines</th></tr></thead>
             <tbody>{reg.rows.map((r) => (
-              <tr key={r.id}><td className="nm">{r.name}<div className="meta">{r.department}</div></td>
+              <tr key={r.id}><td className="nm">{r.name}<div className="meta">{r.designation || r.department}{r.designation && r.department ? ` · ${r.department}` : ""}</div></td>
                 {r.days.map((d, i) => {
                   const day = `${reg.month}-${String(i + 1).padStart(2, "0")}`;
                   const future = day > todayIST();
@@ -184,7 +184,7 @@ function FacePanel({ date, people, isAdmin, flash }) {
           <div className="title" style={{ marginBottom: 6 }}>Face Enrollment</div>
           {people.map((p) => (
             <div key={p.id} className="task-row">
-              <div><div className="title">{p.name}</div><div className="meta">{p.department}</div></div>
+              <div><div className="title">{p.name}</div><div className="meta">{p.designation || p.department}</div></div>
               <div className="right" style={{ gap: 8 }}>
                 <span className={`badge ${enrolled[p.id]?.same_as ? "overdue" : enrolled[p.id] ? "done" : "sent"}`}>{enrolled[p.id]?.same_as ? `Same face as ${enrolled[p.id].same_as}` : enrolled[p.id] ? "Enrolled" : "Not enrolled"}</span>
                 <button className="btn btn-outline btn-sm" onClick={() => setEnrolling(p)}>{enrolled[p.id] ? "Re-enroll" : "Enroll face"}</button>

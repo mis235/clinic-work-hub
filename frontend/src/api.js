@@ -318,6 +318,8 @@ export const api = {
   leaveColleagues: () => req("/api/leave/colleagues"),
   leaveApprovals: () => req("/api/leave/approvals"),
   approveLeave: (id, body) => req(`/api/leave/${id}/approve`, { method: "POST", body }),
+  coverRequests: () => req("/api/leave/cover-requests"),
+  coverSign: (id) => req(`/api/leave/${id}/cover-sign`, { method: "POST" }),
   leaveCovering: () => req("/api/leave/covering"),
   leaveChain: () => req("/api/leave/chain"),
   // The letter is a PDF behind sign-in, so fetch it with the token and open it in a new tab.

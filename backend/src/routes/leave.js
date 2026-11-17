@@ -36,6 +36,7 @@ db.exec(`CREATE TABLE IF NOT EXISTS leave_approvals (
   UNIQUE(leave_id, step)
 );`);
 db.exec("CREATE TABLE IF NOT EXISTS leave_cover (leave_id TEXT NOT NULL, user_id TEXT NOT NULL, PRIMARY KEY (leave_id, user_id))");
+try { db.exec("ALTER TABLE leave_cover ADD COLUMN signed_at TEXT"); } catch {}
 for (const sql of [
   "ALTER TABLE leave_requests ADD COLUMN cover_user_id TEXT", "ALTER TABLE leave_requests ADD COLUMN cover_note TEXT", "ALTER TABLE leave_requests ADD COLUMN step INTEGER NOT NULL DEFAULT 0", "ALTER TABLE leave_requests ADD COLUMN applicant_signature TEXT",
   "ALTER TABLE fines ADD COLUMN auto_key TEXT", "ALTER TABLE leave_requests ADD COLUMN hr_confirmed_at TEXT", "ALTER TABLE leave_requests ADD COLUMN hr_confirmed_by TEXT",
@@ -201,7 +202,27 @@ const LABEL_TEXT = { COS: "COS", Director: "Director", Owner: "Dr. Nishita" };
 function chainOf(leaveId) {
   return db.prepare("SELECT a.step, a.label, a.user_id, a.status, a.decided_at, a.note, u.name FROM leave_approvals a JOIN users u ON u.id = a.user_id WHERE a.leave_id = ? ORDER BY a.step").all(leaveId);
 }
-function attachChain(rows) { for (const r of rows) r.chain = chainOf(r.id); return rows; }
+const coversOf = (leaveId) => db.prepare("SELECT lc.user_id AS id, u.name, lc.signed_at IS NOT NULL AS signed FROM leave_cover lc JOIN users u ON u.id = lc.user_id WHERE lc.leave_id = ? ORDER BY u.name").all(leaveId).map((c) => ({ ...c, signed: !!c.signed }));
+function attachChain(rows) { for (const r of rows) { r.chain = chainOf(r.id); r.covers = coversOf(r.id); } return rows; }
+function tellOne(userId, kind, title, body) {
+  try { db.prepare("INSERT OR IGNORE INTO staff_messages (id, user_id, kind, msg_date, title, body, email_status) VALUES (?,?,?,?,?,?,?)").run(randomUUID(), userId, kind, today(), title, body, "in-app"); } catch {}
+}
+// Cover colleagues must sign first; HR sees the request only once everyone has signed.
+router.get("/cover-requests", requireAuth, (req, res) => {
+  const rows = db.prepare(withName + " JOIN leave_cover lcm ON lcm.leave_id = l.id WHERE lcm.user_id = ? AND l.status IN ('pending','with_management','approved') AND l.to_date >= ? ORDER BY lcm.signed_at IS NOT NULL, l.from_date").all(req.user.userId, today());
+  res.json(rows.map((r) => ({ id: r.id, staffName: r.staff_name, from_date: r.from_date, to_date: r.to_date, days: r.days, note: r.cover_note || "", status: r.status, signed: !!db.prepare("SELECT 1 FROM leave_cover WHERE leave_id = ? AND user_id = ? AND signed_at IS NOT NULL").get(r.id, req.user.userId) })));
+});
+router.post("/:id/cover-sign", requireAuth, (req, res) => {
+  const r = db.prepare("SELECT * FROM leave_requests WHERE id = ?").get(req.params.id);
+  const mine = r && db.prepare("SELECT 1 FROM leave_cover WHERE leave_id = ? AND user_id = ?").get(r.id, req.user.userId);
+  if (!mine) return res.status(404).json({ error: "Not found" });
+  db.prepare("UPDATE leave_cover SET signed_at = COALESCE(signed_at, datetime('now')) WHERE leave_id = ? AND user_id = ?").run(r.id, req.user.userId);
+  const left = coversOf(r.id).filter((c) => !c.signed);
+  const who = db.prepare("SELECT name FROM users WHERE id = ?").get(r.user_id)?.name || "A colleague";
+  tellOne(r.user_id, `coversign:${r.id}:${req.user.userId}`, "Cover colleague signed", `${req.user.name || "A colleague"} agreed to cover your work${left.length ? `. Waiting for ${left.map((c) => c.name).join(", ")}.` : ". Your request now goes to HR."}`);
+  if (!left.length) for (const u of db.prepare("SELECT id FROM users WHERE active = 1").all()) { const roleName = db.prepare("SELECT ro.name FROM users us JOIN roles ro ON ro.id = us.role_id WHERE us.id = ?").get(u.id)?.name; if (roleName && isHr(u.id, roleName)) tellOne(u.id, `leavehr:${r.id}`, "Leave ready for HR", `${who}'s leave (${r.from_date} to ${r.to_date}) has all cover signatures. Open Leave & HR to confirm.`); }
+  res.json({ ok: true, waiting: left.length });
+});
 /** HR, admin and the people who sign leave may see everyone's leave; nobody else. */
 export function canSeeAllLeave(userId, roleName) { return roleName === "admin" || isHr(userId, roleName) || approverChain().some((a) => a.userId === userId); }
 const canSee = (r, userId, roleName) => r.user_id === userId || isHr(userId, roleName) || !!db.prepare("SELECT 1 FROM leave_approvals WHERE leave_id = ? AND user_id = ?").get(r.id, userId);
@@ -237,7 +258,7 @@ router.post("/apply", requireAuth, (req, res) => {
   if (fs.existsSync(sigFile(req.user.userId))) { appSig = path.join(SIG_DIR, `leave-${id}-0.png`); fs.copyFileSync(sigFile(req.user.userId), appSig); }
   db.prepare("INSERT INTO leave_requests (id, user_id, from_date, to_date, days, reason_type, reason, cover_user_id, cover_note, applicant_signature) VALUES (?,?,?,?,?,?,?,?,?,?)")
     .run(id, req.user.userId, fromDate, to, days, reasonType, reason ? String(reason).slice(0, 500) : null, cover?.id || null, coverNote ? String(coverNote).slice(0, 300) : null, appSig);
-  for (const c of covers) db.prepare("INSERT OR IGNORE INTO leave_cover (leave_id, user_id) VALUES (?,?)").run(id, c.id);
+  for (const c of covers) { db.prepare("INSERT OR IGNORE INTO leave_cover (leave_id, user_id) VALUES (?,?)").run(id, c.id); tellOne(c.id, `coverask:${id}:${c.id}`, "Please cover a colleague", `${db.prepare("SELECT name FROM users WHERE id = ?").get(req.user.userId)?.name || "A colleague"} will be on leave ${fromDate}${to !== fromDate ? " to " + to : ""}. Open Leave & HR → Covering for others to sign.`); }
   audit({ userId: req.user.userId, action: "LEAVE_APPLIED", detail: `${fromDate}..${to} ${reasonType}` });
   const ls = leaveSummary(req.user.userId, fromDate.slice(0, 7));
   res.status(201).json({ id, summary: ls, warning: ls.pending + ls.taken > ls.allowed ? `Only ${ls.allowed} day(s) a month are free. Each extra day cuts one day's salary.` : null });
@@ -269,6 +290,8 @@ router.post("/:id/confirm", requireAuth, (req, res) => {
   const r = db.prepare("SELECT * FROM leave_requests WHERE id = ?").get(req.params.id);
   if (!r) return res.status(404).json({ error: "Not found" });
   if (r.status !== "pending") return res.status(400).json({ error: "This request is not waiting for HR any more" });
+  const unsigned = coversOf(r.id).filter((c) => !c.signed);
+  if (unsigned.length) return res.status(409).json({ error: `Waiting for cover signature: ${unsigned.map((c) => c.name).join(", ")}` });
   const chain = approverChain().filter((a) => a.userId !== r.user_id);   // you never sign your own leave
   db.prepare("UPDATE leave_requests SET status = 'with_management', step = ?, hr_confirmed_at = datetime('now'), hr_confirmed_by = ?, hr_note = COALESCE(?, hr_note) WHERE id = ?")
     .run(chain.length ? 1 : 0, req.user.userId, req.body?.note ? String(req.body.note).slice(0, 300) : null, r.id);

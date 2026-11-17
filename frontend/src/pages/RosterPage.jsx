@@ -38,8 +38,7 @@ export default function RosterPage({ user, onLogout, onBack }) {
   return (
     <PageShell user={user} active="Roster" title="Shift roster" onLogout={onLogout} onBack={onBack}>
       <div className="page-head row">
-        <div><div className="eyebrow">People</div><h1>Shift Roster</h1>
-          <p>Choose each person's shift for the week. Staff see their own shift on their home screen, and "late" is counted from the shift start.</p></div>
+        <div><div className="eyebrow">People</div><h1>Shift Roster</h1></div>
         <div style={{ display: "flex", gap: 8 }}>
           <button className="btn btn-ghost btn-sm" onClick={() => setStart(addDays(data?.start || start, -7))}>← Last week</button>
           <button className="btn btn-ghost btn-sm" onClick={() => setStart(addDays(data?.start || start, 7))}>Next week →</button>

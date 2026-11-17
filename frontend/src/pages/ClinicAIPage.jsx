@@ -50,7 +50,7 @@ export default function ClinicAIPage({ user, isStaffLayout, onLogout, onBack }) 
   return (
     <PageShell user={user} active="Clinic Assistant" title="Lumi" isStaffLayout={isStaffLayout} onLogout={onLogout} onBack={onBack}>
       <div className="page-head row">
-        <div className="lumi-hero"><LumiOrbit mood={busy ? "think" : "wave"} size={150} /><div><div className="eyebrow">Leadership only</div><h1>Lumi</h1><p>Your clinic data helper — patients, charts, revenue and reports.</p></div></div>
+        <div className="lumi-hero"><LumiOrbit mood={busy ? "think" : "wave"} size={150} /><div><div className="eyebrow">Leadership only</div><h1>Lumi</h1></div></div>
       </div>
       {showSetup && (
         <div className="card">

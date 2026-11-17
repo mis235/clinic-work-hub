@@ -27,7 +27,7 @@ export default function OfferLettersPage({ user, onLogout, onBack }) {
       <div className="main">
         <MobileTopBar title="HR — Offer Letters" onOpenMenu={() => setMobileOpen(true)} />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div className="page-head"><h1>Offer Letters</h1><p>Upload your own offer-letter template once, then generate every staff member's letter in one click. For a single new hire without a template, use the quick form.</p></div>
+          <div className="page-head"><h1>Offer Letters</h1></div>
           <button className="btn btn-ghost btn-sm" onClick={() => setShowForm(true)}>Quick letter (no template)</button>
         </div>
         <TemplateStudio kind="offer_letter" companies={companies} roster={roster} flash={flash} />
