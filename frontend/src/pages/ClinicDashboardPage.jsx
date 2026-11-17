@@ -47,7 +47,7 @@ export default function ClinicDashboardPage({ user, onLogout, onBack, onNavigate
       {tab === "live" && (!depts ? <div className="empty">Loading…</div> : (
         <>
           <div className="kpi-row">
-            {[["users", "In clinic today", `${sum("present_today")}/${sum("staff")}`, "#0F766E"], ["check", "Work completed", pctText(rep?.completion?.overall_pct), "#12a56f"], ["tasks", "Open tasks", sum("tasks_open"), "#e0a020"], ["file", "Documents", sum("documents"), "#5b7be0"], ["wallet", "Fines this month", rupee(sum("fines_month")), "#d64545"]].map(([ic, l, v, c]) => (
+            {[["users", "In clinic today", `${sum("present_today")}/${sum("staff")}`, "#c42f8f"], ["check", "Work completed", pctText(rep?.completion?.overall_pct), "#12a56f"], ["tasks", "Open tasks", sum("tasks_open"), "#e0a020"], ["file", "Documents", sum("documents"), "#5b7be0"], ["wallet", "Fines this month", rupee(sum("fines_month")), "#d64545"]].map(([ic, l, v, c]) => (
               <div key={l} className="kpi" style={{ "--kc": c }}><div className="kpi-ic"><Icon name={ic} size={18} /></div><div className="meta">{l}</div><div className="kpi-v">{v}</div></div>
             ))}
           </div>

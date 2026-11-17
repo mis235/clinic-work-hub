@@ -4,7 +4,7 @@ import { api } from "../api.js";
 
 const rs = (n) => "₹" + Number(n || 0).toLocaleString("en-IN");
 const mon = (m) => (m ? new Date(m + "-01T00:00:00Z").toLocaleDateString("en-IN", { month: "short", year: "2-digit", timeZone: "UTC" }) : "");
-const COL = "#0F766E", GOLD = "#d49a2a", GREEN = "#12a56f";
+const COL = "#c42f8f", GOLD = "#d49a2a", GREEN = "#12a56f";
 
 function Bars({ items, val = (x) => x.n, label = (x) => x.k, fmt = (n) => n }) {
   const max = Math.max(1, ...items.map(val));

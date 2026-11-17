@@ -67,7 +67,7 @@ export default function KioskPage() {
   const mood = state.phase === "result" ? (state.ok ? "cheer" : "sorry") : state.phase === "error" ? "sorry" : state.phase === "check" ? "think" : "wave";
   const color = state.phase === "result" ? (state.ok ? "#12a56f" : "#d64545") : state.phase === "error" ? "#d64545" : "#fff";
   return (
-    <div style={{ minHeight: "100vh", background: "#12263A", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", padding: 20, gap: 14, fontFamily: "system-ui, sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "#2a1b3d", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", padding: 20, gap: 14, fontFamily: "system-ui, sans-serif" }}>
       <img src="/logo.png" alt="" style={{ height: 44, marginTop: 6 }} />
       <div style={{ fontSize: 15, opacity: .8 }}>Dr. Nishita's Clinic · Attendance</div>
       <div style={{ fontSize: 44, fontWeight: 800, letterSpacing: "-0.02em" }}>{clock.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })}</div>
@@ -81,7 +81,7 @@ export default function KioskPage() {
       {state.sub && <div style={{ opacity: .85, textAlign: "center" }}>{state.sub}</div>}
       {!standalone && (
         <div style={{ textAlign: "center", marginTop: 6 }}>
-          <button onClick={install} style={{ background: "#0F766E", color: "#fff", border: 0, borderRadius: 999, padding: "12px 22px", fontSize: 16, fontWeight: 700 }}>Install Check-in app</button>
+          <button onClick={install} style={{ background: "#C42F8F", color: "#fff", border: 0, borderRadius: 999, padding: "12px 22px", fontSize: 16, fontWeight: 700 }}>Install Check-in app</button>
           {showHow && <div style={{ marginTop: 10, opacity: .9, maxWidth: 320, fontSize: 14 }}>Tap the 3 dots (⋮) at the top right of Chrome, then tap “Add to Home screen” and “Install”. On iPhone: tap Share, then “Add to Home Screen”.</div>}
         </div>
       )}

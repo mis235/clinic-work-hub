@@ -4,8 +4,8 @@
   "description": "Task assignment, checklists, and WhatsApp-synced status tracking for the clinic team.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#F4F7F9",
-  "theme_color": "#0F766E",
+  "background_color": "#FBF3FA",
+  "theme_color": "#C42F8F",
   "orientation": "portrait-primary",
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
