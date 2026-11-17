@@ -184,7 +184,7 @@ export default function LiveNumbers({ user }) {
         <nav className="sidebar-nav">
           {NAV.map(([k, l, ic]) => <button key={k} type="button" className="sec-btn" aria-selected={sec === k} onClick={() => setSec(k)}>{ic}<span>{l}</span></button>)}
         </nav>
-        <div className="sidebar-foot"><span className="pill"><span className="dot" />Live from Google Sheets</span><button type="button" className="btn-ghost" onClick={() => setFull(!full)}>{full ? "✕ Close full screen" : "⤢ Full screen"}</button></div>
+        <div className="sidebar-foot"><span className="pill" title="Click to refresh from Google Sheets now" style={{ cursor: "pointer" }} onClick={async () => { try { await api.refreshLive(); await load(); } catch {} }}><span className="dot" />Live from Google Sheets · refresh</span><button type="button" className="btn-ghost" onClick={() => setFull(!full)}>{full ? "✕ Close full screen" : "⤢ Full screen"}</button></div>
       </aside>
       <div className="main" style={{ display: "grid", gap: 14, alignContent: "start", gridTemplateColumns: "minmax(0,1fr)" }}>
       {isAdmin && SETUP && (
