@@ -244,6 +244,7 @@ function TaskRow({ task, onSend, canAssign }) {
 
 function AssignModal({ roster, onClose, onAssign }) {
   const [userId, setUserId] = useState(roster[0]?.id || "");
+  useEffect(() => { if (!userId && roster[0]) setUserId(roster[0].id); }, [roster]);
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("General");
   const [dueDate, setDueDate] = useState("");

@@ -108,6 +108,8 @@ function ProfileForm({ roster, companies, initial, onClose, onSave }) {
   const i = initial || {};
   const [userId, setUserId] = useState(i.user_id || roster[0]?.id || "");
   const [companyId, setCompanyId] = useState(i.company_id || companies[0]?.id || "");
+  useEffect(() => { if (!userId && roster[0]) setUserId(roster[0].id); }, [roster]);
+  useEffect(() => { if (!companyId && companies[0]) setCompanyId(companies[0].id); }, [companies]);
   const [f, setF] = useState({
     employeeCode: i.employee_code || "", position: i.position || "", pan: i.pan || "",
     basicSalary: i.basic_salary ?? "", leaveBonus: i.leave_bonus ?? 0, overtime: i.overtime ?? 0, otherAllowances: i.other_allowances ?? 0,
@@ -124,9 +126,9 @@ function ProfileForm({ roster, companies, initial, onClose, onSave }) {
         <h3>{initial ? `Salary details — ${i.name}` : "Set up salary details"}</h3>
         <div className="form-grid">
           {!initial && <div><label className="field-label">Employee</label>
-            <select className="field" value={userId} onChange={(e) => setUserId(e.target.value)}>{roster.map((r) => <option key={r.id} value={r.id}>{r.name} — {r.department}</option>)}</select></div>}
+            <select className="field" value={userId} onChange={(e) => setUserId(e.target.value)}>{roster.length === 0 && <option value="">Loading staff…</option>}{roster.map((r) => <option key={r.id} value={r.id}>{r.name} — {r.department}</option>)}</select></div>}
           <div><label className="field-label">Company (who pays this person)</label>
-            <select className="field" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>{companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+            <select className="field" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>{companies.length === 0 && <option value="">Loading…</option>}{companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
           <div><label className="field-label">Employee Code</label><input className="field" value={f.employeeCode} onChange={set("employeeCode")} /></div>
           <div><label className="field-label">Position on Payslip</label><input className="field" value={f.position} onChange={set("position")} /></div>
           <div><label className="field-label">PAN</label><input className="field" value={f.pan} onChange={set("pan")} /></div>

@@ -14,16 +14,33 @@ function sessionExpired() {
 }
 const checkAuth = (res, path) => { if (res.status === 401 && path !== "/api/auth/login" && localStorage.getItem("token")) sessionExpired(); };
 
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+// While the server is restarting after an update it answers 404/502/503/504 (no JSON) or not at all.
+// Reads are retried a few times so lists do not stay empty; a clear message is shown if it still fails.
 async function req(path, { method = "GET", body } = {}) {
-  const res = await fetch(`${BASE}${path}`, {
-    method,
-    headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const data = await res.json().catch(() => ({}));
-  if (res.status === 401 && path !== "/api/auth/login" && localStorage.getItem("token")) { sessionExpired(); }
-  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
-  return data;
+  const tries = method === "GET" ? 4 : 1;
+  let lastErr;
+  for (let i = 0; i < tries; i++) {
+    try {
+      const res = await fetch(`${BASE}${path}`, {
+        method,
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const data = await res.json().catch(() => null);
+      if (res.status === 401 && path !== "/api/auth/login" && localStorage.getItem("token")) { sessionExpired(); }
+      const restarting = data === null && [404, 502, 503, 504].includes(res.status);
+      if (restarting && i < tries - 1) { await wait(1500 * (i + 1)); continue; }
+      if (!res.ok) throw new Error(restarting ? "The app is updating. Please wait a minute and refresh." : (data?.error || `Request failed (${res.status})`));
+      return data ?? {};
+    } catch (e) {
+      lastErr = e;
+      if (e instanceof TypeError && i < tries - 1) { await wait(1500 * (i + 1)); continue; }
+      if (e instanceof TypeError) throw new Error("No connection to the server. Check the internet and refresh.");
+      throw e;
+    }
+  }
+  throw lastErr;
 }
 
 // For multipart/form-data uploads (photo evidence) — no Content-Type header,
