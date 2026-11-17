@@ -20,7 +20,7 @@ export default function DepartmentsPage({ user, onLogout, onBack, onOpenProfile 
       <div className="page-head">
         <div className="eyebrow">People</div>
         <h1>{open && detail ? detail.department.name : "Department portal"}</h1>
-        <p>{open ? <button className="btn btn-ghost btn-sm" onClick={() => setOpen(null)}>← All departments</button> : "Each department's attendance, work completion, fines and uploaded documents in one place."}</p>
+        <p>{open ? <a href="#" style={{ color: "var(--primary)", fontWeight: 600 }} onClick={(e) => { e.preventDefault(); setOpen(null); }}>← All departments</a> : "Each department's attendance, work completion, fines and uploaded documents in one place."}</p>
       </div>
 
       {!open && (!rows ? <div className="empty">Loading…</div> : (
@@ -66,11 +66,8 @@ export default function DepartmentsPage({ user, onLogout, onBack, onOpenProfile 
             <div className="title" style={{ marginBottom: 6 }}>Documents Uploaded by This Department</div>
             {detail.documents.length === 0 && <div className="empty">Nothing uploaded yet. Staff can add their work documents from the Documents page.</div>}
             {detail.documents.map((d) => (
-              <div key={d.id} className="task-row">
-                <div><div className="title">{d.title}</div><div className="meta">{d.category || "General"} · {d.uploaded_by_name || "—"} · {d.created_at?.slice(0, 10)}</div></div>
-                {d.kind === "link"
-                  ? <a className="btn btn-ghost btn-sm" href={d.url} target="_blank" rel="noreferrer">Open</a>
-                  : <button className="btn btn-ghost btn-sm" onClick={() => api.downloadDocument(d.id, d.file_name)}>Download</button>}
+              <div key={d.id} className="task-row" style={{ cursor: "pointer" }} onClick={() => (d.kind === "link" ? window.open(d.url, "_blank", "noopener") : api.downloadDocument(d.id, d.file_name))}>
+                <div><div className="title" style={{ color: "var(--primary)" }}>{d.title}</div><div className="meta">{d.category || "General"} · {d.uploaded_by_name || "—"} · {d.created_at?.slice(0, 10)}</div></div>
               </div>
             ))}
           </div>}

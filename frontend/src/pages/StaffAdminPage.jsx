@@ -93,7 +93,7 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
                   {s.employment_type && <span className="chip">{s.employment_type}</span>}
                   <span className={`chip ${realPhone ? "" : "warn"}`}>{realPhone ? s.phone : "placeholder phone"}</span>
                   {s.alt_phone && <span className="chip">Alt: {s.alt_phone}</span>}
-                  {s.active && <span className={`chip ${faces[s.id] && !faces[s.id].same_as ? "" : "warn"}`}>{faces[s.id]?.same_as ? `Same face as ${faces[s.id].same_as} — redo` : faces[s.id] ? "Face registered" : "Face not registered"}</span>}
+                  {s.active && <span className={`chip ${faces[s.id] && !faces[s.id].same_as ? "" : "warn"}`}>{faces[s.id]?.same_as ? `Same face as ${faces[s.id].same_as} — redo` : faces[s.id] ? "Enrolled" : "Not enrolled"}</span>}
                   {!s.email && <span className="chip warn">no email</span>}
                 </div>
                 <div className="meta" style={{ marginTop: 6 }}>

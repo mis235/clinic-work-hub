@@ -108,9 +108,8 @@ export default function StaffDashboard({ user, onLogout }) {
         <div className="hero">
           <Lumi mood="wave" size={118} className="hero-lumi" />
           <div style={{ position: "relative", zIndex: 1 }}>
-            <h2>{new Date().getHours() < 12 ? "Good Morning" : new Date().getHours() < 17 ? "Good Afternoon" : "Good Evening"}, {firstName(user.name)}</h2>
+            <h2>{new Date().getHours() < 12 ? "Good Morning" : new Date().getHours() < 17 ? "Good Afternoon" : "Good Evening"}</h2>
             <div className="hero-actions">
-              <button className="btn btn-light" onClick={() => setView("shiftchecklist")}><Icon name="clipboard" size={16} /> {shiftSummary && shiftSummary.status !== "submitted" ? "Continue checklist" : "Open shift checklist"}</button>
               <button className="btn btn-outline" onClick={() => setPinModal(true)}><Icon name="key" size={16} /> Change PIN</button>
             </div>
           </div>

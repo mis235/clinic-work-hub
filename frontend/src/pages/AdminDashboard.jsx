@@ -107,11 +107,7 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
         <div className="hero">
           <Lumi mood="wave" size={118} className="hero-lumi" />
           <div style={{ position: "relative", zIndex: 1 }}>
-            <h2>{greeting()}, {firstName(user.name)}</h2>
-            <div className="hero-actions">
-              {canAssign && <button className="btn btn-light" onClick={() => setShowForm(true)}><Icon name="plus" size={16} /> Assign task</button>}
-              <button className="btn btn-outline" onClick={() => onNavigate("Dashboards")}>Open dashboard</button>
-            </div>
+            <h2>{greeting()}</h2>
           </div>
         </div>
 
