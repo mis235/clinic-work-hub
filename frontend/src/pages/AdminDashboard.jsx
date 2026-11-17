@@ -1,3 +1,4 @@
+import MyFinesCard from "../components/MyFinesCard.jsx";
 import TeamBoard from "../components/TeamBoard.jsx";
 import AskLumiBar from "../components/AskLumiBar.jsx";
 import Lumi from "../components/Lumi.jsx";
@@ -122,6 +123,7 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
         </div>
 
         <TeamBoard />
+      <MyFinesCard />
         <HrOverview user={user} onNavigate={onNavigate} />
         <RoomsCard onNavigate={onNavigate} />
 

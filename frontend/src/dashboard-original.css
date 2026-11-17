@@ -18,7 +18,7 @@
   .app-shell { display:flex; align-items:flex-start; min-height:640px; }
   .sidebar { width:230px; flex-shrink:0; align-self:stretch; display:flex; flex-direction:column; background:var(--surface-raised); border-right:1px solid var(--hairline); padding:22px 16px; box-shadow:none; }
   .main { flex:1; min-width:0; padding:24px 28px 40px; display:block; }
-  .main > * { max-width:1180px; }
+  .main > * { max-width:none; }
   .sidebar-brand { display:flex; flex-direction:column; align-items:center; text-align:center; gap:12px; padding:0 0 14px; }
   .logo-card { width:64px; margin:0 0 8px; padding:4px; background:#FFFFFF; border:1px solid #E7DBAA; border-radius:12px; }
   .logo-card img { display:block; width:100%; height:auto; }

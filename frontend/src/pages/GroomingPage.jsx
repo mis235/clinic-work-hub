@@ -75,6 +75,7 @@ export default function GroomingPage({ user, onLogout, onBack, isStaffLayout }) 
               <input className="field" type="date" style={{ width: 170 }} value={date} min={`${month}-01`} max={d.today < `${month}-31` ? d.today : `${month}-31`} onChange={(e) => setDate(e.target.value)} />
             </div>
             <div className="groom-list">
+              <div className="groom-head"><span>Staff</span><span>Morning</span><span>Afternoon</span></div>
               {d.staff.map((p, i) => {
                 const m = d.marks[p.id]?.[date] || {};
                 return (
