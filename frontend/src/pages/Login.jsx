@@ -65,9 +65,9 @@ export default function Login({ onLoggedIn }) {
 
         <div className="login-hero-mid">
           <div className="login-lumi"><LumiOrbit mood="wave" size={210} /></div>
-          <div className="login-hero-eyebrow">Meet Lumi · Internal Work Hub</div>
+          <div className="login-hero-eyebrow">Internal Work Hub · Dr. Nishita's Clinic</div>
           {tab === "password" ? (
-            <h1>Run the clinic<br /><em>with one view</em> of the day.</h1>
+            <h1>Dr. Nishita's Clinic,<br /><em>every task and every team</em>, one place.</h1>
           ) : (
             <h1>Your tasks,<br /><em>your checklist</em>, today.</h1>
           )}

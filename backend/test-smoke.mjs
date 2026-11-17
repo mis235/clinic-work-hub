@@ -749,6 +749,14 @@ try {
     ok("sign-in refresh gives a new token", !!rf.body?.token);
     const am = await call("POST", "/api/auto-messages", { title: "Hi {name}", body: "Happy day {name}", trigger: "daily", time: "00:00" }, admin);
     ok("auto message can be created", am.status === 201);
+    { const um = await call("POST", "/api/auto-messages", { title: "Hi {name}", body: "Only for chosen", trigger: "daily", time: "23:59", audience: "users", audienceUsers: [staff.id] }, admin);
+      ok("auto message for chosen people saves", um.status === 201);
+      const lg = await call("GET", "/api/auto-messages/" + um.body.id + "/log", null, admin);
+      ok("auto message log lists only chosen people", lg.status === 200 && lg.body.people.length === 1 && lg.body.people[0].id === staff.id && !lg.body.people[0].sent);
+      const sn = await call("POST", "/api/auto-messages/" + um.body.id + "/send-now", null, admin);
+      ok("send now reaches the chosen person once", sn.status === 200 && sn.body.sent === 1);
+      const lg2 = await call("GET", "/api/auto-messages/" + um.body.id + "/log", null, admin);
+      ok("log shows it received", lg2.body.people[0].sent === true); }
     ok("auto message appears in list", (await call("GET", "/api/auto-messages", null, admin)).body?.messages?.some((m) => m.id === am.body.id));
     ok("birthday wishes are ready by default", (await call("GET", "/api/auto-messages", null, admin)).body?.messages?.some((m) => m.trigger === "birthday") && (await call("GET", "/api/auto-messages", null, admin)).body?.messages?.some((m) => m.trigger === "birthday_team"));
     ok("weekly needs a day", (await call("POST", "/api/auto-messages", { title: "a", body: "b", trigger: "weekly" }, admin)).status === 400);
