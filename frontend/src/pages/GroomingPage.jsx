@@ -52,7 +52,7 @@ export default function GroomingPage({ user, onLogout, onBack, isStaffLayout }) 
       {!d ? <div className="empty">Loading…</div> : (<>
         <div className="card groom-who">
           <div className="card-head"><div className="name">Grooming inspectors this month</div></div>
-          {d.assignees.length === 0 ? <div className="meta">No one is assigned yet.</div> : <div className="chips">{d.assignees.map((a) => <span key={a.id} className="chip">{a.name}</span>)}</div>}
+          {d.assignees.length === 0 ? <div className="meta">No one is assigned yet.</div> : <div className="chips">{d.assignees.map((a) => <span key={a.id} className="chip">{a.name}{d.canAssign && <button type="button" title="Remove access" aria-label={`Remove ${a.name}`} style={{ border: 0, background: "none", cursor: "pointer", marginLeft: 6, color: "#b91c1c", fontWeight: 700 }} onClick={async () => { if (!confirm(`Remove ${a.name} as grooming inspector?`)) return; try { await api.groomingAssign({ month, userIds: d.assignees.filter((x) => x.id !== a.id).map((x) => x.id) }); load(); } catch (e) { flash(e.message); } }}>✕</button>}</span>)}</div>}
           {d.canAssign && (
             <details style={{ marginTop: 10 }}>
               <summary className="btn btn-ghost btn-sm" style={{ display: "inline-flex" }}>Change inspectors</summary>

@@ -29,7 +29,7 @@ export const CODES = [
 const istToday = () => new Date(Date.now() + 19800000).toISOString().slice(0, 10);
 const istMonth = () => istToday().slice(0, 7);
 const goodMonth = (m) => (/^\d{4}-\d{2}$/.test(m || "") ? m : istMonth());
-const fineAmount = () => { const r = db.prepare("SELECT value FROM app_settings WHERE key = 'groom_fine'").get(); const n = Number(r?.value); return Number.isFinite(n) && n > 0 ? n : 200; };
+const fineAmount = () => { const r = db.prepare("SELECT value FROM app_settings WHERE key = 'groom_fine'").get(); const n = Number(r?.value); return Number.isFinite(n) && n > 0 ? n : 50; };
 const canAssign = (req) => req.user.roleName === "admin" || accessFor(req.user.userId, req.user.roleName).isHr;
 const isInspector = (req, month) => req.user.roleName === "admin" || !!db.prepare("SELECT 1 FROM grooming_assign WHERE month = ? AND user_id = ?").get(month, req.user.userId);
 const people = () => db.prepare("SELECT u.id, u.name FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.active = 1 AND COALESCE(r.name,'') != 'admin' ORDER BY u.name").all();
