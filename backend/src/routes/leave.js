@@ -149,7 +149,8 @@ export function attendanceFacts(userId, month) {
   const days_absent = marks.filter((r) => r.status === "A").length;
   let late_minutes = 0;
   for (const r of marks) if (r.in_time && isLateArrival(userId, r.mark_date, r.in_time)) late_minutes += Math.max(0, mins(r.in_time) - mins(shiftWindow(userId, r.mark_date).start));
-  const w = shiftOn(userId, `${month}-15`), mid = shiftOn(userId, `${month}-01`);
+  let dd = 15; while (new Date(`${month}-${dd}T00:00:00Z`).getUTCDay() === 1) dd++;
+  const w = shiftOn(userId, `${month}-${dd}`), mid = w;
   return { shift_label: fmtRange(w.start ? w : mid), days_present, days_absent, late_minutes };
 }
 export function stampPayslip(id, profile) {

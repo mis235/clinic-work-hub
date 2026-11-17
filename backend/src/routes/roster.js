@@ -134,6 +134,13 @@ export function rotaFor(userId, date) {
 }
 /** The shift a person works on a date, and where it came from: the weekly roster, the doctors' rota, or their usual hours. */
 export function shiftOn(userId, date) {
+  const w = baseShift(userId, date);
+  if (!w.start) return w;
+  const early = isMonday(date) ? Number(db.prepare("SELECT value FROM app_settings WHERE key = 'monday_early_min'").get()?.value ?? 30) : 0;
+  return early ? { ...w, start: plusMin(w.start, -early), monday: true } : w;
+}
+const isMonday = (d) => new Date(d + "T00:00:00Z").getUTCDay() === 1;
+function baseShift(userId, date) {
   const st = shiftFor(userId, date), t = st && getTypes()[st];
   if (st === "off") return { start: null, end: null, source: "off" };
   if (t && t.start) return { start: t.start, end: t.end, source: "roster" };
@@ -187,7 +194,7 @@ function applyTimes(items, save) {
   return result;
 }
 
-// The clinic's own list of shift times, applied once (later edits by the admin are never overwritten).
+// The clinic's own list of shift times. Only people with no hours yet are filled in, so edits by the admin are never overwritten.
 const CLINIC_TIMES = `Jyothi – 10:00 AM to 6:30 PM
 Kavya – 10:00 AM to 7:30 PM
 Prathyusha – 9:30 AM to 7:00 PM
@@ -207,13 +214,9 @@ Pavani – 8:30 AM to 6:00 PM
 Lakshmi – 8:30 AM to 6:00 PM
 Sivama – 6:00 PM to 8:00 PM`;
 export function seedClinicTimes() {
-  const done = db.prepare("SELECT value FROM app_settings WHERE key = ?").get("shift_times_seeded_v1");
-  const missing = db.prepare("SELECT 1 FROM users WHERE active = 1 AND shift_start IS NULL").get();
-  if (done || !missing) return;
   const staff = activeStaff().filter((u) => !u.shift_start);
   let hit = 0;
   for (const it of parseShiftText(CLINIC_TIMES)) { const u = matchStaff(it.name, staff); if (u) { hit++; db.prepare("UPDATE users SET shift_start = ?, shift_end = ? WHERE id = ?").run(it.start, it.end, u.id); ensureType(it.start, it.end); } }
-  if (!hit) return;
   // The doctors' rota from the paper roster (10:00 / 10:30 slots, fortnight by fortnight).
   if (!db.prepare("SELECT 1 FROM doctor_rota").get()) {
     const docs = activeStaff().filter((u) => /^dr\b/i.test(u.name.trim()));
@@ -224,12 +227,12 @@ export function seedClinicTimes() {
     const ins = db.prepare("INSERT INTO doctor_rota (from_date, to_date, user_id, start) VALUES (?,?,?,?)");
     for (const [a, b, ten, half] of blocks) { for (const d of ten) if (d) ins.run(`${Y}-${a}`, `${Y}-${b}`, d.id, "10:00"); if (half) ins.run(`${Y}-${a}`, `${Y}-${b}`, half.id, "10:30"); }
   }
-  db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)").run("shift_times_seeded_v1", "1");
 }
 seedClinicTimes();
 
 // Admin/manager: everyone's usual hours, the doctors' rota and who is not in the app yet.
 router.get("/times", requireAuth, (req, res) => {
+  seedClinicTimes();
   if (!isLead(req.user)) return res.status(403).json({ error: "Not allowed" });
   res.json({ rows: activeStaff().map((u) => ({ id: u.id, name: u.name, designation: u.designation || "", department: u.department || "", hasPhoto: !!u.has_photo, start: u.shift_start || "", end: u.shift_end || "", label: u.shift_start ? autoLabel(u.shift_start, u.shift_end || plusMin(u.shift_start, 570)) : "" })) });
 });
