@@ -5,10 +5,25 @@ import { requireAuth, requirePermission } from "../middleware/auth.js";
 
 const router = Router();
 
+// An SOP is "for" a person when its category/title names their department or job title
+// (e.g. "SOP — Front Desk" for someone in the Front Desk department). General SOPs (no team named) are for everyone.
+const isSopRow = (p) => /sop|procedure/i.test(`${p.category} ${p.title}`);
+const words = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter((w) => w.length > 2 && !["and", "the", "for", "sop", "procedure", "procedures"].includes(w));
+export function sopsForRole(department, roleTitle) {
+  const keys = [...new Set([...words(department), ...words(roleTitle)])];
+  const all = db.prepare("SELECT * FROM policies ORDER BY category, title").all().filter(isSopRow);
+  return all.filter((p) => {
+    const w = words(`${p.category} ${p.title}`);
+    return w.length === 0 || keys.some((k) => w.includes(k)) || /\ball\b|general|everyone|common/i.test(p.category);
+  });
+}
+
 // GET /api/policies — everyone can read policies, and see whether THEY personally
 // have acknowledged the current version of each one.
 router.get("/", requireAuth, (req, res) => {
   const policies = db.prepare("SELECT * FROM policies ORDER BY category, title").all();
+  const me = db.prepare("SELECT u.designation, d.name AS dept FROM users u LEFT JOIN departments d ON d.id = u.department_id WHERE u.id = ?").get(req.user.userId);
+  const mine = new Set(sopsForRole(me?.dept, me?.designation).map((p) => p.id));
   const myAcks = db
     .prepare("SELECT policy_id, policy_version FROM policy_acknowledgments WHERE user_id = ?")
     .all(req.user.userId);
@@ -18,6 +33,7 @@ router.get("/", requireAuth, (req, res) => {
     policies.map((p) => ({
       ...p,
       acknowledgedByMe: ackMap.has(`${p.id}:${p.version}`),
+      forMyRole: isSopRow(p) && mine.has(p.id),
     }))
   );
 });

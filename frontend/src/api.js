@@ -143,6 +143,7 @@ export const api = {
   fixAttendanceTime: (payload) => req("/api/attendance/time", { method: "PUT", body: payload }),
   markAttendance: (userId, date, status) => req("/api/attendance/mark", { method: "PUT", body: { userId, date, status } }),
   markAttendanceDay: (date, status) => req("/api/attendance/mark-day", { method: "POST", body: { date, status } }),
+  myAttendanceMonth: (month) => req(`/api/attendance/mine${month ? `?month=${month}` : ""}`),
   attendanceRegister: (month) => req(`/api/attendance/register${month ? `?month=${month}` : ""}`),
   fines: (month, userId) => req(`/api/fines?month=${month || ""}${userId ? `&userId=${userId}` : ""}`),
   finesSummary: (month) => req(`/api/fines/summary?month=${month || ""}`),

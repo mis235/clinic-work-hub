@@ -15,7 +15,7 @@ export default function PoliciesPage({ user, isStaffLayout, onLogout, onBack, mo
   const [bulk, setBulk] = useState(false), [bulkText, setBulkText] = useState(""), [bulkMsg, setBulkMsg] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const refresh = () => api.listPolicies().then((all) => setPolicies(all.filter((x) => /sop|procedure/i.test(x.category + " " + x.title) === isSop))).catch(() => setPolicies([]));
+  const refresh = () => api.listPolicies().then((all) => setPolicies(all.filter((x) => /sop|procedure/i.test(x.category + " " + x.title) === isSop).sort((a, b) => (b.forMyRole ? 1 : 0) - (a.forMyRole ? 1 : 0)))).catch(() => setPolicies([]));
   useEffect(() => { refresh(); }, []);
 
   async function acknowledge(id) {
@@ -51,7 +51,7 @@ export default function PoliciesPage({ user, isStaffLayout, onLogout, onBack, mo
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }} onClick={() => setOpen(open === p.id ? null : p.id)}>
             <div>
               <span style={{ fontWeight: 700, fontSize: 14 }}>{p.title}</span>
-              <span style={{ fontSize: 11.5, color: "var(--ink-soft)", marginLeft: 8 }}>{p.category} · v{p.version}</span>
+              <span style={{ fontSize: 11.5, color: "var(--ink-soft)", marginLeft: 8 }}>{p.category} · v{p.version}</span>{p.forMyRole && <span className="badge sent" style={{ marginLeft: 8 }}>For your role</span>}
             </div>
             <span className={`badge ${p.acknowledgedByMe ? "done" : "sent"}`}>{p.acknowledgedByMe ? "Acknowledged" : "Needs Review"}</span>
           </div>

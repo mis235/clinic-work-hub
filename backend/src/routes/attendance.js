@@ -395,14 +395,17 @@ router.put("/time", requireAuth, (req, res) => {
 });
 
 // The month register: one row per person, one column per day, with totals and fines.
-router.get("/register", requireAuth, requirePermission("attendance:view_all"), (req, res) => {
+router.get("/register", requireAuth, requirePermission("attendance:view_all"), (req, res) => registerFor(req, res, null));
+// Every person can see their own month: login/logout times, late minutes, fines.
+router.get("/mine", requireAuth, (req, res) => registerFor(req, res, req.user.userId));
+function registerFor(req, res, onlyUser) {
   const now = istToday();
   const month = /^\d{4}-\d{2}$/.test(req.query.month || "") ? req.query.month : now.slice(0, 7);
   const [y, m] = month.split("-").map(Number);
   const daysInMonth = new Date(y, m, 0).getDate();
   const staff = db.prepare(
     `SELECT u.id, u.name, u.designation, d.name AS department FROM users u LEFT JOIN departments d ON d.id = u.department_id
-     WHERE u.active = 1 ORDER BY d.name, u.name`).all();
+     WHERE u.active = 1 ORDER BY d.name, u.name`).all().filter((u) => !onlyUser || u.id === onlyUser);
   const marks = db.prepare("SELECT user_id, mark_date, status, in_time, out_time FROM attendance_marks WHERE substr(mark_date,1,7) = ?").all(month);
   const by = new Map(marks.map((r) => [r.user_id + "|" + r.mark_date, r.status]));
   const tby = new Map(marks.map((r) => [r.user_id + "|" + r.mark_date, r]));
@@ -426,7 +429,7 @@ router.get("/register", requireAuth, requirePermission("attendance:view_all"), (
   });
   const st = (k, d) => Number(db.prepare("SELECT value FROM app_settings WHERE key = ?").get(k)?.value || d);
   res.json({ month, daysInMonth, today: now, labels: MARKS, rows, rule: { grace: st("late_grace_min", 15), limit: st("late_limit", 3), fine: st("late_fine", 100) } });
-});
+}
 
 // Download the month as an Excel sheet: every person, every day: status, login time, logout time, hours.
 const hoursBetween = (a, b) => { if (!a || !b) return null; const [h1, m1] = a.split(":").map(Number), [h2, m2] = b.split(":").map(Number); const x = (h2 * 60 + m2) - (h1 * 60 + m1); return x > 0 ? Math.round(x / 6) / 10 : null; };

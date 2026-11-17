@@ -6,6 +6,7 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import db from "../db.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
+import { sopsForRole } from "./policies.js";
 
 const router = Router();
 
@@ -109,13 +110,19 @@ router.get("/offer-letters", requireAuth, requirePermission("staff:manage"), (re
 router.post("/offer-letters", requireAuth, requirePermission("staff:manage"), (req, res) => {
   const { candidateName, roleTitle, department, salaryText, startDate, userId } = req.body || {};
   if (!candidateName || !roleTitle) return res.status(400).json({ error: "candidateName and roleTitle are required" });
-  const bodyText = generateOfferLetterText({ candidateName, roleTitle, department, salaryText, startDate });
+  let bodyText = generateOfferLetterText({ candidateName, roleTitle, department, salaryText, startDate });
+  // Role SOPs are attached automatically: they are listed in the letter and show up in the person's own app to read.
+  const sops = sopsForRole(department, roleTitle);
+  if (sops.length) bodyText = bodyText.replace(/\n\[NOTE:/, `\n\nStandard Operating Procedures (SOPs) for your role — please read these before your first day:\n${sops.map((p, i) => `${i + 1}. ${p.title}`).join("\n")}\n\n[NOTE:`);
   const id = randomUUID();
   db.prepare(
     `INSERT INTO offer_letters (id, user_id, candidate_name, role_title, department, salary_text, start_date, body_text, created_by)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(id, userId || null, candidateName, roleTitle, department || null, salaryText || null, startDate || null, bodyText, req.user.userId);
-  res.status(201).json({ id, bodyText });
+  if (userId) {
+    try { db.prepare("INSERT OR IGNORE INTO staff_messages (id, user_id, kind, msg_date, title, body, email_status) VALUES (?,?,?,?,?,?,?)").run(randomUUID(), userId, `sops:${id}`, new Date(Date.now() + 19800000).toISOString().slice(0, 10), "Your role SOPs are ready", sops.length ? `${sops.length} SOP(s) for your role are waiting in the SOPs menu. Please read and tick them.` : "Check the SOPs menu.", "in-app"); } catch {}
+  }
+  res.status(201).json({ id, bodyText, sops: sops.map((p) => p.title) });
 });
 
 // ---------------------------------------------------------------------------
