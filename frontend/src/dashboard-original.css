@@ -55,7 +55,9 @@
   .btn-ghost:hover { background:var(--gold-wash); }
   .card-head-row { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; }
   .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:16px; margin-bottom:22px; }
-  .kpi-grid > .spot { grid-column:span 2; }
+  .kpi-grid { grid-template-columns:minmax(0,1.5fr) repeat(3,minmax(0,1fr)); }
+  .kpi-grid > .spot { grid-column:auto; }
+  .spot { padding:20px; gap:16px; } .spot .big { font-size:36px; }
   .kpi-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:16px; margin-bottom:22px; }
   .dept-grid { display:grid; gap:16px; margin-bottom:16px; }
   .card { background:var(--surface-raised); border:1px solid var(--hairline); border-radius:var(--radius-lg); padding:22px; box-shadow:none; }
@@ -125,6 +127,7 @@
   .cdx .main { padding:20px 16px 40px; width:100%; }
   .cdx .row2 { grid-template-columns:minmax(0,1fr); }
   .cdx .kpi-grid { grid-template-columns:1fr 1fr; }
+  .cdx .kpi-grid > .spot { grid-column:span 2; }
 }
 @media (max-width:520px) {
   .cdx .kpi-grid { grid-template-columns:1fr; gap:10px; }

@@ -12,14 +12,14 @@ const TONE = { ok: "good", late: "warn", no_uniform: "bad", grooming: "bad", hal
 // Grooming book, laid out like the paper register: names down the side, days across, Morning and Afternoon for each day.
 export default function GroomingPage({ user, onLogout, onBack, isStaffLayout }) {
   const [month, setMonth] = useState(istMonth()), [d, setD] = useState(null), [date, setDate] = useState(""), [msg, setMsg] = useState(""), [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState("day"), [pick, setPick] = useState([]), [mobileOpen, setMobileOpen] = useState(false);
+  const [pend, setPend] = useState({}), [tab, setTab] = useState("day"), [pick, setPick] = useState([]), [mobileOpen, setMobileOpen] = useState(false);
   const load = () => api.groomingBook(month).then((x) => { setD(x); setPick(x.assignees.map((a) => a.id)); setDate((cur) => (cur && cur.startsWith(month) ? cur : month === istMonth() ? x.today : `${month}-01`)); }).catch((e) => setMsg(e.message));
   useEffect(() => { setD(null); load(); }, [month]);
   const flash = (t) => { setMsg(t); setTimeout(() => setMsg(""), 4000); };
 
-  async function mark(userId, session, code) {
+  async function mark(userId, session, code, force) {
     const cur = d.marks[userId]?.[date]?.[session]?.code;
-    const next = cur === code ? "" : code;
+    const next = !force && cur === code ? "" : code;
     setD((x) => { const m = structuredClone(x.marks); ((m[userId] ||= {})[date] ||= {}); if (next) m[userId][date][session] = { code: next, note: "" }; else delete m[userId][date][session]; return { ...x, marks: m }; });
     try { await api.groomingMark({ userId, date, session, code: next }); } catch (e) { flash(e.message); load(); }
   }
@@ -71,7 +71,7 @@ export default function GroomingPage({ user, onLogout, onBack, isStaffLayout }) 
         {tab === "day" && (
           <div className="card">
             <div className="row" style={{ justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-              <div><div className="title">{nice(date)}</div><div className="meta">{d.canMark ? `Tap Morning and Afternoon for each person. “No uniform” or “Grooming issue” adds a ₹${d.fine} fine to the payslip, once a day.` : "View only"}</div></div>
+              <div><div className="title">{nice(date)}</div><div className="meta">{d.canMark ? `Tick ✓ if neat, or ✗ and choose the reason, for Morning and Afternoon. “No uniform” or “Grooming issue” adds a ₹${d.fine} fine to the payslip, once a day.` : "View only"}</div></div>
               <input className="field" type="date" style={{ width: 170 }} value={date} min={`${month}-01`} max={d.today < `${month}-31` ? d.today : `${month}-31`} onChange={(e) => setDate(e.target.value)} />
             </div>
             <div className="groom-list">
@@ -81,16 +81,27 @@ export default function GroomingPage({ user, onLogout, onBack, isStaffLayout }) 
                 return (
                   <div key={p.id} className="groom-row">
                     <div className="groom-name"><span className="groom-sr">{i + 1}</span>{p.name}</div>
-                    {["AM", "PM"].map((s) => (
-                      <div key={s} className="groom-sess">
-                        <span className="groom-sess-l">{s === "AM" ? "Morning" : "Afternoon"}</span>
-                        <div className="groom-chips">{codes.map((c) => (
-                          <button key={c.key} type="button" disabled={!d.canMark || p.id === user.id && user.role !== "admin"} className={`gchip ${TONE[c.key]} ${m[s]?.code === c.key ? "on" : ""}`} title={c.label} onClick={() => mark(p.id, s, c.key)}>{c.short}</button>))}</div>
-                      </div>))}
+                    {["AM", "PM"].map((s) => {
+                      const cur = m[s]?.code, key = `${p.id}|${s}`, no = (cur && cur !== "ok") || pend[key];
+                      const locked = !d.canMark || (p.id === user.id && user.role !== "admin");
+                      return (
+                        <div key={s} className="groom-sess">
+                          <span className="groom-sess-l">{s === "AM" ? "Morning" : "Afternoon"}</span>
+                          <div className="groom-chips">
+                            <button type="button" disabled={locked} className={`gchip tick ${cur === "ok" ? "on good" : ""}`} title="Neat and in uniform" onClick={() => { setPend((x) => ({ ...x, [key]: false })); mark(p.id, s, "ok"); }}>✓</button>
+                            <button type="button" disabled={locked} className={`gchip cross ${no ? "on bad" : ""}`} title="Not neat — choose a reason" onClick={() => { if (cur && cur !== "ok") return; setPend((x) => ({ ...x, [key]: true })); if (cur === "ok") mark(p.id, s, "ok"); }}>✗</button>
+                            {no && (
+                              <select className="field gsel" disabled={locked} value={cur && cur !== "ok" ? cur : ""} onChange={(e) => { if (e.target.value) { mark(p.id, s, e.target.value, true); setPend((x) => ({ ...x, [key]: false })); } }}>
+                                <option value="">Reason…</option>
+                                {codes.filter((c) => c.key !== "ok").map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+                              </select>)}
+                          </div>
+                        </div>);
+                    })}
                   </div>);
               })}
             </div>
-            <div className="legend-line">{codes.map((c) => <span key={c.key}><b>{c.short}</b> {c.label}</span>)}</div>
+            
           </div>)}
 
         {tab === "book" && (

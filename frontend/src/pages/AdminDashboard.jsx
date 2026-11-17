@@ -1,4 +1,4 @@
-import HomeSpace from "../components/HomeSpace.jsx";
+import MyFinesCard from "../components/MyFinesCard.jsx";
 import TeamBoard from "../components/TeamBoard.jsx";
 import AskLumiBar from "../components/AskLumiBar.jsx";
 import Lumi from "../components/Lumi.jsx";
@@ -108,6 +108,7 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
           <Lumi mood="wave" size={118} className="hero-lumi" />
           <div style={{ position: "relative", zIndex: 1 }}>
             <h2>{greeting()}</h2>
+            {canAssign && <div className="hero-actions"><button className="btn btn-light" onClick={() => setShowForm(true)}><Icon name="plus" size={16} /> Assign task</button></div>}
           </div>
         </div>
 
@@ -118,8 +119,8 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
           <Kpi icon="fingerprint" tone="violet" value={`${checkedIn}/${board?.total ?? assignable.length}`} label="Present today" hint="Open Attendance to mark" />
         </div>
 
-        <HomeSpace user={user} go={onNavigate} canTeam canAssign={canAssign} onAssign={() => setShowForm(true)} />
         <TeamBoard />
+        <MyFinesCard />
         <HrOverview user={user} onNavigate={onNavigate} />
         <RoomsCard onNavigate={onNavigate} />
 
