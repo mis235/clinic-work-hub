@@ -53,31 +53,48 @@ function ConvSection({ conv }) {
   const selY = (ys && ys.length ? ys : [latest]).filter((y) => years.includes(y));
   const cats = [...new Set(selY.flatMap((y) => (conv.byCategory[y] || []).map((r) => r.k)))].filter((k) => k !== "All").sort();
   const catOn = cs && cs.length && cs.length < cats.length ? cs.filter((c) => cats.includes(c)) : null;
+  const rows = conv.rows || [];
+  const [ps, setPs] = useState(null), [from, setFrom] = useState(""), [to, setTo] = useState("");
+  const allProcs = [...new Set(rows.filter((r) => selY.includes(r[0].slice(0, 4))).map((r) => r[2]))].sort();
+  const procOn = ps && ps.length && ps.length < allProcs.length ? ps.filter((p) => allProcs.includes(p)) : null;
+  const rowMode = !!(procOn || from || to) && rows.length > 0;
+  const keep = (r) => (!procOn || procOn.includes(r[2])) && (!from || r[0] >= from) && (!to || r[0] <= to) && (!catOn || catOn.includes(r[1]));
+  const fRows = rowMode ? rows.filter(keep) : [];
+  const tally = (list) => list.reduce((a, r) => ({ sug: a.sug + 1, done: a.done + (r[3] ? 1 : 0) }), { sug: 0, done: 0 });
   const yTot = (y) => {
+    if (rowMode) return tally(fRows.filter((r) => r[0].slice(0, 4) === y));
     const yr = conv.years.find((a) => String(a.y) === y) || { sug: 0, done: 0 };
     if (!catOn) return { sug: yr.sug, done: yr.done };
     const r = (conv.byCategory[y] || []).filter((c) => catOn.includes(c.k));
     return { sug: r.reduce((a, c) => a + c.sug, 0), done: r.reduce((a, c) => a + c.done, 0) };
   };
-  const per = years.map((y) => ({ y, ...yTot(y) }));
+  const rowYears = rowMode ? [...new Set(rows.map((r) => r[0].slice(0, 4)))].sort() : years;
+  const per = rowYears.map((y) => ({ y, ...yTot(y) }));
   const max = Math.max(1, ...per.map((r) => r.sug));
   const t = selY.reduce((a, y) => { const x = yTot(y); return { sug: a.sug + x.sug, done: a.done + x.done }; }, { sug: 0, done: 0 });
   const rate = t.sug ? Math.round((t.done / t.sug) * 100) : 0;
   const agg = {};
-  selY.forEach((y) => (conv.byCategory[y] || []).forEach((r) => { if (r.k === "All" && cats.length) return; if (catOn && !catOn.includes(r.k)) return; const o = (agg[r.k] = agg[r.k] || { k: r.k, sug: 0, done: 0 }); o.sug += r.sug; o.done += r.done; }));
-  const procsOf = (cat) => { const m = {}; selY.forEach((y) => ((conv.byProc || {})[y]?.[cat] || []).forEach((r) => { const o = (m[r.k] = m[r.k] || { k: r.k, sug: 0, done: 0 }); o.sug += r.sug; o.done += r.done; })); return Object.values(m).sort((a, b) => b.sug - a.sug); };
+  if (rowMode) fRows.filter((r) => selY.includes(r[0].slice(0, 4))).forEach((r) => { const o = (agg[r[1]] = agg[r[1]] || { k: r[1], sug: 0, done: 0 }); o.sug++; o.done += r[3] ? 1 : 0; });
+  else selY.forEach((y) => (conv.byCategory[y] || []).forEach((r) => { if (r.k === "All" && cats.length) return; if (catOn && !catOn.includes(r.k)) return; const o = (agg[r.k] = agg[r.k] || { k: r.k, sug: 0, done: 0 }); o.sug += r.sug; o.done += r.done; }));
+  const procsOf = (cat) => { const m = {}; if (rowMode) fRows.filter((r) => r[1] === cat && selY.includes(r[0].slice(0, 4))).forEach((r) => { const o = (m[r[2]] = m[r[2]] || { k: r[2], sug: 0, done: 0 }); o.sug++; o.done += r[3] ? 1 : 0; }); else selY.forEach((y) => ((conv.byProc || {})[y]?.[cat] || []).forEach((r) => { const o = (m[r.k] = m[r.k] || { k: r.k, sug: 0, done: 0 }); o.sug += r.sug; o.done += r.done; })); return Object.values(m).sort((a, b) => b.sug - a.sug); };
   const catRows = Object.values(agg).filter((r) => r.k.toLowerCase().includes(q.toLowerCase())).sort((a, b) => b.sug - a.sug);
-  const months = (conv.byMonth || []).filter((m) => selY.includes(String(m.m).slice(0, 4)) || selY.length === years.length);
+  const months = rowMode
+    ? Object.entries(fRows.filter((r) => selY.includes(r[0].slice(0, 4))).reduce((o, r) => { const m = r[0].slice(0, 7); (o[m] = o[m] || { sug: 0, done: 0 }); o[m].sug++; o[m].done += r[3] ? 1 : 0; return o; }, {})).sort().map(([m, v]) => ({ m, ...v }))
+    : (conv.byMonth || []).filter((m) => selY.includes(String(m.m).slice(0, 4)) || selY.length === years.length);
   const mMax = Math.max(1, ...months.map((m) => m.sug));
   const sel = (arr, all, word) => (!arr || !arr.length || arr.length === all.length ? `All ${word}` : arr.length === 1 ? arr[0] : `${arr.length} selected`);
   return (<>
     <div className="filterbar">
       <label>Year</label>
       <MultiSelect all={years} value={selY} onChange={setYs} summary={selY.length === 1 ? selY[0] : selY.length === years.length ? "All years" : `${selY.length} years`} />
+      <label>Procedure</label>
+      <MultiSelect all={allProcs} value={procOn || allProcs} onChange={setPs} summary={sel(procOn, allProcs, "procedures")} />
       <label>Category</label>
       <MultiSelect all={cats} value={catOn || cats} onChange={setCs} summary={sel(catOn, cats, "categories")} />
+      <label>Date range</label>
+      <input type="date" className="date-in" value={from} onChange={(e) => setFrom(e.target.value)} /><span style={{ fontSize: 12 }}>to</span><input type="date" className="date-in" value={to} onChange={(e) => setTo(e.target.value)} />
       {!cats.length && <span className="note" style={{ marginLeft: 0 }}>Older years are not split by category</span>}
-      <button type="button" className="btn-ghost" style={{ marginLeft: "auto" }} onClick={() => { setYs(null); setCs(null); setQ(""); }}>Reset filters</button>
+      <button type="button" className="btn-ghost" style={{ marginLeft: "auto" }} onClick={() => { setYs(null); setCs(null); setPs(null); setFrom(""); setTo(""); setQ(""); }}>Reset filters</button>
     </div>
     <div className="kpi-grid">
       <div className="spot">

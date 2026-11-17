@@ -47,17 +47,22 @@ function ym(s) {
   m = /^(\\d{1,2})-([A-Za-z]{3})[a-z]*-(\\d{4})/.exec(s); if (m && MON[m[2].toLowerCase()]) return m[3] + "-" + ("0" + MON[m[2].toLowerCase()]).slice(-2);
   return "";
 }
+function ymd(s) {
+  s = String(s).trim(); var m = /^(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})/.exec(s); if (m) return m[3] + "-" + ("0" + m[2]).slice(-2) + "-" + ("0" + m[1]).slice(-2);
+  m = /^(\\d{4})-(\\d{2})-(\\d{2})/.exec(s); return m ? m[0] : "";
+}
 function load(id, tab) { var ss = SpreadsheetApp.openById(id), sh = ss.getSheetByName(tab); if (!sh) { ss.getSheets().forEach(function (x) { if (!sh && x.getName().trim() === tab) sh = x; }); } var v = sh.getDataRange().getDisplayValues(); return { head: v[0].map(function (h) { return String(h).trim(); }), rows: v.slice(1) }; }
 function bump(o, k, f, n) { if (!k) return; var r = (o[k] = o[k] || {}); r[f] = (r[f] || 0) + n; }
 function heavy() {
   var out = {};
   try { // suggested vs done, 2025 + 2026
-    var byMonth = {}, byYearCat = {}, byYearProc = {};
+    var byMonth = {}, byYearCat = {}, byYearProc = {}, rowsAll = [];
     [["Suggested procedures 2025"], ["Suggested procedures 2026"]].forEach(function (t) {
       var d = load("1by72If2xcVd8CmRgDYKxtHoJIIF1z1EK3MyZt03IaYs", t[0]), iD = d.head.indexOf("Date"), iX = d.head.indexOf("Whether Done Or Not"), iC = d.head.indexOf("Category"), iP = d.head.indexOf("Procedures");
       d.rows.forEach(function (r) { var m = ym(r[iD]); if (!m) return; var done = /^y/i.test(String(r[iX]).trim()) ? 1 : 0; bump(byMonth, m, "s", 1); bump(byMonth, m, "d", done);
         var y = m.slice(0, 4), c = String(r[iC]).trim() || "Other"; byYearCat[y] = byYearCat[y] || {}; bump(byYearCat[y], c, "s", 1); bump(byYearCat[y], c, "d", done);
-        var pn = iP >= 0 ? String(r[iP]).trim() : ""; if (pn) { byYearProc[y] = byYearProc[y] || {}; byYearProc[y][c] = byYearProc[y][c] || {}; bump(byYearProc[y][c], pn, "s", 1); bump(byYearProc[y][c], pn, "d", done); } });
+        var pn = iP >= 0 ? String(r[iP]).trim() : ""; if (pn) { byYearProc[y] = byYearProc[y] || {}; byYearProc[y][c] = byYearProc[y][c] || {}; bump(byYearProc[y][c], pn, "s", 1); bump(byYearProc[y][c], pn, "d", done); }
+        var dd = ymd(r[iD]); if (dd && pn) rowsAll.push([dd, c, pn, done]); });
     });
     [["11fhuimn4KxcPWGBri0L8lVX3z7LSlxeCOLCDj7yjbIk", "Sheet1"], ["1pKDJ7fDVzgeJv3vPdaeamm3Cd1leUVUZlWTu3eWbqqY", "Sheet1"], ["15xDR-GOHWUlrN2iNbJKt12vyjrlM4uS7_BNXppmW7jI", "Main Sheet"]].forEach(function (t) {
       try {
@@ -67,7 +72,7 @@ function heavy() {
           bump(byMonth, m, "s", 1); bump(byMonth, m, "d", done); byYearCat[y] = byYearCat[y] || {}; bump(byYearCat[y], "All", "s", 1); bump(byYearCat[y], "All", "d", done); });
       } catch (e2) { out.convOldError = String(e2); }
     });
-    out.conv = { byMonth: byMonth, byYearCat: byYearCat, byYearProc: byYearProc };
+    out.conv = { byMonth: byMonth, byYearCat: byYearCat, byYearProc: byYearProc, rows: rowsAll };
   } catch (e) { out.conv = { error: String(e) }; }
   try { // package sheet FY 25-26
     var d = load("1fbqLXZoeRHaktiEnhzTqCN7A8JBz9HmWDGByxxkjK18", "FY 25-26"), h = d.head, iDt = h.indexOf("Date of Package taken"), iP = h.indexOf("Procedure Name"), iT = h.indexOf("Type of Package"), iA = h.indexOf("Package Amount"), iPd = h.indexOf("Amount Paid"), iB = h.indexOf("Balance"), iPt = h.indexOf("Type of Patient");
@@ -197,6 +202,7 @@ export function computeHeavy(raw) {
     out.conv = { years: years.map((y) => { const t = Object.values(c.byYearCat[y]).reduce((a, v) => ({ s: a.s + v.s, d: a.d + (v.d || 0) }), { s: 0, d: 0 }); return { y, sug: t.s, done: t.d, rate: t.s ? Math.round((t.d / t.s) * 100) : 0 }; }),
       byMonth: monthsList(c.byMonth).map((m) => ({ m, sug: c.byMonth[m].s || 0, done: c.byMonth[m].d || 0 })),
       byCategory: Object.fromEntries(years.map((y) => [y, Object.entries(c.byYearCat[y]).map(([k, v]) => ({ k, sug: v.s, done: v.d || 0 })).sort((a, b) => b.sug - a.sug).slice(0, 40)])),
+      rows: c.rows || [],
       byProc: Object.fromEntries(Object.entries(c.byYearProc || {}).map(([y, cats]) => [y, Object.fromEntries(Object.entries(cats).map(([cat, ps]) => [cat, Object.entries(ps).map(([k, v]) => ({ k, sug: v.s, done: v.d || 0 })).sort((a, b) => b.sug - a.sug).slice(0, 40)]))])) };
   }
   const p = raw.pack;
