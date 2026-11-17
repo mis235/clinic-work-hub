@@ -74,6 +74,7 @@ function OfferForm({ onClose, onCreate }) {
   const [department, setDepartment] = useState("");
   const [salaryText, setSalaryText] = useState("");
   const [startDate, setStartDate] = useState("");
+  const [address, setAddress] = useState(""), [retained, setRetained] = useState(""), [hours, setHours] = useState("9:00 AM to 6:30 PM (Monday to Saturday)"), [duties, setDuties] = useState("");
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -85,12 +86,20 @@ function OfferForm({ onClose, onCreate }) {
         <label className="field-label">Department</label>
         <input className="field" value={department} onChange={(e) => setDepartment(e.target.value)} />
         <label className="field-label">Salary (free text)</label>
-        <input className="field" value={salaryText} onChange={(e) => setSalaryText(e.target.value)} placeholder="e.g. ₹25,000/month" />
+        <input className="field" value={salaryText} onChange={(e) => setSalaryText(e.target.value)} placeholder="e.g. 20000 (per month)" />
         <label className="field-label">Start Date</label>
         <input className="field" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+        <label className="field-label">Candidate address (optional)</label>
+        <textarea className="field" rows={2} value={address} onChange={(e) => setAddress(e.target.value)} />
+        <label className="field-label">Amount retained each month (optional)</label>
+        <input className="field" value={retained} onChange={(e) => setRetained(e.target.value)} placeholder="e.g. 2000" />
+        <label className="field-label">Working hours</label>
+        <input className="field" value={hours} onChange={(e) => setHours(e.target.value)} />
+        <label className="field-label">Job responsibilities (one per line)</label>
+        <textarea className="field" rows={4} value={duties} onChange={(e) => setDuties(e.target.value)} />
         <div className="actions">
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" disabled={!candidateName.trim() || !roleTitle.trim()} onClick={() => { onCreate({ candidateName, roleTitle, department, salaryText, startDate }); onClose(); }}>Generate</button>
+          <button className="btn btn-primary" disabled={!candidateName.trim() || !roleTitle.trim()} onClick={() => { onCreate({ candidateName, roleTitle, department, salaryText, startDate, address, retained, hours, duties }); onClose(); }}>Generate</button>
         </div>
       </div>
     </div>

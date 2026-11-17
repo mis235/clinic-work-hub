@@ -7,6 +7,7 @@ import { STATUS, effectiveStatus } from "../constants.js";
 import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
 import WorkspacePanel from "../components/WorkspacePanel.jsx";
+import HomeSpace from "../components/HomeSpace.jsx";
 import MyDayCard from "../components/MyDayCard.jsx";
 import MyFinesCard from "../components/MyFinesCard.jsx";
 import MyAttendanceCard from "../components/MyAttendanceCard.jsx";
@@ -115,6 +116,7 @@ export default function StaffDashboard({ user, onLogout }) {
           </div>
         </div>
 
+        <HomeSpace user={user} go={(k) => VIEW_FOR_LABEL[k] && setView(VIEW_FOR_LABEL[k])} />
         <TeamBoard />
         <MyDayCard onNavigate={setView} />
         <MyAttendanceCard />

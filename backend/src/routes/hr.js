@@ -80,27 +80,79 @@ router.post("/team", requireAuth, requirePermission("staff:manage"), (req, res) 
 // fills in the details, gets a ready-to-send letter, and it's stored so it
 // can be reprinted identically later.
 // ---------------------------------------------------------------------------
-function generateOfferLetterText({ candidateName, roleTitle, department, salaryText, startDate }) {
-  return `Dr. Nishita's Clinic
-Offer of Employment
+const ord = (n) => n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : ({ 1: "st", 2: "nd", 3: "rd" }[n % 10] || "th"));
+const longDate = (d) => { const x = d ? new Date(d + "T00:00:00Z") : new Date(Date.now() + 19800000); if (Number.isNaN(x.getTime())) return d || ""; return `${String(x.getUTCDate()).padStart(2, "0")}${ord(x.getUTCDate()).slice(-2)} ${x.toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" })}`; };
+const rupee = (n) => "₹" + Number(n).toLocaleString("en-IN");
 
+// Matches the clinic's signed offer letters (the PDFs in the Offer Letters Drive folder).
+function generateOfferLetterText({ candidateName, roleTitle, department, salaryText, startDate, address, retained, hours, duties }) {
+  const sal = Number(String(salaryText || "").replace(/[^\d.]/g, "")) || 0, ret = Number(String(retained || "").replace(/[^\d.]/g, "")) || 0;
+  const salaryLine = sal ? `${rupee(sal)} per month${ret ? `, out of which ${rupee(ret)} will be retained, resulting in a net pay of ${rupee(sal - ret)} per month` : ""}` : (salaryText || "[to be confirmed]");
+  const wh = hours || "9:00 AM to 6:30 PM (Monday to Saturday)", join = startDate ? longDate(startDate) : "[to be confirmed]";
+  const list = String(duties || "").split("\n").map((x) => x.trim()).filter(Boolean);
+  const dutyLines = (list.length ? list : ["Carrying out the duties of the role with care and professionalism.", "Providing excellent service to patients and colleagues.", "Following the clinic's SOPs, policies and grooming standards."]).map((x) => `• ${x}`).join("\n");
+  return `DR. NISHITA'S CLINIC
+FOR SKIN, HAIR & AESTHETICS
+
+Dr. Nishita's Clinic for Skin, Hair & Aesthetics
+Sowbhagya Abode, Road No. 7, Beside Iran Embassy,
+Banjara Hills, Hyderabad - 500034
+
+Date: ${longDate("")}
+
+${candidateName}
+${address ? String(address).trim() + "\n" : ""}
 Dear ${candidateName},
 
-We are pleased to offer you the position of ${roleTitle}${department ? ` in our ${department} team` : ""} at Dr. Nishita's Clinic.
+We are pleased to offer you the position of ${roleTitle}${department ? ` (${department})` : ""} at Dr. Nishita's Clinic for Skin, Hair & Aesthetics. After reviewing your skills and experience, we believe you will be a valuable addition to our team. We look forward to having you contribute to the success and growth of our clinic.
 
-Start date: ${startDate || "[to be confirmed]"}
-Compensation: ${salaryText || "[to be confirmed]"}
+Offer Details:
+• Job Title: ${roleTitle}
+• Salary: ${salaryLine}
+• Salary Payout Date: Salary is paid by the 10th of each month.
+• Joining Date: ${join}
+• Work Location: Sowbhagya Abode, Road No. 7, Beside Iran Embassy, Banjara Hills, Hyderabad - 500034
+• Working Hours: ${wh}
 
-This offer is subject to the clinic's standard policies, which you will be asked to review and acknowledge on your first day, including our Attendance, Leave, Code of Conduct, and Patient Confidentiality policies.
+Job Responsibilities:
+As a ${roleTitle}, your responsibilities in this role primarily include:
+${dutyLines}
 
-We look forward to welcoming you to the team.
+Key Terms of Employment and Agreement:
+1. Employment Duration & Duties: Your employment begins on the agreed joining date. You are expected to diligently perform your duties under the direction of Dr. Nishita Ranka or such other person as the Employer may designate from time to time ("Duties"), contributing your full time and energy to the role.
+2. Working Hours: Your working hours will be ${wh}, with a 30-minute lunch break included. These working hours are subject to change based on the Employer's operational needs.
+3. Paid Time Off (PTO) & Vacation: You are entitled to 12 days of paid time off (PTO) per year, accruing at the rate of 1 day per month. PTO can be used for vacation, illness, or family emergencies. This PTO must be used in the calendar year and cannot be carried over.
+4. Advance Notice of Vacation Dates: You must provide the Employer with written notice at least two weeks in advance of your desired vacation dates.
+5. ${ret ? `Salary Retention: It is the policy of Dr. Nishita's Clinic to retain part of your salary for every 12 months of your employment. After you complete 12 months of continuous service, the first 6 months of the retained amount will be paid to you with your 13th-month salary, and the next 6 months of the retained amount will be paid to you with your 14th-month salary. Amount of ${rupee(ret)} will be retained from your salary, which may change based on future salary increments. This retention amount is intended to encourage your long-term commitment to the clinic.` : "Salary: Your salary will be paid as stated above, after deduction of any fines or leave-without-pay days as per clinic policy."}
+6. Grooming Standards: As part of maintaining the professional image of Dr. Nishita's Clinic, all employees are required to adhere to strict grooming standards. This includes maintaining a clean, neat, and professional appearance at all times during work hours. Employees must wear appropriate attire and follow specific grooming guidelines, such as neat hairstyles, clean shoes, and minimal accessories. Any violation of these grooming standards will be subject to fines or disciplinary action as deemed necessary by the Employer.
+7. Termination Conditions:
+   - For Cause: The Employer may terminate the agreement immediately for cause (e.g., dishonesty, fraud, gross misconduct, failure to perform duties, etc.).
+   - Early Termination by Employee: If you choose to leave before completing the Mandatory Employment Term and fail to provide the required two-month notice, you will be required to reimburse the Employer for any expenses incurred due to your early termination. The specific reimbursement amount will be discussed and confirmed at that time.
+   - Early Termination by Employer: If the Employer terminates before the mandatory term, you will receive appropriate compensation.
+8. Confidentiality, Reputation Protection, and Records Handling:
+   - Confidential Information: During your employment and after termination, you must maintain the confidentiality of all sensitive information, including patient records, business practices, and financial data. This includes not disclosing or using such information for personal gain or any other purpose.
+   - Protection of Reputation: You agree not to engage in any behavior that could harm or damage the reputation of Dr. Nishita's Clinic, its employees, or its services, both during and after your employment.
+   - Use of Employer's Facilities and Records: All notes, data, patient information, and other work-related records are the exclusive property of the Employer. These materials must be maintained confidentially and returned to the Employer upon the termination of your employment. You agree not to access any of the Employer's facilities, including phone systems and databases, after your employment ends.
+9. Non-Compete Agreement: During your employment and for a period of two months after termination, you agree not to engage in or accept employment with any competing business providing similar services within a 5 km radius of Dr. Nishita's Clinic.
+10. Non-Solicitation: You agree not to solicit or attempt to engage any of Dr. Nishita's Clinic's patients, suppliers, or employees during your employment and for two months following termination.
+11. Jurisdiction: Any dispute arising under these terms will be resolved in the courts of Hyderabad, Telangana, following an amicable resolution process if necessary.
+
+Please review the terms of this offer and, if you agree with the details outlined, kindly sign and return a copy of this letter to confirm your acceptance.
+
+We are excited about the opportunity to have you join our team and contribute to the clinic's vision.
 
 Sincerely,
-Dr. Nishita Ranka
-Founder & Medical Director
-Dr. Nishita's Clinic
 
-[NOTE: This is a generated starting template -- review the wording, especially compensation structure and any probation/notice period terms, against your actual employment contract practice before sending.]`;
+Shreyas Pradeep Bagmar
+Managing Partner
+Dr Nishita's Clinic For Skin Hair & Aesthetics
+Iranian Consulate, First Floor, 8-2-502/1/A/1, Sowbhagya Dental, Road No. 7, Banjara Hills, Hyderabad-500034.
+GST NO: 36AATFD6204E2ZG
+
+Acknowledgement and Acceptance
+I, ${candidateName}, accept the offer for the position of ${roleTitle} at Dr. Nishita's Clinic for Skin, Hair & Aesthetics and agree to the terms and conditions with a joining date of ${join}, as outlined in this offer letter.
+
+Signature:                                   Date:`;
 }
 
 router.get("/offer-letters", requireAuth, requirePermission("staff:manage"), (req, res) => {
@@ -108,12 +160,12 @@ router.get("/offer-letters", requireAuth, requirePermission("staff:manage"), (re
 });
 
 router.post("/offer-letters", requireAuth, requirePermission("staff:manage"), (req, res) => {
-  const { candidateName, roleTitle, department, salaryText, startDate, userId } = req.body || {};
+  const { candidateName, roleTitle, department, salaryText, startDate, userId, address, retained, hours, duties } = req.body || {};
   if (!candidateName || !roleTitle) return res.status(400).json({ error: "candidateName and roleTitle are required" });
-  let bodyText = generateOfferLetterText({ candidateName, roleTitle, department, salaryText, startDate });
+  let bodyText = generateOfferLetterText({ candidateName, roleTitle, department, salaryText, startDate, address, retained, hours, duties });
   // Role SOPs are attached automatically: they are listed in the letter and show up in the person's own app to read.
   const sops = sopsForRole(department, roleTitle);
-  if (sops.length) bodyText = bodyText.replace(/\n\[NOTE:/, `\n\nStandard Operating Procedures (SOPs) for your role — please read these before your first day:\n${sops.map((p, i) => `${i + 1}. ${p.title}`).join("\n")}\n\n[NOTE:`);
+  if (sops.length) bodyText = bodyText.replace(/\nSincerely,/, `\nStandard Operating Procedures (SOPs) for your role — please read these before your first day:\n${sops.map((p, i) => `${i + 1}. ${p.title}`).join("\n")}\n\nSincerely,`);
   const id = randomUUID();
   db.prepare(
     `INSERT INTO offer_letters (id, user_id, candidate_name, role_title, department, salary_text, start_date, body_text, created_by)
