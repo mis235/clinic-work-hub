@@ -7,14 +7,21 @@ import MobileTopBar from "../components/MobileTopBar.jsx";
 const WHEN = {
   daily: "Every day", weekly: "On certain days of the week", once: "One date only",
   birthday: "On each person's birthday (goes to the birthday person)", birthday_team: "When someone has a birthday (goes to everyone else)", anniversary: "On each person's work anniversary", event: "On festival / event days (from Events & Culture)",
+  attendance_missing: "Reminder: not checked in yet", task_pending: "Reminder: tasks still pending", checklist_pending: "Reminder: checklist not submitted",
 };
+const REM = ["attendance_missing", "task_pending", "checklist_pending"];
+const VARS = [["{name}", "Full name"], ["{greeting}", "Greeting"], ["{quote}", "Daily line"], ["{count}", "Task count"], ["{tasks}", "Task names"], ["{person}", "Birthday person"], ["{event}", "Festival"], ["{years}", "Years"]];
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const IDEAS = [
   { title: "Happy Birthday, {name}!", body: "Dear {name}, wishing you a very happy birthday from all of us at Dr. Nishita's Clinic. Thank you for being part of our family. Have a wonderful day!", trigger: "birthday", time: "09:00" },
   { title: "Today is {person}'s birthday", body: "Hi {name}, today is {person}'s birthday. Please wish {person} a very happy birthday when you meet!", trigger: "birthday_team", time: "09:00" },
   { title: "Happy Work Anniversary!", body: "Hi {name}, congratulations on completing {years} year(s) with us. We are grateful for your hard work and care for our patients.", trigger: "anniversary", time: "09:00" },
   { title: "Happy {event}!", body: "Dear {name}, wishing you and your family a very happy {event} from Dr. Nishita's Clinic.", trigger: "event", time: "08:30" },
-  { title: "Good Morning Team", body: "Good morning {name}. Please check your tasks and shift checklist for today. Have a great day!", trigger: "daily", time: "08:45" },
+  { title: "Good Morning, {name}", body: "{quote}\n\nHave a wonderful day at Dr. Nishita's Clinic.", trigger: "weekly", time: "08:45" },
+  { title: "Good Evening, {name}", body: "{quote}\n\nThank you for your work today.", trigger: "weekly", time: "19:45" },
+  { title: "Please check in, {name}", body: "Hi {name}, your attendance is not marked yet today. Please check in now.", trigger: "attendance_missing", time: "10:45" },
+  { title: "Tasks waiting, {name}", body: "Hi {name}, you have {count} task(s) waiting: {tasks}. Please complete or update them.", trigger: "task_pending", time: "16:00" },
+  { title: "Checklist not submitted, {name}", body: "Hi {name}, your shift checklist for today is not submitted yet. Please open Work Hub and submit it before you leave.", trigger: "checklist_pending", time: "17:30" },
 ];
 const BLANK = { title: "", body: "", trigger: "daily", time: "09:00", weekdays: [1, 2, 3, 4, 5, 6], date: "", audience: "all", audienceUsers: [], whatsapp: true, active: true };
 
@@ -99,13 +106,13 @@ export default function AutoMessagesPage({ user, onLogout, onBack }) {
             <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxHeight: "90vh", overflowY: "auto" }}>
               <h3>{form.id ? "Edit Message" : "New Auto Message"}</h3>
               <label className="field-label">Title</label>
-              <input className="field" value={form.title} onChange={set("title")} placeholder="e.g. Happy Birthday, {name}!" />
+              <input className="field" value={form.title} onChange={set("title")} placeholder="Title" />
               <label className="field-label">Message</label>
-              <textarea className="field" rows={5} value={form.body} onChange={set("body")} placeholder="Write the message. {name} becomes each person's first name." />
-              <div className="meta" style={{ marginTop: 4 }}>Use <b>{"{name}"}</b> for the first name, <b>{"{years}"}</b> for work anniversary years, <b>{"{event}"}</b> for the festival name, <b>{"{person}"}</b> for the birthday person (team message).</div>
+              <textarea className="field" rows={5} value={form.body} onChange={set("body")} placeholder="Message" />
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>{VARS.map(([v, l]) => <button key={v} type="button" className="btn btn-ghost btn-sm" onClick={() => setForm({ ...form, body: form.body + v })}>{l}</button>)}</div>
               <label className="field-label">When should it go?</label>
               <select className="field" value={form.trigger} onChange={set("trigger")}>{Object.entries(WHEN).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
-              {form.trigger === "weekly" && (
+              {(form.trigger === "weekly" || REM.includes(form.trigger)) && (
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
                   {DAYS.map((d, i) => { const on = form.weekdays.includes(i); return <button key={d} type="button" className={`btn btn-sm ${on ? "btn-primary" : "btn-outline"}`} onClick={() => setForm({ ...form, weekdays: on ? form.weekdays.filter((x) => x !== i) : [...form.weekdays, i] })}>{d}</button>; })}
                 </div>)}

@@ -30,13 +30,7 @@ export default function TemplateStudio({ kind, companies = [], roster = [], flas
           <span className="dept">Upload your own Word file once, then generate for everyone</span></div>
         <button className="btn btn-primary btn-sm" onClick={() => setShowUpload(true)}>+ Upload template</button>
       </div>
-
-      <div className="note">
-        <strong>How it works:</strong> write your {isPay ? "payslip" : "offer letter"} in Word the way you want it, and type placeholders like <code>{"{name}"}</code> where each person's details should go.
-        {" "}<span className="link" onClick={() => setShowFields((x) => !x)}>{showFields ? "Hide" : "See"} all placeholders</span> ·{" "}
-        <span className="link" onClick={() => api.downloadSampleTemplate(kind).catch((e) => flash(e.message))}>Download a sample to start from</span>
-        {showFields && <div style={{ marginTop: 8, columnCount: 2, fontSize: 12 }}>{fields.map((f) => <div key={f.key}><code>{`{${f.key}}`}</code> — {f.label}</div>)}</div>}
-      </div>
+      <div className="note"><span className="link" onClick={() => setShowFields((x) => !x)}>{showFields ? "Hide" : "See"} placeholders</span> · <span className="link" onClick={() => api.downloadSampleTemplate(kind).catch((e) => flash(e.message))}>Download sample</span>{showFields && <div style={{ marginTop: 8, columnCount: 2, fontSize: 12 }}>{fields.map((f) => <div key={f.key}><code>{`{${f.key}}`}</code> — {f.label}</div>)}</div>}</div>
 
       {templates.length === 0 && <div className="empty">No template uploaded yet.</div>}
       {templates.map((t) => (
@@ -166,17 +160,16 @@ function GenerateModal({ kind, template, roster, onClose, onDone }) {
             <button className={pick === null ? "active" : ""} onClick={() => setPick(null)}>Everyone</button>
             <button className={pick === "some" ? "active" : ""} onClick={() => setPick("some")}>Choose people</button>
           </div>
+          {pick === "some" && <div style={{ display: "flex", gap: 8, marginBottom: 6 }}><button type="button" className="btn btn-ghost btn-sm" onClick={() => setChosen(new Set(people.map((x) => x.id)))}>Select all</button><button type="button" className="btn btn-ghost btn-sm" onClick={() => setChosen(new Set())}>Clear</button></div>}
           {pick === "some" && (
-            <div style={{ maxHeight: 240, overflowY: "auto", border: "1px solid var(--line)", borderRadius: 12, padding: 8 }}>
+            <div style={{ maxHeight: "34dvh", overflowY: "auto", border: "1px solid var(--line)", borderRadius: 12, padding: 8 }}>
               {people.map((p) => (
                 <label key={p.id} style={{ display: "flex", gap: 8, padding: "4px 6px", fontSize: 13, cursor: "pointer" }}>
                   <input type="checkbox" checked={chosen.has(p.id)} onChange={() => toggle(p.id)} />{p.name} <span className="meta">· {p.department}</span>
                 </label>))}
             </div>)}
-          <p className="lead" style={{ marginTop: 10 }}>You can generate straight away, or press <b>Review & edit</b> to change any detail (address, salary, joining date, job duties…) for each person first.</p>
         </>) : (
           <div style={{ maxHeight: "58vh", overflowY: "auto" }}>
-            <p className="lead">Everything below fills the document. Change anything that needs to be different for that person — blue ones are changed.</p>
             {review.people.map((p) => (
               <div key={p.id} className="card" style={{ marginBottom: 8, padding: 12 }}>
                 <div className="row" style={{ justifyContent: "space-between", cursor: "pointer" }} onClick={() => setOpen(open === p.id ? null : p.id)}>

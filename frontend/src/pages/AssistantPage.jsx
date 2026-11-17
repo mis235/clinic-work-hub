@@ -47,7 +47,6 @@ export default function AssistantPage({ user, isStaffLayout, onLogout, onBack })
     <>
       <div className="page-head">
         <h1>AI Assistant</h1>
-        <p>{tab === "help" ? "Instant answers on tasks, attendance and policies." : "Specialist advisers for managers."}</p>
       </div>
       {isLead && (
         <div className="pill-row">

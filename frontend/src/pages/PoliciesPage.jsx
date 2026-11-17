@@ -40,7 +40,6 @@ export default function PoliciesPage({ user, isStaffLayout, onLogout, onBack, mo
                 try { const r = await api.bulkAddPolicies(items); setBulkMsg(`${r.added} added, ${r.skipped} skipped.`); setBulkText(""); refresh(); } catch (e) { setBulkMsg(e.message); }
               }}>Add Documents</button><span className="meta">{bulkMsg}</span></div>
           </div>)}
-        <p>{unread > 0 ? `${unread} ${unread === 1 ? "document needs" : "documents need"} your acknowledgement.` : `You are up to date on all current ${label}.`}</p>
       </div>
 
       {policies === null && <div className="empty">Loading…</div>}

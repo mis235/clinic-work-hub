@@ -8,6 +8,7 @@ import ReportsPage from "./pages/ReportsPage.jsx";
 import AboutPage from "./pages/AboutPage.jsx";
 import LearningPage from "./pages/LearningPage.jsx";
 import EventsPage from "./pages/EventsPage.jsx";
+import RosterPage from "./pages/RosterPage.jsx";
 import AutoMessagesPage from "./pages/AutoMessagesPage.jsx";
 import LeavePage from "./pages/LeavePage.jsx";
 import OfferLettersPage from "./pages/OfferLettersPage.jsx";
@@ -114,6 +115,7 @@ function MainApp() {
     if (view === "learning") return <LearningPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "automessages") return <AutoMessagesPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "events") return <EventsPage user={user} onLogout={logout} onBack={navigate} />;
+    if (view === "roster") return <RosterPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "hr" && user.role === "admin") return <OfferLettersPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "payroll" && user.role === "admin") return <PayrollPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "staff" && user.role === "admin") return <StaffAdminPage user={user} onLogout={logout} onBack={navigate} onOpenProfile={(id) => openProfile(id, "Staff")} />;

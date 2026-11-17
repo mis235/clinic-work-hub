@@ -50,7 +50,6 @@ export default function PayrollPage({ user, onLogout, onBack }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
           <div className="page-head">
             <h1>Payroll</h1>
-            <p>Real, multi-company payslip generation — {companies.length} companies on file.</p>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button className="btn btn-ghost btn-sm" onClick={runMonthlyNow}>Run this month's payroll for everyone</button>

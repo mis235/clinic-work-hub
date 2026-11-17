@@ -771,6 +771,15 @@ try {
       ok("send now reaches the chosen person once", sn.status === 200 && sn.body.sent === 1);
       const lg2 = await call("GET", "/api/auto-messages/" + um.body.id + "/log", null, admin);
       ok("log shows it received", lg2.body.people[0].sent === true); }
+    { const gm = await call("POST", "/api/auto-messages", { title: "{greeting}, {name}", body: "{quote}", trigger: "daily", time: "23:59", audience: "users", audienceUsers: [staff.id] }, admin);
+      const gsn = await call("POST", "/api/auto-messages/" + gm.body.id + "/send-now", null, admin); 
+      const inbox = await call("GET", "/api/messages/mine", null, stoken);
+      const list = Array.isArray(inbox.body) ? inbox.body : [];
+      const got = list.find((x) => /^Good (Morning|Afternoon|Evening), /.test(x.title || ""));
+      ok("greeting uses the full name and a daily line", !!got && got.title.includes(staff.name) && !got.body.includes("{quote}") && got.body.length > 20, JSON.stringify(list.map((x) => [x.title, x.body.slice(0, 40)]))); }
+    { const rm = await call("POST", "/api/auto-messages", { title: "Check in, {name}", body: "Hi {name}", trigger: "attendance_missing", time: "10:45", audience: "users", audienceUsers: [staff.id] }, admin);
+      ok("reminder message can be created", rm.status === 201);
+      ok("reminder send now answers", (await call("POST", "/api/auto-messages/" + rm.body.id + "/send-now", null, admin)).status === 200); }
     ok("auto message appears in list", (await call("GET", "/api/auto-messages", null, admin)).body?.messages?.some((m) => m.id === am.body.id));
     ok("birthday wishes are ready by default", (await call("GET", "/api/auto-messages", null, admin)).body?.messages?.some((m) => m.trigger === "birthday") && (await call("GET", "/api/auto-messages", null, admin)).body?.messages?.some((m) => m.trigger === "birthday_team"));
     ok("weekly needs a day", (await call("POST", "/api/auto-messages", { title: "a", body: "b", trigger: "weekly" }, admin)).status === 400);

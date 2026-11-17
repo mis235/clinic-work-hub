@@ -139,7 +139,6 @@ export default function ShiftChecklistPage({ user, isStaffLayout, onLogout, onBa
         <div>
           <div className="eyebrow">Workspace</div>
           <h1>My Shift Checklist</h1>
-          <p>{template ? `${template.roleName}.` : "Your role's recurring Opening / During the day / End of day checklist."} Your ticks save automatically — you can leave and come back.</p>
         </div>
       </div>
 

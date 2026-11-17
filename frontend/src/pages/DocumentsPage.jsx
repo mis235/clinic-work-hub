@@ -43,7 +43,6 @@ export default function DocumentsPage({ user, isStaffLayout, onLogout, onBack })
         <div>
           <div className="eyebrow">Knowledge</div>
           <h1>Documents</h1>
-          <p>{data?.canSeeAll ? "Every department's sheets, dashboards and important documents, in one place. What a department uploads shows up here for admin automatically." : "Your department's sheets, dashboards and documents. Whatever you upload is visible to admin."}</p>
         </div>
         <button className="btn btn-primary" onClick={() => setShow(true)}><Icon name="plus" size={16} /> Add document</button>
       </div>

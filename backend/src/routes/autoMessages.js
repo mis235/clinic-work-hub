@@ -4,6 +4,8 @@
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { birthdayMD } from "./leave.js";
+import { shiftOn } from "./roster.js";
+import { greetingFor, quoteFor } from "../quotes.js";
 import db from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { accessFor } from "../access.js";
@@ -17,7 +19,8 @@ db.exec(`CREATE TABLE IF NOT EXISTS auto_messages (
 )`);
 
 try { db.exec("ALTER TABLE staff_messages ADD COLUMN wa_status TEXT"); } catch {}
-export const TRIGGERS = ["daily", "weekly", "once", "birthday", "birthday_team", "anniversary", "event"];
+export const TRIGGERS = ["daily", "weekly", "once", "birthday", "birthday_team", "anniversary", "event", "checklist_pending", "attendance_missing", "task_pending"];
+const REMINDERS = ["checklist_pending", "attendance_missing", "task_pending"];
 const router = Router();
 const canManage = (req) => req.user.roleName === "admin" || accessFor(req.user.userId, req.user.roleName).isHr;
 const guard = (req, res, next) => (canManage(req) ? next() : res.status(403).json({ error: "Only HR or admin can do this" }));
@@ -29,7 +32,7 @@ function clean(b) {
   const title = String(b?.title || "").trim().slice(0, 120), body = String(b?.body || "").trim().slice(0, 1200);
   const trigger = TRIGGERS.includes(b?.trigger) ? b.trigger : "daily";
   const time = /^([01]\d|2[0-3]):[0-5]\d$/.test(b?.time || "") ? b.time : "09:00";
-  const weekdays = trigger === "weekly" ? [...new Set((b?.weekdays || []).map(Number).filter((n) => n >= 0 && n <= 6))].join(",") : "";
+  const weekdays = (trigger === "weekly" || REMINDERS.includes(trigger)) ? [...new Set((b?.weekdays || []).map(Number).filter((n) => n >= 0 && n <= 6))].join(",") : "";
   const date = /^\d{4}-\d{2}-\d{2}$/.test(b?.date || "") ? b.date : "";
   if (!title || !body) return { error: "Write a title and a message" };
   if (trigger === "weekly" && !weekdays) return { error: "Choose at least one day of the week" };
@@ -71,6 +74,11 @@ router.post("/:id/send-now", requireAuth, guard, (req, res) => {
   const m = db.prepare("SELECT * FROM auto_messages WHERE id = ?").get(req.params.id); if (!m) return res.status(404).json({ error: "Not found" });
   if (["birthday", "birthday_team", "anniversary"].includes(m.trigger_type)) return res.status(400).json({ error: "This message goes out by itself on the right day. Use Test To Me to see how it reads." });
   const t = ist(); let sent = 0, skipped = 0;
+  if (REMINDERS.includes(m.trigger_type)) {
+    const ppl = db.prepare("SELECT id, name, email, phone, department_id FROM users WHERE active = 1").all().filter((x) => inAudience(m, x));
+    for (const x of reminderTargets(m.trigger_type, ppl, { ...t, hhmm: "23:59" })) { try { const had = db.prepare("SELECT 1 FROM staff_messages WHERE user_id = ? AND kind = ? AND msg_date = ?").get(x.u.id, "auto:" + m.id, t.date); if (had) { skipped++; continue; } deliver(x.u, m, { kind: "auto:" + m.id, date: t.date, vars: x.vars }); sent++; } catch (e) { console.error("auto message:", e.message); } }
+    return res.json({ ok: true, sent, skipped });
+  }
   for (const u of db.prepare("SELECT id, name, email, phone, department_id FROM users WHERE active = 1").all().filter((x) => inAudience(m, x))) {
     try { const had = db.prepare("SELECT 1 FROM staff_messages WHERE user_id = ? AND kind = ? AND msg_date = ?").get(u.id, "auto:" + m.id, t.date); if (had) { skipped++; continue; } deliver(u, m, { kind: "auto:" + m.id, date: t.date, vars: { event: "", years: "" } }); sent++; } catch { skipped++; }
   }
@@ -118,8 +126,52 @@ export default router;
   } catch (e) { console.error("auto message defaults:", e.message); }
 })();
 
+// Second set of ready-made messages: morning and evening greetings with a daily motivating line, and reminders for people who forgot something.
+(() => {
+  try {
+    if (db.prepare("SELECT value FROM app_settings WHERE key = 'auto_msgs_seeded_v2'").get()) return;
+    const add = (title, body, trigger, time) => db.prepare("INSERT INTO auto_messages (id, title, body, trigger_type, send_time, weekdays, audience, whatsapp, active) VALUES (?,?,?,?,?,?,?,?,?)").run(randomUUID(), title, body, trigger, time, "1,2,3,4,5,6", "all", 1, 1);
+    db.prepare("UPDATE auto_messages SET active = 0 WHERE title = 'Good Morning Team' AND trigger_type = 'daily'").run();
+    add("Good Morning, {name}", "{quote}\n\nHave a wonderful day at Dr. Nishita's Clinic.", "weekly", "08:45");
+    add("Good Evening, {name}", "{quote}\n\nThank you for your work today.", "weekly", "19:45");
+    add("Please check in, {name}", "Hi {name}, your attendance is not marked yet today. Please check in now.", "attendance_missing", "10:45");
+    add("Tasks waiting, {name}", "Hi {name}, you have {count} task(s) waiting: {tasks}. Please complete or update them.", "task_pending", "16:00");
+    add("Checklist not submitted, {name}", "Hi {name}, your shift checklist for today is not submitted yet. Please open Work Hub and submit it before you leave.", "checklist_pending", "17:30");
+    db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('auto_msgs_seeded_v2', '1')").run();
+  } catch (e) { console.error("auto message defaults v2:", e.message); }
+})();
+
 const ist = () => { const d = new Date(Date.now() + 19800000); return { date: d.toISOString().slice(0, 10), hhmm: d.toISOString().slice(11, 16), dow: d.getUTCDay(), md: d.toISOString().slice(5, 10) }; };
-const fill = (t, u, vars) => String(t).replace(/\{name\}/gi, String(u.name || "").trim().split(/\s+/)[0] || "there").replace(/\{event\}/gi, vars.event || "").replace(/\{years\}/gi, vars.years || "").replace(/\{person\}/gi, vars.person || "");
+const fullName = (u) => String(u.name || "").trim().replace(/\s+/g, " ") || "there";
+const fill = (t, u, vars) => {
+  const n = ist();
+  return String(t).replace(/\{first\}/gi, fullName(u).split(" ")[0]).replace(/\{name\}/gi, fullName(u)).replace(/\{greeting\}/gi, greetingFor(n.hhmm)).replace(/\{quote\}/gi, quoteFor(n.date, n.hhmm))
+    .replace(/\{event\}/gi, vars.event || "").replace(/\{years\}/gi, vars.years || "").replace(/\{person\}/gi, vars.person || "").replace(/\{count\}/gi, vars.count || "").replace(/\{tasks\}/gi, vars.tasks || "");
+};
+
+/** Reminder messages go only to the people who still have something to do. */
+function reminderTargets(type, people, t) {
+  const out = [];
+  for (const u of people) {
+    if (type === "checklist_pending") {
+      if (!db.prepare("SELECT shift_role FROM users WHERE id = ?").get(u.id)?.shift_role) continue;
+      if (db.prepare("SELECT 1 FROM shift_checklist_submissions WHERE user_id = ? AND work_date = ? AND status = 'submitted'").get(u.id, t.date)) continue;
+      if (db.prepare("SELECT 1 FROM attendance_marks WHERE user_id = ? AND mark_date = ? AND status IN ('LV','W','A')").get(u.id, t.date)) continue;
+      out.push({ u, vars: {} });
+    } else if (type === "attendance_missing") {
+      const w = shiftOn(u.id, t.date); if (!w.start || w.start > t.hhmm) continue;
+      const m = db.prepare("SELECT status, in_time FROM attendance_marks WHERE user_id = ? AND mark_date = ?").get(u.id, t.date);
+      if (m && (m.in_time || ["LV", "W", "P", "L", "H"].includes(m.status))) continue;
+      if (db.prepare("SELECT 1 FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ? AND r.name = 'admin'").get(u.id)) continue;
+      out.push({ u, vars: {} });
+    } else if (type === "task_pending") {
+      const rows = db.prepare("SELECT title FROM tasks WHERE user_id = ? AND status <> 'done' AND due_date IS NOT NULL AND due_date <= ? ORDER BY due_date LIMIT 20").all(u.id, t.date);
+      if (!rows.length) continue;
+      out.push({ u, vars: { count: String(rows.length), tasks: rows.slice(0, 3).map((r) => r.title).join(", ") + (rows.length > 3 ? ` and ${rows.length - 3} more` : "") } });
+    }
+  }
+  return out;
+}
 
 function deliver(u, m, { kind, date, vars = {} }) {
   const title = fill(m.title, u, vars), body = fill(m.body, u, vars);
@@ -148,6 +200,11 @@ export function runAutoMessages() {
         if (u.id === c.id || !inAudience(m, u)) continue;
         try { deliver(u, m, { kind: `auto:${m.id}:${c.id}`, date: t.date, vars: { person: c.name } }); } catch (e) { console.error("auto message:", e.message); }
       }
+      db.prepare("UPDATE auto_messages SET last_run = ? WHERE id = ?").run(t.date, m.id); continue;
+    }
+    else if (REMINDERS.includes(m.trigger_type)) {
+      { const wk = m.weekdays || ""; if (wk && !wk.split(",").includes(String(t.dow))) continue; }
+      try { for (const x of reminderTargets(m.trigger_type, people.filter((u) => inAudience(m, u)), t)) deliver(x.u, m, { kind: "auto:" + m.id, date: t.date, vars: x.vars }); } catch (e) { console.error("auto message:", e.message); }
       db.prepare("UPDATE auto_messages SET last_run = ? WHERE id = ?").run(t.date, m.id); continue;
     }
     else if (m.trigger_type === "birthday") targets = people.filter((u) => birthdayMD(u.birthday) === t.md);

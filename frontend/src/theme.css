@@ -750,3 +750,8 @@ button:active:not(:disabled) { transform: scale(.97); }
 .bday-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
 .bday-row.past { opacity: .6; }
 .bday-row.today { background: #fdf2f8; border-radius: 10px; padding: 7px 8px; }
+/* Pop-ups never run off the screen: the body scrolls, the buttons stay in view */
+.modal { max-height: 90vh; max-height: 90dvh; }
+.modal .actions { position: sticky; bottom: -28px; margin: 18px -28px -28px; padding: 14px 28px; background: var(--surface); border-top: 1px solid var(--line, #f1e7ed); z-index: 2; }
+.modal-backdrop { align-items: center; }
+@media (max-width: 640px) { .modal { padding: 20px; border-radius: 20px; } .modal .actions { margin: 16px -20px -20px; padding: 12px 20px; bottom: -20px; } }

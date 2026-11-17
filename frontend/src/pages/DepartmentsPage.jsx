@@ -20,7 +20,6 @@ export default function DepartmentsPage({ user, onLogout, onBack, onOpenProfile 
       <div className="page-head">
         <div className="eyebrow">People</div>
         <h1>{open && detail ? detail.department.name : "Department portal"}</h1>
-        <p>{open ? <a href="#" style={{ color: "var(--primary)", fontWeight: 600 }} onClick={(e) => { e.preventDefault(); setOpen(null); }}>← All departments</a> : "Each department's attendance, work completion, fines and uploaded documents in one place."}</p>
       </div>
 
       {!open && (!rows ? <div className="empty">Loading…</div> : (
