@@ -1268,3 +1268,4 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .doll-bubble.b-grumpy { color: #D14A6A; }
 .s-grumpy img { animation: doll-shake .45s ease-in-out 3; }
 .hero .doll.hero-lumi.pet { pointer-events: auto; z-index: 2; }
+.doll-bubble { white-space: nowrap; }

@@ -18,6 +18,7 @@ const IMG = {
 };
 const TALL = new Set([D + "wave.webp", D + "think.webp", D + "laptop.webp", D + "music.webp", D + "wave.webp", D + "celebrate.webp"]); // full-body: show head and body
 const BUBBLE = { pet: "Hehe!", grumpy: "Hey!", hungry: "Lunch?", sleepy: "Zzz", hello: "Hello!", wrong: "?", welcome: "Hi!", goodbye: "Bye!", closing: "Done!" };
+const MOTIVE = { idle: "You've got this!", success: "Great work!", excited: "Let's go!", idea: "Keep going!", happy: "Smile, you're doing well!", music: "Stay in the flow!", pet: "Hehe!" }; // shown on the banner pet outside lunch time
 const SPARK = { pet: 6, success: 6, closing: 6, celebrate: 14, birthday: 14, excited: 6 };
 const MATE = { welcome: "wave", goodbye: "wave", happy: "happy", success: "celebrate", closing: "celebrate", celebrate: "celebrate", thinking: "think", error: "think", sleepy: "calm", notify: "wink" };
 const reduced = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -35,10 +36,10 @@ export default function Doll({ size = 210, mood = "idle", follow = true, classNa
     react(k.n >= 7 ? "grumpy" : k.n >= 3 ? "excited" : "pet", k.n >= 7 ? 1800 : 2200);
   };
   useEffect(() => { // when nobody is doing anything she changes by herself now and then
-    if (!pet || reduced()) return; const pool = ["happy", "music", "idea", "excited", "idle"];
-    const id = setInterval(() => { if (document.hidden) return; react(pool[Math.floor(Math.random() * pool.length)], 3200); }, 28000);
+    if (!pet || reduced()) return; const pool = ["success", "excited", "idea", "happy", "music", "idle"];
+    const id = setInterval(() => { if (document.hidden || mood !== "idle") return; react(pool[Math.floor(Math.random() * pool.length)], 3200); }, 28000);
     return () => { clearInterval(id); clearTimeout(tm.current); };
-  }, [pet]);
+  }, [pet, mood]);
 
   useEffect(() => { // a short reaction to something that happened, then back to rest
     let t; const f = (e) => { const { state: s, ms = 2800 } = e.detail || {}; if (!s) return; setTemp(s); clearTimeout(t); t = setTimeout(() => setTemp(null), ms); };
@@ -67,7 +68,7 @@ export default function Doll({ size = 210, mood = "idle", follow = true, classNa
           <img src={src} alt="" decoding="async" draggable="false" className={tall ? "tall" : "fit"} onError={() => setOk(false)} />
         </div>
       </div>
-      {BUBBLE[state] && <span key={state} className={`doll-bubble b-${state}`}>{BUBBLE[state]}</span>}
+      {(BUBBLE[state] || (pet && MOTIVE[state])) && <span key={state} className={`doll-bubble b-${state}`}>{BUBBLE[state] || MOTIVE[state]}</span>}
       {SPARK[state] && <span key={"sp" + state} className={`doll-sparks n${SPARK[state]}`} aria-hidden="true">{Array.from({ length: SPARK[state] }, (_, i) => <i key={i} style={{ "--i": i }} />)}</span>}
     </div>
   );

@@ -18,7 +18,7 @@ export default function HeroBanner({ user, children }) {
     if (b && sessionStorage.getItem("doll_welcome")) { sessionStorage.removeItem("doll_welcome"); doll("welcome", 3600); }
   }, [b]);
   const hour = Number(new Date(Date.now() + 19800000).toISOString().slice(11, 13));
-  const mood = !b ? "thinking" : bd.length ? "celebrate" : hour >= 22 || hour < 5 ? "sleepy" : hour >= 13 && hour < 14 ? "hungry" : hour >= 19 ? "tired" : "idle";
+  const mood = !b ? "thinking" : bd.length ? "celebrate" : hour >= 22 || hour < 5 ? "sleepy" : hour >= 13 && hour < 14 ? "hungry" : "idle";
   const first = user?.role === "staff" ? givenName(user?.name) : ""; // names only on staff logins
   const celebrate = [
     ...bd.map((x) => ({ k: "b" + x.id, icon: "cake", text: x.id === user?.id ? "Happy birthday to you!" : `${x.name}'s birthday` })),
