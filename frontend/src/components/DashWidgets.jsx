@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, photoUrl } from "../api.js";
 import Icon, { initials } from "./Icon.jsx";
+import Pose from "./Pose.jsx";
 
 const BAR_COLORS = ["#9C7FEA", "#F58AA5", "#FFB45E", "#F6D55C", "#6FD0A5", "#6FA8F5", "#B9A0F0"];
 const istDate = (offsetDays = 0) => new Date(Date.now() + 19800000 - offsetDays * 86400000).toISOString().slice(0, 10);
@@ -98,12 +99,7 @@ export function EomCard({ canAnnounce, onNavigate }) {
 export function Strip({ title, sub, action, onClick }) {
   return (
     <div className="strip">
-      <svg viewBox="0 0 64 64" width="58" height="58" aria-hidden="true">
-        <polygon points="32,7 39,23 57,25 43.5,37 47.5,55 32,46 16.5,55 20.5,37 7,25 25,23" fill="#FFD25E" stroke="#FFD25E" strokeWidth="8" strokeLinejoin="round" />
-        <circle cx="26" cy="31" r="2.6" fill="#5A3A1A" /><circle cx="38" cy="31" r="2.6" fill="#5A3A1A" />
-        <path d="M27 38 Q32 43 37 38" stroke="#5A3A1A" strokeWidth="2.4" fill="none" strokeLinecap="round" />
-        <circle cx="21.5" cy="37" r="3" fill="#FF9DB0" opacity=".8" /><circle cx="42.5" cy="37" r="3" fill="#FF9DB0" opacity=".8" />
-      </svg>
+      <Pose pose="walk" size={74} />
       <div className="strip-txt"><b>{title}</b><small>{sub}</small></div>
       <button className="btn btn-primary" onClick={onClick}>{action}</button>
     </div>

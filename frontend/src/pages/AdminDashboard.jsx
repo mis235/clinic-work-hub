@@ -13,6 +13,7 @@ import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
 import HeroBanner from "../components/HeroBanner.jsx";
 import { Kpi, WeekBars, StatusDonut, EomCard, Strip } from "../components/DashWidgets.jsx";
+import Pose from "../components/Pose.jsx";
 import { doll } from "../components/Doll.jsx";
 import Icon, { initials } from "../components/Icon.jsx";
 
@@ -167,7 +168,7 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
           ))}
         </div>
 
-        {loading && <div className="empty">Loading…</div>}
+        {loading && <div className="empty pose-empty"><Pose pose="laptop" size={140} />Loading…</div>}
         {!loading && assignable.map((s) => {
           const mine = visibleTasks.filter((t) => t.user_id === s.id);
           if (mine.length === 0) return null;

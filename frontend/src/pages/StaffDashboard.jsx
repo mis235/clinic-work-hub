@@ -29,6 +29,7 @@ import HelpPage from "./HelpPage.jsx";
 import HeroBanner from "../components/HeroBanner.jsx";
 import { Kpi, StatusDonut, EomCard, Strip } from "../components/DashWidgets.jsx";
 import Icon from "../components/Icon.jsx";
+import Pose from "../components/Pose.jsx";
 import Doll, { doll } from "../components/Doll.jsx";
 import { navItemsFor } from "../navItems.js";
 
@@ -138,12 +139,12 @@ export default function StaffDashboard({ user, onLogout }) {
         <MyPayslips />
         <HrOverview user={user} onNavigate={(k) => setView(VIEW_FOR_LABEL[k] || "checklist")} />
 
-        {loading && <div className="empty">Loading…</div>}
+        {loading && <div className="empty pose-empty"><Pose pose="laptop" size={140} />Loading…</div>}
 
         {!loading && (
           <>
             <div className="section-head"><h2>Open tasks ({open.length})</h2></div>
-            {open.length === 0 && <div className="empty doll-empty"><Doll mood="happy" size={150} follow={false} />Nothing pending. Nice work.</div>}
+            {open.length === 0 && <div className="empty pose-empty"><Pose pose="music" size={150} />Nothing pending. Nice work.</div>}
             {open.map((t) => <TaskCard key={t.id} task={t} onSet={setStatus} />)}
 
             {done.length > 0 && (
