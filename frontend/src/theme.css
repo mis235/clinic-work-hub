@@ -1269,3 +1269,24 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .s-grumpy img { animation: doll-shake .45s ease-in-out 3; }
 .hero .doll.hero-lumi.pet { pointer-events: auto; z-index: 2; }
 .doll-bubble { white-space: nowrap; }
+
+/* Notification panel: solid, on top of everything */
+.bell-panel { position: fixed; z-index: 2000; width: min(400px, calc(100vw - 24px)); background: #fff !important; border: 1px solid #fff; border-radius: 24px; box-shadow: 0 24px 60px rgba(70, 40, 130, .28), 0 2px 0 #fff inset; overflow: hidden; backdrop-filter: none; }
+.bell-panel .bell-head { padding: 16px 18px 10px; border-bottom: 0; }
+.bell-panel .bell-head b { font-size: 17px; display: flex; align-items: center; gap: 8px; color: #3B2A5A; }
+.bell-badge { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 99px; background: #FF6B8B; color: #fff; }
+.bell-readall { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 700; color: var(--primary); padding: 7px 12px; border-radius: 99px; background: var(--primary-soft, #EFE8FB); }
+.bell-readall:hover { filter: brightness(.96); } .bell-readall:disabled { opacity: .4; cursor: default; }
+.bell-tabs { display: flex; gap: 6px; padding: 0 18px 10px; border-bottom: 1px solid #F0E9FA; }
+.bell-tabs button { all: unset; cursor: pointer; font-size: 13px; font-weight: 600; padding: 6px 14px; border-radius: 99px; color: #7A6A9A; }
+.bell-tabs button.on { background: var(--primary); color: #fff; }
+.bell-panel .bell-list { max-height: min(440px, 62vh); }
+.bell-panel .bell-item { background: #fff; padding: 13px 18px; border-bottom: 1px solid #F4EEFB; }
+.bell-panel .bell-item.unread { background: #F7F2FF; }
+.bell-panel .bell-item:hover { background: #EFE8FB; }
+html[data-theme="peach"] .bell-panel .bell-item.unread { background: #FFF1EC; } html[data-theme="peach"] .bell-panel .bell-item:hover { background: #FFE6DD; }
+html[data-theme="peach"] .bell-panel .bell-head b { color: #5A3A33; }
+
+/* the title is already in the top bar: do not repeat it on each page */
+.page-head > div:first-child > h1, .page-head > div:first-child > .eyebrow { display: none; }
+.page-head.row { justify-content: flex-end; }
