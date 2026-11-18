@@ -306,6 +306,7 @@ export const api = {
   setPayProfile: (payload) => req("/api/payroll/profile", { method: "POST", body: payload }),
   generatePayroll: (payload) => req("/api/payroll/generate", { method: "POST", body: payload }),
   listPayslips: () => req("/api/payroll"),
+  editPayslip: (id, body) => req(`/api/payroll/${id}`, { method: "PUT", body }),
   sendPayslip: (id) => req(`/api/payroll/${id}/send`, { method: "POST" }),
   async openPayslip(id) {
     const w = window.open("", "_blank");

@@ -551,6 +551,12 @@ try {
     const g2 = await call("POST", "/api/payroll/generate", { period: lateMonth, userId: lateU.id }, admin);
     ok("payslip carries the late fine", g2.body[0].fine_amount === 150 && g2.body[0].late_count === 3 && g2.body[0].net_payable === 29850, JSON.stringify(g2.body));
 
+    // payslip edit: incentive/arrears, loss of pay stays separate, PDF rebuilt
+    const ed = await call("PUT", `/api/payroll/${g.body[0].id}`, { incentive: 500, arrears: 250, info: { position: "Senior Exec" } }, admin);
+    ok("edited payslip recalculates net and keeps loss of pay", ed.status === 200 && ed.body.incentive === 500 && ed.body.arrears === 250 && ed.body.lop_amount === 1000 && ed.body.net_payable === 29750 && /Senior Exec/.test(ed.body.info_json), JSON.stringify(ed.body));
+    ok("edited payslip PDF exists", !!ed.body.pdf_path && (await import("node:fs")).existsSync(ed.body.pdf_path));
+    ok("staff cannot edit a payslip", (await call("PUT", `/api/payroll/${g.body[0].id}`, { incentive: 1 }, lvTok)).status === 403);
+
     // birthdays
     await call("PATCH", `/api/users/${lvTarget.id}`, { birthday: ymd(t0).slice(5) }, admin);
     const bd = await call("GET", "/api/leave/overview", null, admin);

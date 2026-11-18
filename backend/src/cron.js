@@ -9,16 +9,11 @@ import { autoMarkLeave } from "./routes/attendance.js";
 import { staffMessagesOn } from "./engage.js";
 import { sendEmail, isEmailConfigured, payslipCc } from "./email.js";
 import { syncChecklistSheet } from "./routes/shiftChecklist.js";
-import { generatePayslipPdf } from "./payslip-pdf.js";
+import { generatePayslipPdf, computeNet } from "./payslip-pdf.js";
 import { randomUUID } from "node:crypto";
 import { pullDashboard } from "./routes/clinicAi.js";
 import { runAutoMessages } from "./routes/autoMessages.js";
 
-function computeNet(p) {
-  const earnings = (p.basic_salary || 0) + (p.leave_bonus || 0) + (p.overtime || 0) + (p.other_allowances || 0);
-  const deductions = (p.pf || 0) + (p.tds || 0) + (p.other_deductions || 0) + (p.retention || 0);
-  return earnings - deductions;
-}
 
 /**
  * Generates and emails this month's payslip for every employee with a pay
@@ -42,11 +37,11 @@ export async function runMonthlyPayroll() {
     const id = randomUUID();
     db.prepare(
       `INSERT OR REPLACE INTO payslips
-       (id, user_id, company_id, pay_period, pay_date, basic_salary, leave_bonus, overtime, other_allowances, pf, tds, other_deductions, retention, net_payable)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (id, user_id, company_id, pay_period, pay_date, basic_salary, leave_bonus, overtime, other_allowances, pf, tds, other_deductions, retention, net_payable, incentive, arrears)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(id, user.id, company.id, period, payDate,
       profile.basic_salary, profile.leave_bonus, profile.overtime, profile.other_allowances,
-      profile.pf, profile.tds, profile.other_deductions, profile.retention, netPayable);
+      profile.pf, profile.tds, profile.other_deductions, profile.retention, netPayable, profile.incentive || 0, profile.arrears || 0);
 
     stampPayslip(id, profile);
     const payslip = db.prepare("SELECT * FROM payslips WHERE id = ?").get(id);

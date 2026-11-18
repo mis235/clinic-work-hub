@@ -352,6 +352,11 @@ function ensureColumn(table, column, ddl) {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
   if (!cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
 }
+ensureColumn("pay_profiles", "incentive", "incentive REAL DEFAULT 0");
+ensureColumn("pay_profiles", "arrears", "arrears REAL DEFAULT 0");
+ensureColumn("payslips", "incentive", "incentive REAL DEFAULT 0");
+ensureColumn("payslips", "arrears", "arrears REAL DEFAULT 0");
+ensureColumn("payslips", "info_json", "info_json TEXT");
 ensureColumn("pay_profiles", "pay_type", "pay_type TEXT");            // monthly | daily | hourly
 ensureColumn("pay_profiles", "pay_rate", "pay_rate REAL");            // amount per month / day / hour (to match pay_type)
 ensureColumn("pay_profiles", "bank_name", "bank_name TEXT");

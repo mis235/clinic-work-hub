@@ -22,6 +22,9 @@ export default function PayrollPage({ user, onLogout, onBack }) {
     api.listRosterFull().then(setRoster).catch(() => setRoster([]));
   }, []);
 
+  const [slips, setSlips] = useState(null), [slipEdit, setSlipEdit] = useState(null);
+  const loadSlips = () => api.listPayslips().then(setSlips).catch(() => setSlips([]));
+  useEffect(() => { loadSlips(); }, []);
   function flash(msg) { setToast(msg); setTimeout(() => setToast(null), 3500); }
 
   async function generateFor(userId) {
@@ -91,6 +94,22 @@ export default function PayrollPage({ user, onLogout, onBack }) {
           </div>
         ))}
 
+        <div className="section-head" style={{ marginTop: 24 }}><h2 style={{ fontSize: 15 }}>Generated payslips</h2></div>
+        {slips === null && <div className="empty">Loading…</div>}
+        {slips?.length === 0 && <div className="empty">No payslips yet. Use "Send payslip" above.</div>}
+        {slips?.slice(0, 40).map((s) => (
+          <div key={s.id} className="card">
+            <div className="card-head"><div><span className="name">{s.user_name}</span><span className="dept">{s.pay_period} · {s.company_name}</span></div>
+              <span className="phone">Net ₹{Number(s.net_payable || 0).toLocaleString("en-IN")} · {s.emailed_at ? "emailed" : "not emailed"}</span></div>
+            <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => setSlipEdit(s)}>Edit</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => api.openPayslip(s.id).catch((e) => flash(e.message))}>View PDF</button>
+              <button className="btn-wa btn-sm" onClick={async () => { try { const r = await api.sendPayslip(s.id); flash(`Emailed to ${r.to}, copy to accounts and COO.`); loadSlips(); } catch (e) { flash(e.message); } }}>Send to staff</button>
+            </div>
+          </div>
+        ))}
+        {slipEdit && <SlipEditor slip={slipEdit} onClose={() => setSlipEdit(null)} onSaved={() => { setSlipEdit(null); loadSlips(); flash("Payslip saved. PDF rebuilt. Press Send to staff to email it."); }} />}
+
         {toast && <div className="toast">{toast}</div>}
         {(showForm || editing) && (
           <ProfileForm
@@ -115,12 +134,12 @@ function ProfileForm({ roster, companies, initial, onClose, onSave }) {
   useEffect(() => { if (!companyId && companies[0]) setCompanyId(companies[0].id); }, [companies]);
   const [f, setF] = useState({
     employeeCode: i.employee_code || "", position: i.position || "", pan: i.pan || "",
-    basicSalary: i.basic_salary ?? "", leaveBonus: i.leave_bonus ?? 0, overtime: i.overtime ?? 0, otherAllowances: i.other_allowances ?? 0,
+    basicSalary: i.basic_salary ?? "", leaveBonus: i.leave_bonus ?? 0, overtime: i.overtime ?? 0, otherAllowances: i.other_allowances ?? 0, incentive: i.incentive ?? 0, arrears: i.arrears ?? 0,
     pf: i.pf ?? 0, tds: i.tds ?? 0, otherDeductions: i.other_deductions ?? 0, retention: i.retention ?? 0,
   });
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
   const num = (k, label) => (<div><label className="field-label">{label}</label><input className="field" type="number" value={f[k]} onChange={set(k)} /></div>);
-  const gross = ["basicSalary", "leaveBonus", "overtime", "otherAllowances"].reduce((a, k) => a + Number(f[k] || 0), 0);
+  const gross = ["basicSalary", "leaveBonus", "overtime", "otherAllowances", "incentive", "arrears"].reduce((a, k) => a + Number(f[k] || 0), 0);
   const ded = ["pf", "tds", "otherDeductions", "retention"].reduce((a, k) => a + Number(f[k] || 0), 0);
 
   return (
@@ -137,7 +156,7 @@ function ProfileForm({ roster, companies, initial, onClose, onSave }) {
           <div><label className="field-label">PAN</label><input className="field" value={f.pan} onChange={set("pan")} /></div>
         </div>
         <div className="step-label" style={{ marginTop: 16 }}>Monthly Earnings</div>
-        <div className="form-grid">{num("basicSalary", "Basic salary")}{num("leaveBonus", "Leave bonus")}{num("overtime", "Overtime")}{num("otherAllowances", "Other allowances")}</div>
+        <div className="form-grid">{num("basicSalary", "Basic salary")}{num("leaveBonus", "Leave bonus")}{num("overtime", "Overtime")}{num("otherAllowances", "Other allowances")}{num("incentive", "Incentive")}{num("arrears", "Arrears")}</div>
         <div className="step-label" style={{ marginTop: 16 }}>Monthly Deductions</div>
         <div className="form-grid">{num("pf", "PF")}{num("tds", "TDS")}{num("otherDeductions", "Other deductions")}{num("retention", "Retention")}</div>
         <p className="lead" style={{ marginTop: 12 }}>Net payable: <strong>₹{(gross - ded).toLocaleString("en-IN")}</strong></p>
@@ -148,6 +167,44 @@ function ProfileForm({ roster, companies, initial, onClose, onSave }) {
             onClose();
           }}>Save</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SlipEditor({ slip, onClose, onSaved }) {
+  const pharm = /shanta|pharmacy/i.test(slip.company_name || "");
+  let info = {}; try { info = JSON.parse(slip.info_json || "{}"); } catch { /* ignore */ }
+  const lop = Number(slip.lop_amount || 0);
+  const [f, setF] = useState({
+    basic_salary: slip.basic_salary || 0, leave_bonus: slip.leave_bonus || 0, overtime: slip.overtime || 0,
+    ...(pharm ? { other_allowances: slip.other_allowances || 0 } : { incentive: slip.incentive || 0, arrears: slip.arrears || 0 }),
+    pf: slip.pf || 0, tds: slip.tds || 0, other_deductions: Math.max(0, (slip.other_deductions || 0) - lop), lop_amount: lop, retention: slip.retention || 0,
+  });
+  const [d, setD] = useState({ position: info.position || "", pan: info.pan || "", employeeCode: info.employeeCode || "", payDate: info.payDate || "" });
+  const [err, setErr] = useState(""), [busy, setBusy] = useState(false);
+  const L = { basic_salary: "Basic Salary", leave_bonus: "Leave Bonus", overtime: "Over Time", other_allowances: "Other Allowances", incentive: "Incentive", arrears: "Arrears", pf: "PF", tds: "TDS", other_deductions: "Other deductions", lop_amount: "Loss of pay", retention: "Retention" };
+  const earn = Object.keys(f).filter((k) => !["pf", "tds", "other_deductions", "lop_amount", "retention"].includes(k));
+  const net = earn.reduce((a, k) => a + Number(f[k] || 0), 0) - ["pf", "tds", "other_deductions", "lop_amount", "retention"].reduce((a, k) => a + Number(f[k] || 0), 0);
+  async function save() {
+    setBusy(true); setErr("");
+    try { const info = {}; for (const [k, v] of Object.entries(d)) if (v) info[k] = v; await api.editPayslip(slip.id, { ...f, info }); onSaved(); } catch (e) { setErr(e.message); setBusy(false); }
+  }
+  const box = (k) => (<div key={k}><label className="field-label">{L[k]}</label><input className="field" type="number" min="0" value={f[k]} onChange={(e) => setF((x) => ({ ...x, [k]: e.target.value }))} /></div>);
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal wide" onClick={(e) => e.stopPropagation()}>
+        <h3>Edit payslip — {slip.user_name} — {slip.pay_period}</h3>
+        <div className="form-grid">
+          {[["position", "Position"], ["pan", "PAN"], ["employeeCode", "Employee ID"], ["payDate", "Pay Date (DD.MM.YYYY)"]].map(([k, l]) => <div key={k}><label className="field-label">{l}</label><input className="field" value={d[k]} placeholder="leave blank to keep" onChange={(e) => setD((x) => ({ ...x, [k]: e.target.value }))} /></div>)}
+        </div>
+        <label className="field-label" style={{ marginTop: 10 }}>Earnings</label>
+        <div className="form-grid">{earn.map(box)}</div>
+        <label className="field-label" style={{ marginTop: 10 }}>Deductions</label>
+        <div className="form-grid">{["pf", "tds", "other_deductions", "lop_amount", "retention"].map(box)}</div>
+        <p><b>Net Payable: ₹{net.toLocaleString("en-IN")}</b></p>
+        {err && <div className="error">{err}</div>}
+        <div className="modal-actions"><button className="btn btn-ghost" onClick={onClose}>Cancel</button><button className="btn btn-primary" disabled={busy} onClick={save}>Save and rebuild PDF</button></div>
       </div>
     </div>
   );

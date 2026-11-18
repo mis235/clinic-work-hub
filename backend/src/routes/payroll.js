@@ -5,7 +5,7 @@ import db from "../db.js";
 import { withFines } from "./fines.js";
 import { stampPayslip } from "./leave.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
-import { generatePayslipPdf } from "../payslip-pdf.js";
+import { generatePayslipPdf, computeNet } from "../payslip-pdf.js";
 import { sendEmail, isEmailConfigured, payslipCc, friendlyMailError } from "../email.js";
 import { accessFor } from "../access.js";
 
@@ -27,18 +27,18 @@ router.get("/profile/:userId", requireAuth, (req, res) => {
 
 // POST /api/payroll/profile — admin sets/updates a user's recurring pay structure
 router.post("/profile", requireAuth, requirePermission("payroll:manage"), (req, res) => {
-  const { userId, companyId, employeeCode, position, pan, basicSalary, leaveBonus, overtime, otherAllowances, pf, tds, otherDeductions, retention } = req.body || {};
+  const { userId, companyId, employeeCode, position, pan, basicSalary, leaveBonus, overtime, otherAllowances, pf, tds, otherDeductions, retention, incentive, arrears } = req.body || {};
   if (!userId || !companyId) return res.status(400).json({ error: "userId and companyId are required" });
   db.prepare(
-    `INSERT INTO pay_profiles (user_id, company_id, employee_code, position, pan, basic_salary, leave_bonus, overtime, other_allowances, pf, tds, other_deductions, retention, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    `INSERT INTO pay_profiles (user_id, company_id, employee_code, position, pan, basic_salary, leave_bonus, overtime, other_allowances, pf, tds, other_deductions, retention, incentive, arrears, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
      ON CONFLICT(user_id) DO UPDATE SET
        company_id=excluded.company_id, employee_code=excluded.employee_code, position=excluded.position, pan=excluded.pan,
        basic_salary=excluded.basic_salary, leave_bonus=excluded.leave_bonus, overtime=excluded.overtime,
        other_allowances=excluded.other_allowances, pf=excluded.pf, tds=excluded.tds,
-       other_deductions=excluded.other_deductions, retention=excluded.retention, updated_at=datetime('now')`
+       other_deductions=excluded.other_deductions, retention=excluded.retention, incentive=excluded.incentive, arrears=excluded.arrears, updated_at=datetime('now')`
   ).run(userId, companyId, employeeCode || null, position || null, pan || null,
-    basicSalary || 0, leaveBonus || 0, overtime || 0, otherAllowances || 0, pf || 0, tds || 0, otherDeductions || 0, retention || 0);
+    basicSalary || 0, leaveBonus || 0, overtime || 0, otherAllowances || 0, pf || 0, tds || 0, otherDeductions || 0, retention || 0, incentive || 0, arrears || 0);
   res.json({ ok: true });
 });
 
@@ -72,11 +72,6 @@ router.get("/profiles", requireAuth, requirePermission("payroll:manage"), (req, 
   res.json(rows);
 });
 
-function computeNet(p) {
-  const earnings = (p.basic_salary || 0) + (p.leave_bonus || 0) + (p.overtime || 0) + (p.other_allowances || 0);
-  const deductions = (p.pf || 0) + (p.tds || 0) + (p.other_deductions || 0) + (p.retention || 0);
-  return earnings - deductions;
-}
 
 async function generateOneSlip({ profile: baseProfile, period, payDate, adminUserId, sendNow }) {
   const profile = withFines(baseProfile, period); // this month's fines come off the payslip
@@ -87,11 +82,11 @@ async function generateOneSlip({ profile: baseProfile, period, payDate, adminUse
 
   db.prepare(
     `INSERT OR REPLACE INTO payslips
-     (id, user_id, company_id, pay_period, pay_date, basic_salary, leave_bonus, overtime, other_allowances, pf, tds, other_deductions, retention, net_payable)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     (id, user_id, company_id, pay_period, pay_date, basic_salary, leave_bonus, overtime, other_allowances, pf, tds, other_deductions, retention, net_payable, incentive, arrears)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(id, user.id, company.id, period, payDate,
     profile.basic_salary, profile.leave_bonus, profile.overtime, profile.other_allowances,
-    profile.pf, profile.tds, profile.other_deductions, profile.retention, netPayable);
+    profile.pf, profile.tds, profile.other_deductions, profile.retention, netPayable, profile.incentive || 0, profile.arrears || 0);
 
   stampPayslip(id, profile);
   const payslip = db.prepare("SELECT * FROM payslips WHERE id = ?").get(id);
@@ -157,6 +152,31 @@ router.post("/:id/send", requireAuth, requirePermission("payroll:manage"), async
     db.prepare("UPDATE payslips SET emailed_at = datetime('now'), email_error = NULL WHERE id = ?").run(slip.id);
     res.json({ ok: true, to: user.email });
   } catch (err) { db.prepare("UPDATE payslips SET email_error = ? WHERE id = ?").run(friendlyMailError(err), slip.id); res.status(502).json({ error: friendlyMailError(err) }); }
+});
+
+// PUT /api/payroll/:id — edit a generated payslip (amounts and the details printed on it), rebuild the PDF. Admin / payroll only.
+const NUM = ["basic_salary", "leave_bonus", "overtime", "other_allowances", "incentive", "arrears", "pf", "tds", "retention"];
+router.put("/:id", requireAuth, requirePermission("payroll:manage"), (req, res) => {
+  const slip = db.prepare("SELECT * FROM payslips WHERE id = ?").get(req.params.id);
+  if (!slip) return res.status(404).json({ error: "Payslip not found" });
+  const b = req.body || {}, next = { ...slip };
+  for (const k of NUM) if (b[k] !== undefined) { const v = Number(b[k] === "" ? 0 : b[k]); if (!Number.isFinite(v) || v < 0) return res.status(400).json({ error: `${k.replace(/_/g, " ")} must be a number` }); next[k] = v; }
+  if (b.lop_amount !== undefined || b.other_deductions !== undefined) {
+    const lop = Number(b.lop_amount ?? slip.lop_amount ?? 0), oth = Number(b.other_deductions ?? Math.max(0, (slip.other_deductions || 0) - (slip.lop_amount || 0)));
+    if (![lop, oth].every((v) => Number.isFinite(v) && v >= 0)) return res.status(400).json({ error: "Deductions must be numbers" });
+    next.lop_amount = lop; next.other_deductions = oth + lop;
+  }
+  let info = {}; try { info = JSON.parse(slip.info_json || "{}"); } catch { /* ignore */ }
+  for (const k of ["name", "employeeCode", "position", "pan", "joinedAt", "phone", "payDate", "payPeriod", "title"]) if (typeof b.info?.[k] === "string") info[k] = b.info[k].trim().slice(0, 120);
+  next.net_payable = computeNet(next);
+  db.prepare(`UPDATE payslips SET ${NUM.map((k) => `${k}=?`).join(", ")}, other_deductions=?, lop_amount=?, net_payable=?, info_json=?, emailed_at=NULL WHERE id=?`)
+    .run(...NUM.map((k) => next[k] || 0), next.other_deductions || 0, next.lop_amount || 0, next.net_payable, JSON.stringify(info), slip.id);
+  const fresh = db.prepare("SELECT * FROM payslips WHERE id = ?").get(slip.id);
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(fresh.user_id), company = db.prepare("SELECT * FROM companies WHERE id = ?").get(fresh.company_id);
+  const prof = db.prepare("SELECT * FROM pay_profiles WHERE user_id = ?").get(fresh.user_id) || {};
+  const pdfPath = generatePayslipPdf({ company, employee: { name: user.name, employeeCode: prof.employee_code, position: prof.position, pan: prof.pan, phone: user.phone, joinedAt: user.joined_at }, payslip: fresh });
+  db.prepare("UPDATE payslips SET pdf_path = ? WHERE id = ?").run(pdfPath, slip.id);
+  res.json(db.prepare("SELECT * FROM payslips WHERE id = ?").get(slip.id));
 });
 
 // GET /api/payroll — own payslips, or all with payroll:view_all
