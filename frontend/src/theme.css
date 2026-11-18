@@ -1290,3 +1290,25 @@ html[data-theme="peach"] .bell-panel .bell-head b { color: #5A3A33; }
 /* the title is already in the top bar: do not repeat it on each page */
 .page-head > div:first-child > h1, .page-head > div:first-child > .eyebrow { display: none; }
 .page-head.row { justify-content: flex-end; }
+
+/* Face check-in screen (the clinic phone) */
+.kiosk { min-height: 100vh; display: flex; justify-content: center; padding: 18px; background: linear-gradient(160deg, #CDB8EE, #E9DEFA 55%, #FBE3EE); font-family: Poppins, system-ui, sans-serif; color: #3B2A5A; }
+html[data-theme="peach"] .kiosk { background: linear-gradient(160deg, #FFC7B5, #FFE3D6 55%, #CFF0E2); }
+.kiosk-frame { width: min(100%, 460px); display: flex; flex-direction: column; align-items: center; gap: 12px; position: relative; }
+.kiosk-top { width: 100%; display: flex; align-items: center; justify-content: space-between; background: #fff; border-radius: 26px; padding: 12px 18px; box-shadow: var(--clay-shadow, 0 10px 26px rgba(110,80,190,.18)); }
+.kiosk-top img { height: 38px; }
+.kiosk-clock { text-align: right; line-height: 1.2; } .kiosk-clock b { display: block; font-size: 26px; font-weight: 700; } .kiosk-clock span { font-size: 12.5px; color: #7A6A9A; }
+.kiosk-girl { width: 220px; height: 178px; margin: -2px 0 -8px; overflow: hidden; position: relative; z-index: 2; pointer-events: none; -webkit-mask-image: linear-gradient(to bottom, #000 80%, transparent); mask-image: linear-gradient(to bottom, #000 80%, transparent); }
+.kiosk-girl .doll { width: 220px !important; height: 260px !important; }
+.kiosk-girl .doll img.tall, .kiosk-girl .doll img.fit { object-fit: contain; object-position: center top; height: 100%; width: 100%; }
+.kiosk-cam { position: relative; width: 100%; aspect-ratio: 3 / 4; border-radius: 34px; overflow: hidden; background: #2A1B3D; border: 6px solid #fff; box-shadow: 0 18px 40px rgba(90,60,160,.28); transition: box-shadow .3s; }
+.kiosk-cam video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+.kc { position: absolute; width: 46px; height: 46px; border: 5px solid #fff; opacity: .95; } .kc.c1 { top: 18px; left: 18px; border-right: 0; border-bottom: 0; border-top-left-radius: 20px; } .kc.c2 { top: 18px; right: 18px; border-left: 0; border-bottom: 0; border-top-right-radius: 20px; } .kc.c3 { bottom: 18px; left: 18px; border-right: 0; border-top: 0; border-bottom-left-radius: 20px; } .kc.c4 { bottom: 18px; right: 18px; border-left: 0; border-top: 0; border-bottom-right-radius: 20px; }
+.kscan { position: absolute; left: 12%; right: 12%; height: 3px; border-radius: 3px; background: linear-gradient(90deg, transparent, #fff, transparent); box-shadow: 0 0 14px #fff; animation: kscan 2.4s ease-in-out infinite; }
+@keyframes kscan { 0%, 100% { top: 14%; } 50% { top: 84%; } }
+.k-ok .kiosk-cam { box-shadow: 0 0 0 8px #7DCB9F, 0 18px 40px rgba(60,160,110,.35); } .k-ok .kc { border-color: #7DCB9F; }
+.k-bad .kiosk-cam { box-shadow: 0 0 0 8px #FF8FA5, 0 18px 40px rgba(220,80,110,.3); } .k-bad .kc { border-color: #FF8FA5; }
+.kiosk-msg { text-align: center; background: #fff; border-radius: 24px; width: 100%; padding: 14px 18px; box-shadow: var(--clay-shadow, 0 10px 26px rgba(110,80,190,.18)); }
+.kiosk-msg h2 { margin: 0; font-size: 24px; font-weight: 700; } .kiosk-msg p { margin: 4px 0 0; color: #7A6A9A; font-size: 14px; }
+.k-ok .kiosk-msg h2 { color: #1E9C68; } .k-bad .kiosk-msg h2 { color: #D14A6A; }
+.kiosk-install { text-align: center; } .kiosk-install button { all: unset; cursor: pointer; background: var(--primary, #9472C8); color: #fff; border-radius: 99px; padding: 11px 22px; font-weight: 700; font-size: 14px; box-shadow: 0 8px 18px rgba(110,80,190,.3); } .kiosk-install p { font-size: 13px; color: #6B5A8A; max-width: 320px; margin: 8px auto 0; }

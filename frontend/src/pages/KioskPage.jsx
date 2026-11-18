@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import Lumi from "../components/Lumi.jsx";
+import Doll from "../components/Doll.jsx";
 import { kioskApi } from "../api.js";
 import { faceDescriptor, startCamera, cameraHelp, loadFace, snapshotJpeg } from "../face.js";
 
@@ -31,6 +31,8 @@ export default function KioskPage() {
     // The setup link carries the phone's key once (#key=...). Save it and remove it from the address bar.
     const m = /key=([^&]+)/.exec(window.location.hash);
     if (m) { try { localStorage.setItem("kioskKey", decodeURIComponent(m[1])); } catch {} history.replaceState(null, "", "/kiosk"); }
+    const demo = /demo=(\w+)/.exec(window.location.hash)?.[1]; // #demo=look|check|in|out|fail|error shows a screen without the camera
+    if (demo) { const D = { look: { phase: "look", text: "Look at the camera" }, check: { phase: "check", text: "Checking…" }, in: { phase: "result", ok: true, text: "Welcome, Monika", sub: "Logged in 09:42 AM" }, out: { phase: "result", ok: true, text: "Goodbye, Monika", sub: "Logged out 06:31 PM · worked 8h 49m" }, fail: { phase: "result", ok: false, text: "Face not recognised", sub: "Face the light and look straight at the camera." }, error: { phase: "error", text: "Camera is blocked. Allow the camera and try again." } }; setState(D[demo] || D.look); return; }
     let dead = false, stop = null, last = { id: "", at: 0 };
     (async () => {
       try {
@@ -64,27 +66,31 @@ export default function KioskPage() {
     return () => { dead = true; stop?.(); };
   }, []);
 
-  const mood = state.phase === "result" ? (state.ok ? "cheer" : "sorry") : state.phase === "error" ? "sorry" : state.phase === "check" ? "think" : "wave";
-  const color = state.phase === "result" ? (state.ok ? "#12a56f" : "#d64545") : state.phase === "error" ? "#d64545" : "#fff";
+  const out = state.ok && /^Goodbye|logged out/i.test(state.text || "");
+  const mood = state.phase === "result" ? (state.ok ? (out ? "closing" : "celebrate") : "error") : state.phase === "error" ? "worried" : state.phase === "check" ? "idea" : "hello";
+  const tone = state.phase === "result" ? (state.ok ? "ok" : "bad") : state.phase === "error" ? "bad" : state.phase === "check" ? "wait" : "look";
   return (
-    <div style={{ minHeight: "100vh", background: "#2a1b3d", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", padding: 20, gap: 14, fontFamily: "system-ui, sans-serif" }}>
-      <img src="/logo.png" alt="" style={{ height: 44, marginTop: 6 }} />
-      <div style={{ fontSize: 15, opacity: .8 }}>Dr. Nishita's Clinic · Attendance</div>
-      <div style={{ fontSize: 44, fontWeight: 800, letterSpacing: "-0.02em" }}>{clock.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })}</div>
-      <div style={{ opacity: .7, marginTop: -8 }}>{clock.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}</div>
-      {state.phase === "result" && state.ok && <div className="lumi-confetti" aria-hidden>{Array.from({ length: 28 }, (_, i) => <i key={i} style={{ left: `${(i * 37) % 100}%`, background: ["#0B6B63", "#E2B84F", "#7FE0D2", "#F29AA6"][i % 4], animationDelay: `${(i % 7) * 0.12}s` }} />)}</div>}
-      <Lumi mood={mood} size={96} />
-      <div style={{ position: "relative", width: "min(92vw, 420px)", aspectRatio: "3/4", borderRadius: 28, overflow: "hidden", border: `4px solid ${color}`, background: "#000" }}>
-        <video ref={video} playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)" }} />
-      </div>
-      <div style={{ fontSize: 24, fontWeight: 700, color, textAlign: "center" }}>{state.text}</div>
-      {state.sub && <div style={{ opacity: .85, textAlign: "center" }}>{state.sub}</div>}
-      {!standalone && (
-        <div style={{ textAlign: "center", marginTop: 6 }}>
-          <button onClick={install} style={{ background: "#C42F8F", color: "#fff", border: 0, borderRadius: 999, padding: "12px 22px", fontSize: 16, fontWeight: 700 }}>Install Check-in app</button>
-          {showHow && <div style={{ marginTop: 10, opacity: .9, maxWidth: 320, fontSize: 14 }}>Tap the 3 dots (⋮) at the top right of Chrome, then tap “Add to Home screen” and “Install”. On iPhone: tap Share, then “Add to Home Screen”.</div>}
+    <div className={`kiosk k-${tone}`}>
+      <div className="kiosk-frame">
+        <header className="kiosk-top">
+          <img src="/logo.png" alt="" />
+          <div className="kiosk-clock"><b>{clock.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })}</b><span>{clock.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}</span></div>
+        </header>
+        <div className="kiosk-girl"><Doll mood={mood} size={200} follow={false} /></div>
+        <div className="kiosk-cam">
+          <video ref={video} playsInline muted />
+          <i className="kc c1" /><i className="kc c2" /><i className="kc c3" /><i className="kc c4" />
+          {tone === "look" && <span className="kscan" />}
         </div>
-      )}
+        {state.phase === "result" && state.ok && <div className="lumi-confetti" aria-hidden>{Array.from({ length: 28 }, (_, i) => <i key={i} style={{ left: `${(i * 37) % 100}%`, background: ["#9472C8", "#FF9B7A", "#7DCB9F", "#F7C85C", "#FF6B8B"][i % 5], animationDelay: `${(i % 7) * 0.12}s` }} />)}</div>}
+        <div className="kiosk-msg"><h2>{state.text}</h2>{state.sub && <p>{state.sub}</p>}</div>
+        {!standalone && (
+          <div className="kiosk-install">
+            <button onClick={install}>Install Check-in app</button>
+            {showHow && <p>Tap the 3 dots at the top right of Chrome, then “Add to Home screen” and “Install”. On iPhone: tap Share, then “Add to Home Screen”.</p>}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
