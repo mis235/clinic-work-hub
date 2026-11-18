@@ -1,19 +1,32 @@
 import { useEffect, useRef, useState } from "react";
 import ClinicMate, { lookFor } from "./ClinicMate.jsx";
 
-// The assistant. One picture (public/hero-girl.webp) is moved in layers: she breathes, her head follows the pointer,
-// and each state adds its own motion and a small bubble. The face itself does not change (see the note in the README of this change).
-// States: idle, welcome, happy, thinking, working, success, closing, notify, error, sleepy, goodbye.
+// The assistant. Each state shows its own picture of her (public/dolls), swapped with a soft fade, and moves a little on top.
+// Her head also turns toward the pointer. The pictures are stills, so the face changes come from swapping pictures.
 export const doll = (state, ms = 2800) => window.dispatchEvent(new CustomEvent("doll", { detail: { state, ms } }));
 
-const BUBBLE = { welcome: "Hi!", thinking: "…", notify: "!", error: "?", goodbye: "Bye!", success: "Yay!", closing: "Done!", sleepy: "z z z" };
-const SPARK = ["success", "closing", "happy"];
-const MATE = { welcome: "wave", goodbye: "wave", happy: "happy", success: "celebrate", closing: "celebrate", thinking: "think", error: "think", sleepy: "calm", notify: "wink" };
+const D = "/dolls/";
+const IMG = {
+  idle: "/hero-girl.webp",
+  welcome: D + "s-welcome.webp", happy: D + "s-happy.webp", excited: D + "s-excited.webp",
+  thinking: D + "think.webp", working: D + "laptop.webp", music: D + "music.webp",
+  success: D + "s-success.webp", closing: D + "wave.webp", goodbye: D + "wave.webp",
+  celebrate: D + "celebrate.webp", birthday: D + "s-celebrating.webp",
+  notify: D + "s-surprised.webp", error: D + "s-confused.webp", sleepy: D + "s-sleepy.webp",
+  tired: D + "s-tired.webp", idea: D + "s-idea.webp", worried: D + "s-worried.webp", sick: D + "s-sick.webp", hungry: D + "s-hungry.webp", angry: D + "s-angry.webp",
+};
+const TALL = new Set([D + "think.webp", D + "laptop.webp", D + "music.webp", D + "wave.webp", D + "celebrate.webp"]); // full-body: show head and body
+const BUBBLE = { welcome: "Hi!", goodbye: "Bye!", closing: "Done!" };
+const SPARK = { success: 6, closing: 6, celebrate: 14, birthday: 14, excited: 6 };
+const MATE = { welcome: "wave", goodbye: "wave", happy: "happy", success: "celebrate", closing: "celebrate", celebrate: "celebrate", thinking: "think", error: "think", sleepy: "calm", notify: "wink" };
 const reduced = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+let warmed = false;
+const warm = () => { if (warmed) return; warmed = true; const go = () => Object.values(IMG).forEach((u) => { const i = new Image(); i.src = u; }); (window.requestIdleCallback || ((f) => setTimeout(f, 1500)))(go); };
 
 export default function Doll({ size = 210, mood = "idle", follow = true, className = "", userId }) {
   const [temp, setTemp] = useState(null), [ok, setOk] = useState(true), wrap = useRef(null), tilt = useRef(null);
-  const state = temp || mood;
+  const state = temp || mood, src = IMG[state] || IMG.idle, tall = TALL.has(src);
+  useEffect(warm, []);
 
   useEffect(() => { // a short reaction to something that happened, then back to rest
     let t; const f = (e) => { const { state: s, ms = 2800 } = e.detail || {}; if (!s) return; setTemp(s); clearTimeout(t); t = setTimeout(() => setTemp(null), ms); };
@@ -36,12 +49,14 @@ export default function Doll({ size = 210, mood = "idle", follow = true, classNa
 
   if (!ok) return <ClinicMate look={lookFor(userId)} mood={MATE[state] || "happy"} size={Math.round(size * 0.7)} className={className} />;
   return (
-    <div ref={wrap} className={`doll s-${state} ${className}`} style={{ width: size }}>
+    <div ref={wrap} className={`doll s-${state} ${className}`} style={{ width: size, height: Math.round(size * 0.92) }}>
       <div className="doll-tilt" ref={tilt}>
-        <img src="/hero-girl.webp" alt="" loading="lazy" decoding="async" draggable="false" onError={() => setOk(false)} />
+        <div className="doll-swap" key={src}>
+          <img src={src} alt="" decoding="async" draggable="false" className={tall ? "tall" : "fit"} onError={() => setOk(false)} />
+        </div>
       </div>
       {BUBBLE[state] && <span key={state} className={`doll-bubble b-${state}`}>{BUBBLE[state]}</span>}
-      {SPARK.includes(state) && <span key={"sp" + state} className="doll-sparks" aria-hidden="true">{[0, 1, 2, 3, 4, 5].map((i) => <i key={i} style={{ "--i": i }} />)}</span>}
+      {SPARK[state] && <span key={"sp" + state} className={`doll-sparks n${SPARK[state]}`} aria-hidden="true">{Array.from({ length: SPARK[state] }, (_, i) => <i key={i} style={{ "--i": i }} />)}</span>}
     </div>
   );
 }

@@ -1131,7 +1131,7 @@ body { background: linear-gradient(135deg, #D6CAF5 0%, #ECE4FB 48%, #D9CCF6 100%
 /* ---------- the doll ---------- */
 .doll { position: relative; display: block; flex: none; }
 .doll-tilt { transition: transform .25s ease-out; will-change: transform; transform-origin: 50% 85%; }
-.doll img { width: 100%; height: auto; display: block; user-select: none; -webkit-user-drag: none; filter: drop-shadow(0 16px 14px rgba(70, 45, 150, .28)); animation: doll-breathe 4.2s ease-in-out infinite; transform-origin: 50% 100%; }
+.doll img { width: 100%; height: 100%; display: block; user-select: none; -webkit-user-drag: none; filter: drop-shadow(0 16px 14px rgba(70, 45, 150, .28)); animation: doll-breathe 4.2s ease-in-out infinite; transform-origin: 50% 100%; }
 .hero .doll.hero-lumi { position: static; margin: 0 0 -10px; align-self: flex-end; }
 .s-happy img { animation: doll-bounce .9s ease-in-out 3; }
 .s-welcome img { animation: doll-greet 1.2s ease-in-out infinite; }
@@ -1179,32 +1179,10 @@ body { background: linear-gradient(135deg, #D6CAF5 0%, #ECE4FB 48%, #D9CCF6 100%
   .kpi:hover, .dw-card:hover { transform: none; }
 }
 
-/* ---------- poses ---------- */
-.pz { display: block; overflow: visible; }
-.pz-eye { animation: pz-blink 4.6s infinite; }
-@keyframes pz-blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.08); } }
-.pz-body { animation: pz-breathe 4s ease-in-out infinite; transform-origin: 120px 270px; }
-@keyframes pz-breathe { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-3px) scale(1.008); } }
-.pz-walk .pz-body { animation: pz-bob .8s ease-in-out infinite; }
-@keyframes pz-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-.pz-walk .pz-legL, .pz-walk .pz-armR { animation: pz-swing .8s ease-in-out infinite; }
-.pz-walk .pz-legR, .pz-walk .pz-armL { animation: pz-swing .8s ease-in-out infinite reverse; }
-@keyframes pz-swing { 0%, 100% { transform: rotate(-22deg); } 50% { transform: rotate(22deg); } }
-.pz-music .pz-head { animation: pz-sway 1.6s ease-in-out infinite; }
-@keyframes pz-sway { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
-.pz-notes text { animation: pz-note 2.4s ease-in-out infinite; }
-.pz-notes text:nth-child(2) { animation-delay: .8s; } .pz-notes text:nth-child(3) { animation-delay: 1.6s; }
-@keyframes pz-note { 0% { opacity: 0; transform: translateY(14px); } 30%, 70% { opacity: 1; } 100% { opacity: 0; transform: translateY(-16px); } }
-.pz-laptop .pz-typeL { animation: pz-type .5s ease-in-out infinite; } .pz-laptop .pz-typeR { animation: pz-type .5s ease-in-out infinite .25s; }
-@keyframes pz-type { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(4px); } }
-.pz-laptop .pz-head { animation: pz-nod 2.8s ease-in-out infinite; }
-@keyframes pz-nod { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(2deg) translateY(2px); } }
 .pose-empty { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px; color: var(--ink-soft); }
-.strip .pz { margin: -16px 0 -26px; }
-@media (prefers-reduced-motion: reduce) { .pz *, .pz { animation: none !important; } }
+.strip .doll { margin: -16px 0 -22px; }
 
 /* ---------- colour themes ---------- */
-:root { --pz-hood: #B58DEA; --pz-hood-d: #9A70D6; --pz-hood-l: #C6A3F2; --pz-phones: #C3A6F0; }
 .theme-dots { display: flex; gap: 6px; padding: 5px; border-radius: 999px; background: rgba(255,255,255,.7); box-shadow: var(--clay-shadow), var(--clay-inset); }
 .theme-dots button { all: unset; cursor: pointer; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 3px 8px rgba(80,55,160,.25); transition: transform .2s cubic-bezier(.3,1.5,.5,1); }
 .theme-dots button:hover { transform: scale(1.15); } .theme-dots button.on { outline: 2px solid var(--primary); outline-offset: 2px; }
@@ -1217,7 +1195,6 @@ html[data-theme="peach"] {
   --lilac: #FFE3D8; --line: #FFE3D8; --side-ink: #2F4A44;
   --clay-shadow: 0 22px 40px rgba(200, 120, 90, .18), 0 8px 14px rgba(200, 120, 90, .10), 0 1px 2px rgba(200, 120, 90, .08);
   --clay-inset: inset 0 3px 2px rgba(255,255,255,.95), inset 0 -6px 12px rgba(240, 160, 130, .14);
-  --pz-hood: #8FD3BC; --pz-hood-d: #6BB9A0; --pz-hood-l: #A9E3CF; --pz-phones: #F7B6C8;
 }
 html[data-theme="peach"] body { background: linear-gradient(135deg, #FFE2D3 0%, #FFF3EC 50%, #FFDCCB 100%) fixed; }
 html[data-theme="peach"] .sidebar { background: linear-gradient(180deg, #CDEDE0 0%, #9FD5C2 100%); box-shadow: 0 26px 50px rgba(60, 130, 110, .26), inset 0 2px 0 rgba(255,255,255,.6); }
@@ -1236,3 +1213,19 @@ html[data-theme="peach"] .kpi-ico.violet, html[data-theme="peach"] .kpi-ico.teal
 html[data-theme="peach"] .topbar-title, html[data-theme="peach"] .dw-title { color: #4A3A36; }
 html[data-theme="peach"] .bell-btn { color: #E0705D; } html[data-theme="peach"] .dw-pill, html[data-theme="peach"] .dw-link { color: #B8503F; }
 html[data-theme="peach"] .rp-thumb { background: linear-gradient(135deg, #FFDCCB, #CDEDE0); color: #B8503F; }
+
+/* ---------- doll pictures ---------- */
+.doll-swap { width: 100%; height: 100%; animation: doll-fade .4s ease both; }
+.doll img.tall { object-fit: cover; object-position: 50% 0; }
+.doll img.fit { object-fit: contain; object-position: 50% 100%; }
+@keyframes doll-fade { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: none; } }
+.s-celebrate img { animation: doll-bounce 1s ease-in-out infinite; }
+.s-celebrate .doll-sparks i, .s-birthday .doll-sparks i { animation-iteration-count: infinite; }
+.doll-sparks.n14 i { top: 20%; } .doll-sparks.n14 i:nth-child(n+8) { top: 30%; left: 58%; }
+.doll-sparks.n14 i { transform-origin: center; }
+@keyframes spark14 { 0% { opacity: 0; transform: translate(0, 0) scale(.4); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(calc((var(--i) - 6.5) * 20px), -60px) rotate(180deg) scale(1.2); } }
+.doll-sparks.n14 i { animation-name: spark14; width: 8px; height: 12px; border-radius: 2px; }
+.doll-bubble { z-index: 2; }
+.bell-empty .doll { margin: 0 auto 4px; }
+.doll-empty, .pose-empty { text-align: center; }
+@media (prefers-reduced-motion: reduce) { .doll-swap, .s-celebrate img { animation: none !important; } }

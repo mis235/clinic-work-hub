@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
 import Icon from "./Icon.jsx";
-import { doll } from "./Doll.jsx";
+import Doll, { doll } from "./Doll.jsx";
 
 const ago = (iso) => {
   const t = new Date(String(iso).replace(" ", "T") + "Z"), m = Math.max(0, Math.round((Date.now() - t.getTime()) / 60000));
@@ -30,7 +30,7 @@ export default function NotificationBell() {
         <div className="bell-panel" role="dialog" aria-label="Notifications">
           <div className="bell-head"><b>Notifications</b>{d.unread > 0 && <button className="bell-link" onClick={readAll}>Mark all as read</button>}</div>
           <div className="bell-list">
-            {d.items.length === 0 && <div className="bell-empty">You are all caught up.</div>}
+            {d.items.length === 0 && <div className="bell-empty"><Doll mood="happy" size={110} follow={false} />You are all caught up.</div>}
             {d.items.map((n) => (
               <button key={n.id} className={`bell-item ${n.read ? "" : "unread"}`} onClick={() => openItem(n)}>
                 <span className="bell-dot" />

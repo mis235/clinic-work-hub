@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, photoUrl } from "../api.js";
 import Icon, { initials } from "./Icon.jsx";
-import Pose from "./Pose.jsx";
+import Doll from "./Doll.jsx";
 
 const BAR_COLORS = ["#9C7FEA", "#F58AA5", "#FFB45E", "#F6D55C", "#6FD0A5", "#6FA8F5", "#B9A0F0"];
 const istDate = (offsetDays = 0) => new Date(Date.now() + 19800000 - offsetDays * 86400000).toISOString().slice(0, 10);
@@ -99,7 +99,7 @@ export function EomCard({ canAnnounce, onNavigate }) {
 export function Strip({ title, sub, action, onClick }) {
   return (
     <div className="strip">
-      <Pose pose="walk" size={74} />
+      <Doll mood="working" size={104} follow={false} />
       <div className="strip-txt"><b>{title}</b><small>{sub}</small></div>
       <button className="btn btn-primary" onClick={onClick}>{action}</button>
     </div>

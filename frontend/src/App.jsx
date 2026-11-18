@@ -31,7 +31,6 @@ import DepartmentsPage from "./pages/DepartmentsPage.jsx";
 import DocumentsPage from "./pages/DocumentsPage.jsx";
 import KioskPage from "./pages/KioskPage.jsx";
 import LumiFloat from "./components/LumiFloat.jsx";
-import Pose from "./components/Pose.jsx";
 import { doll } from "./components/Doll.jsx";
 import HelpPage from "./pages/HelpPage.jsx";
 import TaskPopup from "./components/TaskPopup.jsx";
@@ -44,7 +43,6 @@ const VIEW_KEY = {
 };
 
 export default function App() {
-  if (window.location.pathname === "/poses") return <div className="pose-gallery" style={{ display: "flex", flexWrap: "wrap", gap: 24, padding: 24, background: "#EFE8FB", minHeight: "100vh" }}>{[["stand", "smile"], ["walk", "happy"], ["music", "happy"], ["laptop", "focus"]].map(([p, f]) => <div key={p + f} style={{ textAlign: "center", font: "600 13px Poppins" }}><Pose pose={p} face={f} size={190} />{p} · {f}</div>)}</div>;
   return window.location.pathname === "/kiosk" ? <KioskPage /> : <MainApp />;
 }
 
