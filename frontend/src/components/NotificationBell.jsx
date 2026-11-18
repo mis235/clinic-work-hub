@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
 import Icon from "./Icon.jsx";
+import { doll } from "./Doll.jsx";
 
 const ago = (iso) => {
   const t = new Date(String(iso).replace(" ", "T") + "Z"), m = Math.max(0, Math.round((Date.now() - t.getTime()) / 60000));
@@ -11,7 +12,8 @@ const ago = (iso) => {
 // The bell, on every screen. The number is what you have not read yet; open it to see everything you missed.
 export default function NotificationBell() {
   const [d, setD] = useState({ unread: 0, items: [] }), [open, setOpen] = useState(false), box = useRef(null);
-  const load = () => api.inbox().then((r) => r && setD(r)).catch(() => {});
+  const seen = useRef(null);
+  const load = () => api.inbox().then((r) => { if (!r) return; if (seen.current != null && r.unread > seen.current) doll("notify", 3000); seen.current = r.unread; setD(r); }).catch(() => {});
   useEffect(() => { load(); const t = setInterval(load, 30000); window.addEventListener("hub-refresh", load); return () => { clearInterval(t); window.removeEventListener("hub-refresh", load); }; }, []);
   useEffect(() => { if (!open) return; const f = (e) => { if (box.current && !box.current.contains(e.target)) setOpen(false); }; document.addEventListener("mousedown", f); return () => document.removeEventListener("mousedown", f); }, [open]);
   async function openItem(n) {

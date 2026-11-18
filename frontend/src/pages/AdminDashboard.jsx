@@ -13,6 +13,7 @@ import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
 import HeroBanner from "../components/HeroBanner.jsx";
 import { Kpi, WeekBars, StatusDonut, EomCard, Strip } from "../components/DashWidgets.jsx";
+import { doll } from "../components/Doll.jsx";
 import Icon, { initials } from "../components/Icon.jsx";
 
 const todayISO = () => new Date(Date.now() + 19800000).toISOString().slice(0, 10); // India date
@@ -60,6 +61,7 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
   function flash(msg) { setToast(msg); setTimeout(() => setToast(null), 3000); }
   async function handleAssign(payload) {
     await api.createTask(payload);
+    doll("success", 3000);
     flash(payload.sendNow ? "Task created and sent to WhatsApp." : "Task created.");
     refresh();
   }

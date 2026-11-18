@@ -31,6 +31,7 @@ async function req(path, { method = "GET", body } = {}) {
       if (res.status === 401 && path !== "/api/auth/login" && localStorage.getItem("token")) { sessionExpired(); }
       const restarting = data === null && [404, 502, 503, 504].includes(res.status);
       if (restarting && i < tries - 1) { await wait(1500 * (i + 1)); continue; }
+      if (!res.ok && method !== "GET" && res.status !== 401) { try { window.dispatchEvent(new CustomEvent("doll", { detail: { state: "error", ms: 2600 } })); } catch {} }
       if (!res.ok) throw new Error(restarting ? "The app is updating. Please wait a minute and refresh." : (data?.error || `Request failed (${res.status})`));
       return data ?? {};
     } catch (e) {

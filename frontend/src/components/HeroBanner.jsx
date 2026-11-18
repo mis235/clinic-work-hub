@@ -2,21 +2,23 @@ import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import Icon from "./Icon.jsx";
 import { givenName } from "../givenName.js";
-import ClinicMate, { lookFor } from "./ClinicMate.jsx";
+import Doll, { doll } from "./Doll.jsx";
 
-// Put your own 3D picture at frontend/public/hero-girl.png and it replaces the drawn character.
 const PERIOD_ICON = { morning: "sun", afternoon: "sun", evening: "sunset" };
 
 // The pink banner at the top of every dashboard: greeting for the time of day, a line to start the day,
 // and whatever is being celebrated today (birthdays, events). Icons are the app's own set.
 export default function HeroBanner({ user, children }) {
-  const [b, setB] = useState(null), [bd, setBd] = useState([]), [own, setOwn] = useState(true);
+  const [b, setB] = useState(null), [bd, setBd] = useState([]);
   useEffect(() => {
     const load = () => { api.banner().then(setB).catch(() => {}); api.leaveOverview().then((o) => setBd(o?.birthdaysToday || [])).catch(() => {}); };
     load(); const t = setInterval(load, 15 * 60000); return () => clearInterval(t);
   }, []);
+  useEffect(() => { // wave once after signing in
+    if (b && sessionStorage.getItem("doll_welcome")) { sessionStorage.removeItem("doll_welcome"); doll("welcome", 3600); }
+  }, [b]);
   const hour = Number(new Date(Date.now() + 19800000).toISOString().slice(11, 13));
-  const mood = bd.length ? "celebrate" : b?.period === "evening" || hour >= 17 ? "calm" : hour >= 12 ? "wink" : "wave";
+  const mood = !b ? "thinking" : bd.length ? "happy" : hour >= 22 || hour < 5 ? "sleepy" : "idle";
   const first = user?.role === "staff" ? givenName(user?.name) : ""; // names only on staff logins
   const celebrate = [
     ...bd.map((x) => ({ k: "b" + x.id, icon: "cake", text: x.id === user?.id ? "Happy birthday to you!" : `${x.name}'s birthday` })),
@@ -24,7 +26,7 @@ export default function HeroBanner({ user, children }) {
   ];
   return (
     <div className="hero">
-      {own ? <img src="/hero-girl.png" alt="" className="hero-lumi hero-own" onError={() => setOwn(false)} /> : <ClinicMate look={lookFor(user?.id)} mood={mood} size={150} className="hero-lumi" />}
+      <Doll mood={mood} size={215} className="hero-lumi" userId={user?.id} />
       <div className="hero-body">
         <div className="hero-greet"><Icon name={PERIOD_ICON[b?.period] || "sun"} size={18} /><h2>{b?.greeting || "Welcome"}{first ? `, ${first}` : ""}</h2></div>
         {b?.quote && <p className="hero-quote"><Icon name="quote" size={16} className="hq" />{b.quote}</p>}

@@ -29,6 +29,7 @@ import HelpPage from "./HelpPage.jsx";
 import HeroBanner from "../components/HeroBanner.jsx";
 import { Kpi, StatusDonut, EomCard, Strip } from "../components/DashWidgets.jsx";
 import Icon from "../components/Icon.jsx";
+import Doll, { doll } from "../components/Doll.jsx";
 import { navItemsFor } from "../navItems.js";
 
 const firstName = (n = "") => n.split(/\s+/).find((w) => !/^dr\.?$/i.test(w)) || n;
@@ -56,6 +57,7 @@ export default function StaffDashboard({ user, onLogout }) {
 
   async function setStatus(taskId, status) {
     await api.setStatus(taskId, status);
+    if (status === "done") doll("closing", 3400);
     refresh();
   }
 
@@ -141,7 +143,7 @@ export default function StaffDashboard({ user, onLogout }) {
         {!loading && (
           <>
             <div className="section-head"><h2>Open tasks ({open.length})</h2></div>
-            {open.length === 0 && <div className="empty">Nothing pending — nice work.</div>}
+            {open.length === 0 && <div className="empty doll-empty"><Doll mood="happy" size={150} follow={false} />Nothing pending. Nice work.</div>}
             {open.map((t) => <TaskCard key={t.id} task={t} onSet={setStatus} />)}
 
             {done.length > 0 && (

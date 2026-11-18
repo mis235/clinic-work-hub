@@ -1,4 +1,4 @@
-import ClinicMate, { LOOKS } from "../components/ClinicMate.jsx";
+import Doll from "../components/Doll.jsx";
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
 
@@ -57,14 +57,14 @@ export default function Login({ onLoggedIn }) {
           <img src="/clinic/dr-nishita.png" alt="Dr. Nishita Ranka" />
           <div>Dr. Nishita Ranka<small>Founder & Medical Director</small></div>
         </div>
-        <div className="login-lumi-sm"><ClinicMate look={LOOKS[2]} mood="wink" size={92} /></div>
+        <div className="login-lumi-sm"><Doll mood="welcome" size={110} follow={false} /></div>
         <div className="login-hero-top">
           <img src="/logo.png" alt="Dr. Nishita's Clinic" className="login-hero-logo" />
           <span className="name">Dr. Nishita's Clinic</span>
         </div>
 
         <div className="login-hero-mid">
-          <div className="login-lumi"><ClinicMate look={LOOKS[0]} mood="wave" size={210} /></div>
+          <div className="login-lumi"><Doll mood="welcome" size={290} /></div>
           <div className="login-hero-eyebrow">Internal Work Hub · Dr. Nishita's Clinic</div>
           {tab === "password" ? (
             <h1>Dr. Nishita's Clinic,<br /><em>every task and every team</em>, one place.</h1>

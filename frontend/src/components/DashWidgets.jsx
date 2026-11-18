@@ -32,7 +32,7 @@ export function WeekBars({ trend = [], title = "Work overview" }) {
           <div className="wk-bars">
             {days.map((d, i) => (
               <div className="wk-col" key={d.date} title={d.v == null ? `${d.label}: no data` : `${d.label}: ${d.v}%`}>
-                <div className="wk-barbox">{d.v != null && <div className="wk-bar" style={{ height: `${Math.max(d.v, 3)}%`, background: BAR_COLORS[i] }} />}</div>
+                <div className="wk-barbox">{d.v != null && <div className="wk-bar" style={{ height: `${Math.max(d.v, 3)}%`, background: BAR_COLORS[i], "--i": i }} />}</div>
                 <span>{d.label}</span>
               </div>))}
           </div>

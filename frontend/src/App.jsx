@@ -31,6 +31,7 @@ import DepartmentsPage from "./pages/DepartmentsPage.jsx";
 import DocumentsPage from "./pages/DocumentsPage.jsx";
 import KioskPage from "./pages/KioskPage.jsx";
 import LumiFloat from "./components/LumiFloat.jsx";
+import { doll } from "./components/Doll.jsx";
 import HelpPage from "./pages/HelpPage.jsx";
 import TaskPopup from "./components/TaskPopup.jsx";
 import ChangePinModal from "./components/ChangePinModal.jsx";
@@ -76,10 +77,13 @@ function MainApp() {
   }, []);
 
   function logout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    setUser(null);
-    setView("dashboard");
+    doll("goodbye", 1200);
+    setTimeout(() => {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      setUser(null);
+      setView("dashboard");
+    }, 800);
   }
   function navigate(item) {
     setView(VIEW_KEY[item] || item);
@@ -89,7 +93,7 @@ function MainApp() {
     setView("staffprofile");
   }
 
-  if (!user) return <Login onLoggedIn={setUser} />;
+  if (!user) return <Login onLoggedIn={(u) => { try { sessionStorage.setItem("doll_welcome", "1"); } catch {} setUser(u); }} />;
 
   function pinChanged() {
     const next = { ...user, mustChangePin: false };
