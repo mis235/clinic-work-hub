@@ -3,10 +3,10 @@ import { useId } from "react";
 // A friendly clay-style clinic character, drawn for this app. Each person gets a look (skin, hair, outfit) and a mood.
 // moods: wave, happy, wink, think, celebrate, calm
 export const LOOKS = [
-  { skin: "#F8D0B2", skinDark: "#EBB08A", hair: "#6A3B24", style: "long", top: "#8D72E0", coat: true },
-  { skin: "#E3A982", skinDark: "#CF8E66", hair: "#1F1712", style: "short", top: "#5B9BE8", coat: true },
-  { skin: "#F9D3BA", skinDark: "#EDB898", hair: "#7A3E1D", style: "long", top: "#F08FB5", coat: false },
-  { skin: "#C98B65", skinDark: "#B2724D", hair: "#15100D", style: "bun", top: "#4FBF9B", coat: true },
+  { skin: "#FDE3D0", skinDark: "#F3C4A6", hair: "#5A3322", style: "pony", top: "#8D72E0", coat: true },
+  { skin: "#FCE0CB", skinDark: "#F1BFA0", hair: "#2E1B14", style: "pony", top: "#F08FB5", coat: true },
+  { skin: "#FEE6D6", skinDark: "#F4C8AC", hair: "#8A4B2A", style: "pony", top: "#5B9BE8", coat: true },
+  { skin: "#FBDCC6", skinDark: "#EFBA9A", hair: "#3B2418", style: "pony", top: "#4FBF9B", coat: true },
 ];
 export const lookFor = (key = "") => { let h = 0; for (const c of String(key)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return LOOKS[h % LOOKS.length]; };
 
@@ -54,6 +54,12 @@ export default function ClinicMate({ look, mood = "wave", size = 140, className 
 
       {/* hair behind */}
       {L.style === "long" && <><path d="M46 96 Q36 168 62 188 Q80 176 100 178 Q120 176 138 188 Q164 168 154 96 Z" fill={`url(#hr${id})`} /><path d="M54 120 Q50 160 64 178" stroke="#fff" strokeOpacity=".2" strokeWidth="4" fill="none" strokeLinecap="round" /><path d="M146 120 Q150 160 136 178" stroke="#000" strokeOpacity=".14" strokeWidth="5" fill="none" strokeLinecap="round" /></>}
+      {L.style === "pony" && <g fill={`url(#hr${id})`}>
+        <path d="M128 48 Q168 40 176 84 Q182 120 160 140 Q150 118 150 90 Z" />
+        {[[168, 70, 13], [176, 92, 13], [170, 114, 13], [158, 132, 12], [150, 100, 11], [184, 80, 10], [183, 108, 10]].map(([x, y, r], i) => <circle key={i} cx={x} cy={y} r={r} />)}
+        <g fill="none" stroke="#fff" strokeOpacity=".22" strokeWidth="2.4" strokeLinecap="round"><path d="M164 66 q6 4 2 10" /><path d="M172 90 q6 4 2 10" /><path d="M166 112 q6 4 2 10" /></g>
+        <ellipse cx="132" cy="50" rx="9" ry="6.5" fill="#F58AA5" transform="rotate(-20 132 50)" />
+      </g>}
       {L.style === "bun" && <circle cx="100" cy="30" r="19" fill={`url(#hr${id})`} />}
 
       {/* body */}
@@ -72,7 +78,7 @@ export default function ClinicMate({ look, mood = "wave", size = 140, className 
       <ellipse cx="53" cy="98" rx="7" ry="10" fill={L.skinDark} /><ellipse cx="147" cy="98" rx="7" ry="10" fill={L.skinDark} />
       <ellipse cx="100" cy="94" rx="49" ry="51" fill={`url(#hd${id})`} /><ellipse cx="100" cy="94" rx="49" ry="51" fill={`url(#hl${id})`} />
       {/* hair front */}
-      {L.style === "short" ? <path d="M52 88 Q48 40 100 40 Q152 40 148 88 Q140 66 118 62 Q100 70 78 62 Q60 68 52 88Z" fill={`url(#hr${id})`} /> : <><path d="M50 100 Q42 38 100 38 Q158 38 150 100 Q148 76 130 64 Q112 74 84 60 Q62 70 58 112 Q52 108 50 100Z" fill={`url(#hr${id})`} /><path d="M58 112 Q56 128 62 142 Q50 132 50 100Z M142 112 Q144 128 138 142 Q150 132 150 100Z" fill={`url(#hr${id})`} /><path d="M84 60 Q104 66 126 62" stroke="#fff" strokeOpacity=".25" strokeWidth="3" fill="none" strokeLinecap="round" /></>}
+      {L.style === "short" ? <path d="M52 88 Q48 40 100 40 Q152 40 148 88 Q140 66 118 62 Q100 70 78 62 Q60 68 52 88Z" fill={`url(#hr${id})`} /> : <><path d="M50 100 Q42 38 100 38 Q158 38 150 100 Q148 76 130 64 Q112 74 84 60 Q62 70 58 112 Q52 108 50 100Z" fill={`url(#hr${id})`} /><path d="M58 112 Q56 128 62 142 Q50 132 50 100Z M142 112 Q144 128 138 142 Q150 132 150 100Z" fill={`url(#hr${id})`} /><g fill={`url(#hr${id})`}>{[[62, 70, 11], [74, 58, 12], [90, 53, 12], [107, 52, 12], [123, 56, 12], [137, 66, 11], [56, 88, 8], [144, 88, 8]].map(([x, y, r], i) => L.style === "pony" ? <circle key={i} cx={x} cy={y} r={r} /> : null)}</g><path d="M84 60 Q104 66 126 62" stroke="#fff" strokeOpacity=".25" strokeWidth="3" fill="none" strokeLinecap="round" /></>}
       <ellipse cx="100" cy="72" rx="40" ry="8" fill="#000" opacity=".10" filter={`url(#bl${id})`} />
       <ellipse cx="82" cy="52" rx="26" ry="7" fill="#fff" opacity=".28" filter={`url(#bl2${id})`} transform="rotate(-14 82 52)" />
       <path d="M66 62 Q76 48 98 46" stroke="#fff" strokeOpacity=".26" strokeWidth="3" fill="none" strokeLinecap="round" />
