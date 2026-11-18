@@ -4,6 +4,7 @@ import db from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { sendEmail, isEmailConfigured } from "../email.js";
 import { sendViaTelecrm } from "../telecrm.js";
+import { staffMessagesOn } from "../engage.js";
 import "../engage.js";
 import { audit } from "../audit.js";
 import { payslipExtras } from "./leave.js";
@@ -73,8 +74,9 @@ export function tellStaff(userId, fineId, date, reason, amount, note) {
     const title = "A Fine Has Been Added";
     const body = `Hi ${first}, a fine of ₹${amount} has been added on ${nice} for: ${reason}.${note ? " Note: " + String(note).slice(0, 200) + "." : ""} It will be taken from this month's salary. If you think this is a mistake, please speak to HR.`;
     const r = db.prepare("INSERT OR IGNORE INTO staff_messages (id, user_id, kind, msg_date, title, body, email_status) VALUES (?,?,?,?,?,?,?)")
-      .run(randomUUID(), u.id, "fine:" + fineId, date, title, body, u.email ? (isEmailConfigured() ? "sending" : "email not set up") : "no email address");
+      .run(randomUUID(), u.id, "fine:" + fineId, date, title, body, !staffMessagesOn() ? "paused" : u.email ? (isEmailConfigured() ? "sending" : "email not set up") : "no email address");
     if (!r.changes) return;
+    if (!staffMessagesOn()) return; // staff messages are paused: the notice stays inside the app only
     if (u.email && isEmailConfigured()) sendEmail({ to: u.email, subject: title, html: `<p>${body}</p><p style="color:#666">Dr. Nishita's Clinic</p>` }).catch(() => {});
     sendViaTelecrm({ name: u.name, phone: u.phone, message: `${title}: ${body}`, event: "fine" });
   } catch (e) { console.error("fine notice:", e.message); }

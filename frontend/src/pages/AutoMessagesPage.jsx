@@ -54,6 +54,10 @@ export default function AutoMessagesPage({ user, onLogout, onBack }) {
         who={`${user.name} · ${user.role === "admin" ? "Admin" : "Manager"}`} onLogout={onLogout} mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
       <div className="main">
         <MobileTopBar title="Auto Messages" onOpenMenu={() => setMobileOpen(true)} />
+        {data && <div className="card" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 12, background: data.master ? "#ecfdf5" : "#fff7ed" }}>
+            <b>{data.master ? "Automatic messages are ON" : "Automatic messages are OFF. Nothing is sent to staff."}</b>
+            {user.role === "admin" && <button className="btn btn-sm btn-outline" onClick={async () => { await api.setAutoMaster(!data.master); load(); }}>{data.master ? "Turn off" : "Turn on"}</button>}
+          </div>}
         <div className="page-head row">
           <div><h1>Auto Messages</h1></div>
           <button className="btn btn-primary btn-sm" onClick={() => setForm({ ...BLANK })}>+ New Message</button>

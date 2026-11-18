@@ -6,6 +6,7 @@ import { refreshLive, refreshHeavy } from "./routes/liveNumbers.js";
 import { pushMonth } from "./attendanceSheet.js";
 import { stampPayslip, syncLateFines } from "./routes/leave.js";
 import { autoMarkLeave } from "./routes/attendance.js";
+import { staffMessagesOn } from "./engage.js";
 import { sendEmail, isEmailConfigured, payslipCc } from "./email.js";
 import { syncChecklistSheet } from "./routes/shiftChecklist.js";
 import { generatePayslipPdf } from "./payslip-pdf.js";
@@ -94,6 +95,7 @@ export async function runDailyChecklistDigest() {
     const rows = openTasks
       .map((t) => `<li>${t.title}${t.category ? ` <em>(${t.category})</em>` : ""}${t.due_date ? ` — due ${new Date(t.due_date).toLocaleString()}` : ""}</li>`)
       .join("");
+    if (!staffMessagesOn()) continue; // staff messages are paused
     try {
       await sendEmail({
         to: user.email,

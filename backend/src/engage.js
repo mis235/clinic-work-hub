@@ -10,7 +10,9 @@ db.exec(`CREATE TABLE IF NOT EXISTS staff_messages (
 )`);
 db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_messages_once ON staff_messages(user_id, msg_date, kind)");
 
-export const enabled = () => (db.prepare("SELECT value FROM app_settings WHERE key = 'engage_enabled'").get()?.value ?? "1") !== "0";
+/** Master switch for every automatic message to staff (greetings, reminders, caring notes). Off unless the admin turns it on. */
+export const staffMessagesOn = () => (db.prepare("SELECT value FROM app_settings WHERE key = 'staff_messages_on'").get()?.value ?? process.env.STAFF_MESSAGES_DEFAULT ?? "0") === "1";
+export const enabled = () => staffMessagesOn() && (db.prepare("SELECT value FROM app_settings WHERE key = 'engage_enabled'").get()?.value ?? "1") !== "0";
 
 const VARIANTS = {
   early_leave: [

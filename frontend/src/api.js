@@ -277,6 +277,7 @@ export const api = {
   deleteAutoMessage: (id) => req(`/api/auto-messages/${id}`, { method: "DELETE" }),
   autoMessageLog: (id) => req(`/api/auto-messages/${id}/log`),
   sendAutoMessageNow: (id) => req(`/api/auto-messages/${id}/send-now`, { method: "POST" }),
+  setAutoMaster: (on) => req("/api/auto-messages/master", { method: "PUT", body: { on } }),
   setWhatsappLink: (url) => req("/api/auto-messages/whatsapp-link", { method: "PUT", body: { url } }),
   testAutoMessage: (id) => req(`/api/auto-messages/${id}/test`, { method: "POST" }),
   addEvent: (payload) => req("/api/hr/events", { method: "POST", body: payload }),

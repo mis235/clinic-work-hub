@@ -5,6 +5,7 @@ import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { birthdayMD } from "./leave.js";
 import { shiftOn } from "./roster.js";
+import { staffMessagesOn } from "../engage.js";
 import { greetingFor, quoteFor } from "../quotes.js";
 import db from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -50,7 +51,13 @@ router.get("/", requireAuth, guard, (req, res) => {
   res.json({ messages: db.prepare("SELECT * FROM auto_messages ORDER BY created_at DESC").all().map(ser),
     departments: db.prepare("SELECT id, name FROM departments ORDER BY name").all(),
     staff: db.prepare("SELECT id, name FROM users WHERE active = 1 ORDER BY name").all(),
-    channels: { app: true, email: isEmailConfigured(), whatsapp: !!telecrmUrl() } });
+    master: staffMessagesOn(), channels: { app: true, email: isEmailConfigured(), whatsapp: !!telecrmUrl() } });
+});
+// Admin: master switch for all automatic messages to staff.
+router.put("/master", requireAuth, (req, res) => {
+  if (req.user.roleName !== "admin") return res.status(403).json({ error: "Only the admin can change this" });
+  db.prepare("INSERT INTO app_settings (key, value) VALUES ('staff_messages_on', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(req.body?.on ? "1" : "0");
+  res.json({ ok: true, master: !!req.body?.on });
 });
 // The TeleCRM link that lets WhatsApp messages go out (admin only).
 router.put("/whatsapp-link", requireAuth, (req, res) => {
@@ -141,6 +148,14 @@ export default router;
   } catch (e) { console.error("auto message defaults v2:", e.message); }
 })();
 
+// Everything the app sends to staff on its own is switched off until the master switch is turned on again.
+(() => {
+  try {
+    if (db.prepare("SELECT value FROM app_settings WHERE key = 'staff_messages_off_v4'").get()) return;
+    db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('staff_messages_on', '0')").run();
+    db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('staff_messages_off_v4', '1')").run();
+  } catch (e) { console.error("staff messages off:", e.message); }
+})();
 // Morning and evening greetings are paused until the clinic finalises the wording; reminders keep going. Turn them back on from Auto Messages.
 (() => {
   try {
@@ -195,6 +210,7 @@ function deliver(u, m, { kind, date, vars = {} }) {
 
 /** Called every minute. Sends what is due now (or earlier today, if the server was off). Each person gets each message once per day. */
 export function runAutoMessages() {
+  if (!staffMessagesOn()) return;
   const t = ist();
   const people = db.prepare("SELECT id, name, email, phone, department_id, birthday, joined_at FROM users WHERE active = 1").all();
   for (const m of db.prepare("SELECT * FROM auto_messages WHERE active = 1").all()) {

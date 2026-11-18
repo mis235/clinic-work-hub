@@ -7,7 +7,7 @@ import path from "node:path";
 
 const PORT = 4590 + Math.floor(Math.random() * 100);
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hub-test-"));
-const env = { ...process.env, ATT_MANUAL_CUTOFF: "2099-01-01", PORT: String(PORT), DATA_DIR: dir, JWT_SECRET: "test-secret-for-smoke-tests-1234567890", ADMIN_EMAIL: "admin@test.local", ADMIN_PASSWORD: "testpass123", DISABLE_CRON: "true", NODE_ENV: "test", MAIL_DRY_RUN: "1" };
+const env = { ...process.env, ATT_MANUAL_CUTOFF: "2099-01-01", STAFF_MESSAGES_DEFAULT: "1", PORT: String(PORT), DATA_DIR: dir, JWT_SECRET: "test-secret-for-smoke-tests-1234567890", ADMIN_EMAIL: "admin@test.local", ADMIN_PASSWORD: "testpass123", DISABLE_CRON: "true", NODE_ENV: "test", MAIL_DRY_RUN: "1" };
 const server = spawn("node", ["src/server.js"], { env, stdio: ["ignore", "pipe", "pipe"] });
 let log = ""; server.stdout.on("data", (d) => (log += d)); server.stderr.on("data", (d) => (log += d));
 const base = `http://localhost:${PORT}`;
@@ -778,6 +778,7 @@ try {
       const got = list.find((x) => /^Good (Morning|Afternoon|Evening), /.test(x.title || ""));
       ok("greeting uses the full name and a daily line", !!got && got.title.includes(staff.name) && !got.body.includes("{quote}") && got.body.length > 20, JSON.stringify(list.map((x) => [x.title, x.body.slice(0, 40)]))); }
     { const ls = await call("GET", "/api/auto-messages", null, admin);
+      ok("automatic messages to staff are off", ls.body.master === false);
       const rows = ls.body.messages || ls.body.items || [];
       ok("morning and evening greetings are paused", rows.filter((m) => /^Good (Morning|Evening)/.test(m.title) && m.trigger !== "event").every((m) => !m.active), JSON.stringify(rows.filter((m) => /^Good (Morning|Evening)/.test(m.title)).map((m) => [m.title, m.active])));
       ok("checklist reminder is switched on", rows.some((m) => m.trigger === "checklist_pending" && m.active), JSON.stringify(rows.map((m) => [m.trigger, m.active]).slice(0, 12))); }
@@ -834,6 +835,12 @@ try {
     ok("staff can list their own payslips", mine.status === 200 && Array.isArray(mine.body));
     ok("staff cannot email a payslip", (await call("POST", "/api/payroll/none/send", null, stoken)).status === 403);
     ok("sending a missing payslip says not found", (await call("POST", "/api/payroll/none/send", null, admin)).status === 404);
+  }
+  {
+    const off = await call("PUT", "/api/auto-messages/master", { on: false }, admin);
+    const g = await call("GET", "/api/auto-messages", null, admin);
+    ok("master switch turns all automatic messages off", off.status === 200 && g.body.master === false);
+    ok("staff cannot flip the master switch", (await call("PUT", "/api/auto-messages/master", { on: true }, stoken)).status === 403);
   }
   ok("unknown API route returns 404 JSON", (await call("GET", "/api/nope", null, admin)).status === 404);
 } catch (e) {
