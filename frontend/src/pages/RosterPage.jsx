@@ -23,7 +23,7 @@ export default function RosterPage({ user, onLogout, onBack }) {
     try { const r = await api.copyWeek(addDays(data.start, -7), data.start); flash(`Copied ${r.copied} shifts from last week.`); load(); } catch (e) { flash(e.message); }
   }
   const types = data?.types || {};
-  const [panel, setPanel] = useState(false), [tab, setTab] = useState("week");
+  const [panel, setPanel] = useState(false), [tab, setTab] = useState("usual");
   const [nw, setNw] = useState({ start: "09:00", end: "18:30", label: "" });
   async function addType(e) {
     e.preventDefault();
@@ -39,11 +39,11 @@ export default function RosterPage({ user, onLogout, onBack }) {
   return (
     <PageShell user={user} active="Roster" title="Shift roster" onLogout={onLogout} onBack={onBack}>
       <div className="rt-tabs">
-        {[["week", "Weekly roster"], ["usual", "Usual hours"], ["docs", "Doctors' rota"]].map(([k, l]) => <button key={k} className={"chip" + (tab === k ? " active" : "")} onClick={() => setTab(k)}>{l}</button>)}
+        {[["usual", "Usual hours"], ["docs", "Doctors' rota"]].map(([k, l]) => <button key={k} className={"chip" + (tab === k ? " active" : "")} onClick={() => setTab(k)}>{l}</button>)}
       </div>
       {tab === "usual" && <UsualHours flash={flash} />}
       {tab === "docs" && <DoctorRota flash={flash} />}
-      {tab === "week" && <>
+      {tab === "week" && false && <>
       <div className="page-head row">
         <div><div className="eyebrow">People</div><h1>Shift Roster</h1></div>
         <div style={{ display: "flex", gap: 8 }}>

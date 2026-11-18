@@ -115,6 +115,14 @@ async function generateOneSlip({ profile: baseProfile, period, payDate, adminUse
   return db.prepare("SELECT * FROM payslips WHERE id = ?").get(id);
 }
 
+/** Rebuild an existing payslip for this person and month from the latest fines, leave and attendance (no email). Does nothing if no slip exists. */
+export function refreshSlip(userId, period) {
+  const slip = db.prepare("SELECT id, pay_date FROM payslips WHERE user_id = ? AND pay_period = ?").get(userId, period);
+  const profile = db.prepare("SELECT * FROM pay_profiles WHERE user_id = ?").get(userId);
+  if (!slip || !profile) return null;
+  return generateOneSlip({ profile, period, payDate: slip.pay_date, sendNow: false });
+}
+
 // POST /api/payroll/generate — admin triggers generation for one or all employees for a given month.
 // body: { period: 'YYYY-MM', userId?: string (omit for all), sendEmail?: boolean }
 router.post("/generate", requireAuth, requirePermission("payroll:manage"), async (req, res) => {

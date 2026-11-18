@@ -145,7 +145,7 @@ export function syncLateFines(month) {
   const s = settings(), made = [];
   for (const u of db.prepare("SELECT id, name FROM users WHERE active = 1").all()) {
     const late = lateDays(u.id, month), want = s.late_limit > 0 ? Math.floor(late.length / s.late_limit) : 0;
-    const have = db.prepare("SELECT id, auto_key FROM fines WHERE user_id = ? AND auto_key LIKE ?").all(u.id, `late:${month}:%`);
+    const have = db.prepare("SELECT id, auto_key, locked FROM fines WHERE user_id = ? AND auto_key LIKE ?").all(u.id, `late:${month}:%`);
     for (let n = 1; n <= want; n++) {
       const key = `late:${month}:${n}`;
       if (have.some((h) => h.auto_key === key)) continue;
@@ -154,8 +154,8 @@ export function syncLateFines(month) {
         .run(randomUUID(), u.id, d, "late", fineAmountFor(u.id), `Auto: ${n * s.late_limit} late arrivals this month`, key);
       made.push({ name: u.name, key });
     }
-    for (const h of have) db.prepare("UPDATE fines SET amount = ? WHERE id = ? AND amount != ?").run(fineAmountFor(u.id), h.id, fineAmountFor(u.id));
-    for (const h of have) { const n = Number(h.auto_key.split(":")[2]); if (n > want) db.prepare("DELETE FROM fines WHERE id = ?").run(h.id); }
+    for (const h of have.filter((x) => !x.locked)) db.prepare("UPDATE fines SET amount = ? WHERE id = ? AND amount != ?").run(fineAmountFor(u.id), h.id, fineAmountFor(u.id));
+    for (const h of have) { const n = Number(h.auto_key.split(":")[2]); if (n > want && !h.locked) db.prepare("DELETE FROM fines WHERE id = ?").run(h.id); }
   }
   return made;
 }

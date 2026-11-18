@@ -166,6 +166,7 @@ export const api = {
   fines: (month, userId) => req(`/api/fines?month=${month || ""}${userId ? `&userId=${userId}` : ""}`),
   finesSummary: (month) => req(`/api/fines/summary?month=${month || ""}`),
   addFine: (body) => req("/api/fines", { method: "POST", body }),
+  editFine: (id, body) => req(`/api/fines/${id}`, { method: "PUT", body }),
   deleteFine: (id) => req(`/api/fines/${id}`, { method: "DELETE" }),
   workspace: (deptId) => req("/api/workspace/" + deptId),
   addWorkspaceItem: (deptId, body) => req("/api/workspace/" + deptId, { method: "POST", body }),

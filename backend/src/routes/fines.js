@@ -47,7 +47,7 @@ router.get("/", requireAuth, (req, res) => {
     `SELECT f.*, u.name AS staff_name, d.name AS department, a.name AS added_by_name
      FROM fines f JOIN users u ON u.id = f.user_id LEFT JOIN departments d ON d.id = u.department_id
      LEFT JOIN users a ON a.id = f.added_by
-     WHERE substr(f.fine_date,1,7) = ? ${userId ? "AND f.user_id = ?" : ""} ORDER BY f.fine_date DESC, f.created_at DESC`
+     WHERE f.amount > 0 AND substr(f.fine_date,1,7) = ? ${userId ? "AND f.user_id = ?" : ""} ORDER BY f.fine_date DESC, f.created_at DESC`
   ).all(...(userId ? [month, userId] : [month]));
   res.json({ month, total: rows.reduce((s, r) => s + r.amount, 0), rows, categories: FINE_CATEGORIES });
 });
@@ -89,7 +89,7 @@ router.get("/mine", requireAuth, (req, res) => {
   res.json({ rows, thisMonth: rows.filter((r) => r.fine_date.slice(0, 7) === thisMonth()).reduce((a, r) => a + r.amount, 0) });
 });
 
-router.post("/", requireAuth, (req, res) => {
+router.post("/", requireAuth, async (req, res) => {
   if (req.user.roleName !== "admin") return res.status(403).json({ error: "Only the admin can add a fine" });
   const { userId, category, amount, note, date } = req.body || {};
   const staff = db.prepare("SELECT id, name FROM users WHERE id = ? AND active = 1").get(userId);
@@ -104,13 +104,40 @@ router.post("/", requireAuth, (req, res) => {
     .run(id, staff.id, fineDate, cat.key, amt, note ? String(note).slice(0, 300) : null, req.user.userId);
   audit({ userId: req.user.userId, action: "FINE_ADDED", detail: `${staff.name} ${cat.key} ${amt}` });
   tellStaff(staff.id, id, fineDate, cat.label, amt, note);
+  await refreshSlip(staff.id, fineDate);
   res.status(201).json(db.prepare("SELECT * FROM fines WHERE id = ?").get(id));
 });
 
-router.delete("/:id", requireAuth, (req, res) => {
+/** After any fine change, rebuild that month's payslip (if one exists) so the slip always shows the right fines. */
+async function refreshSlip(userId, fineDate) {
+  try { const m = await import("./payroll.js"); m.refreshSlip?.(userId, String(fineDate).slice(0, 7)); } catch { /* payslip refresh is best effort */ }
+}
+
+// Admin: edit a fine (reason, amount, date, note). Automatic late fines can be edited too; they are then left as set.
+router.put("/:id", requireAuth, async (req, res) => {
+  if (req.user.roleName !== "admin") return res.status(403).json({ error: "Only the admin can edit a fine" });
+  const f = db.prepare("SELECT * FROM fines WHERE id = ?").get(req.params.id);
+  if (!f) return res.status(404).json({ error: "Not found" });
+  const b = req.body || {};
+  const cat = b.category ? FINE_CATEGORIES.find((c) => c.key === b.category) : null;
+  if (b.category && !cat) return res.status(400).json({ error: "Choose a reason" });
+  const amt = b.amount === undefined ? f.amount : Number(b.amount);
+  if (!Number.isFinite(amt) || amt <= 0 || amt > 100000) return res.status(400).json({ error: "Enter a fine amount" });
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(b.date || "") ? b.date : f.fine_date;
+  db.prepare("UPDATE fines SET category=?, amount=?, fine_date=?, note=?, locked=1 WHERE id=?").run(cat?.key || f.category, amt, date, b.note === undefined ? f.note : (b.note ? String(b.note).slice(0, 300) : null), f.id);
+  audit({ userId: req.user.userId, action: "FINE_EDITED", detail: `${f.id} ${amt}` });
+  await refreshSlip(f.user_id, date); if (date.slice(0, 7) !== f.fine_date.slice(0, 7)) await refreshSlip(f.user_id, f.fine_date);
+  res.json(db.prepare("SELECT * FROM fines WHERE id = ?").get(f.id));
+});
+
+router.delete("/:id", requireAuth, async (req, res) => {
   if (req.user.roleName !== "admin") return res.status(403).json({ error: "Only admin can remove a fine" });
-  const r = db.prepare("DELETE FROM fines WHERE id = ?").run(req.params.id);
-  if (!r.changes) return res.status(404).json({ error: "Not found" });
+  const f = db.prepare("SELECT * FROM fines WHERE id = ?").get(req.params.id);
+  if (!f) return res.status(404).json({ error: "Not found" });
+  // an automatic late fine is waived (kept at 0) so it is not created again; a manual fine is deleted
+  if (f.auto_key) db.prepare("UPDATE fines SET amount = 0, locked = 1 WHERE id = ?").run(f.id); else db.prepare("DELETE FROM fines WHERE id = ?").run(f.id);
+  audit({ userId: req.user.userId, action: "FINE_REMOVED", detail: f.id });
+  await refreshSlip(f.user_id, f.fine_date);
   res.json({ ok: true });
 });
 

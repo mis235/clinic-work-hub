@@ -17,7 +17,7 @@ export default function FinesPanel({ month, isAdmin, preset, onChanged }) {
   const [summary, setSummary] = useState(null);
   const [list, setList] = useState([]);
   const [form, setForm] = useState({ userId: "", category: "late", amount: 100, date: todayIST(), note: "" });
-  const [msg, setMsg] = useState("");
+  const [msg, setMsg] = useState(""), [editId, setEditId] = useState(null);
   const load = () => {
     api.finesSummary(month).then(setSummary).catch(() => setSummary({ rows: [], total: 0 }));
     api.fines(month).then((d) => setList(d.rows)).catch(() => setList([]));
@@ -30,11 +30,13 @@ export default function FinesPanel({ month, isAdmin, preset, onChanged }) {
   async function save(e) {
     e.preventDefault();
     try {
-      await api.addFine({ ...form, amount: Number(form.amount) });
-      setMsg("Fine added. It will be deducted in this month's payslip."); setForm((f) => ({ ...f, note: "" })); load(); onChanged?.();
+      if (editId) { await api.editFine(editId, { category: form.category, amount: Number(form.amount), date: form.date, note: form.note }); setEditId(null); setMsg("Fine updated. The payslip is updated too."); setForm((f) => ({ ...f, userId: "", note: "" })); }
+      else { await api.addFine({ ...form, amount: Number(form.amount) }); setMsg("Fine added. It is in this month's payslip."); setForm((f) => ({ ...f, note: "" })); }
+      load(); onChanged?.();
     } catch (err) { setMsg(err.message); }
     setTimeout(() => setMsg(""), 4000);
   }
+  function startEdit(f) { setEditId(f.id); setForm({ userId: f.user_id, category: f.category, amount: f.amount, date: f.fine_date, note: f.note || "" }); window.scrollTo({ top: 0, behavior: "smooth" }); }
   async function remove(id) {
     if (!confirm("Remove this fine?")) return;
     try { await api.deleteFine(id); load(); onChanged?.(); } catch (err) { setMsg(err.message); }
@@ -43,8 +45,8 @@ export default function FinesPanel({ month, isAdmin, preset, onChanged }) {
   return (
     <>
       <form className="card" onSubmit={save} style={{ display: "grid", gap: 10, marginBottom: 16 }}>
-        <div className="title">Add a Fine</div>
-        <select className="field" required value={form.userId} onChange={(e) => set("userId", e.target.value)}>
+        <div className="title">{editId ? "Edit fine" : "Add a Fine"}</div>
+        <select className="field" required disabled={!!editId} value={form.userId} onChange={(e) => set("userId", e.target.value)}>
           <option value="">Choose staff member…</option>
           {(summary?.rows || []).map((r) => <option key={r.id} value={r.id}>{r.name}{r.department ? ` — ${r.department}` : ""}</option>)}
         </select>
@@ -58,7 +60,8 @@ export default function FinesPanel({ month, isAdmin, preset, onChanged }) {
         <input className="field" placeholder="Note (e.g. came at 10:40, no ID card)" value={form.note} onChange={(e) => set("note", e.target.value)} />
         <div className="row" style={{ justifyContent: "space-between" }}>
           <span className="meta">{msg}</span>
-          <button className="btn btn-primary" type="submit">Add Fine</button>
+          {editId && <button className="btn btn-ghost" type="button" onClick={() => { setEditId(null); setForm((f) => ({ ...f, userId: "", note: "" })); }}>Cancel</button>}
+          <button className="btn btn-primary" type="submit">{editId ? "Save changes" : "Add Fine"}</button>
         </div>
       </form>
 
@@ -76,6 +79,7 @@ export default function FinesPanel({ month, isAdmin, preset, onChanged }) {
             </div>
             <div className="right" style={{ gap: 8 }}>
               <span className="badge overdue">{rupee(f.amount)}</span>
+              {isAdmin && <button className="btn btn-ghost btn-sm" onClick={() => startEdit(f)}>Edit</button>}
               {isAdmin && <button className="btn btn-ghost btn-sm" onClick={() => remove(f.id)}>Remove</button>}
             </div>
           </div>

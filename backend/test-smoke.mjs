@@ -551,6 +551,15 @@ try {
     const g2 = await call("POST", "/api/payroll/generate", { period: lateMonth, userId: lateU.id }, admin);
     ok("payslip carries the late fine", g2.body[0].fine_amount === 150 && g2.body[0].late_count === 3 && g2.body[0].net_payable === 29850, JSON.stringify(g2.body));
 
+    // fines are editable and the payslip follows
+    const flx = await call("GET", `/api/fines?month=${lateMonth}&userId=${lateU.id}`, null, admin);
+    const fid = flx.body.rows[0]?.id;
+    ok("admin edits an automatic late fine", (await call("PUT", `/api/fines/${fid}`, { amount: 300 }, admin)).status === 200);
+    const g3 = await call("POST", "/api/payroll/generate", { period: lateMonth, userId: lateU.id }, admin);
+    ok("edited fine stays and shows on payslip", g3.body[0].fine_amount === 300 && g3.body[0].net_payable === 29700, JSON.stringify(g3.body));
+    ok("removing an automatic fine waives it for good", (await call("DELETE", `/api/fines/${fid}`, null, admin)).status === 200 && (await call("POST", "/api/payroll/generate", { period: lateMonth, userId: lateU.id }, admin)).body[0].fine_amount === 0);
+    ok("staff cannot edit a fine", (await call("PUT", `/api/fines/${fid}`, { amount: 1 }, lvTok)).status === 403);
+
     // payslip edit: incentive/arrears, loss of pay stays separate, PDF rebuilt
     const ed = await call("PUT", `/api/payroll/${g.body[0].id}`, { incentive: 500, arrears: 250, info: { position: "Senior Exec" } }, admin);
     ok("edited payslip recalculates net and keeps loss of pay", ed.status === 200 && ed.body.incentive === 500 && ed.body.arrears === 250 && ed.body.lop_amount === 1000 && ed.body.net_payable === 29750 && /Senior Exec/.test(ed.body.info_json), JSON.stringify(ed.body));
