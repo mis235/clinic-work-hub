@@ -1248,11 +1248,23 @@ html[data-theme="peach"] .rp-thumb { background: linear-gradient(135deg, #FFDCCB
 .login-panel { background: linear-gradient(160deg, #E9DFFA, #F8EEFB); }
 .login-card { position: relative; margin-top: 96px; padding: 0 30px 30px; border-radius: 36px; border: 1px solid #fff;
   background: linear-gradient(180deg, #FFFFFF, #FBF6FF); box-shadow: var(--clay-shadow), var(--clay-inset); }
-.login-lean { display: block; width: 250px; max-width: 80%; margin: -98px auto 10px; position: relative; z-index: 1; filter: drop-shadow(0 14px 14px rgba(70,45,150,.25)); animation: doll-breathe 4.2s ease-in-out infinite; }
-@media (max-width: 880px) { .login-card { margin-top: 70px; } .login-lean { width: 200px; margin-top: -76px; } }
+.login-lean { position: relative; z-index: 1; width: 250px; margin: -150px auto -52px; -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent 100%); mask-image: linear-gradient(to bottom, #000 72%, transparent 100%); }
+.login-lean .doll { margin: 0 auto; }
+.s-wrong img { animation: doll-shake .55s ease-in-out 2; }
+@keyframes doll-shake { 0%, 100% { transform: translateX(0) rotate(0); } 25% { transform: translateX(-7px) rotate(-2deg); } 75% { transform: translateX(7px) rotate(2deg); } }
+.b-wrong { color: #D14A6A; }
+@media (max-width: 880px) { .login-card { margin-top: 120px; } .login-lean { width: 220px; margin-top: -130px; } }
 ::selection { background: #D9C8F6; color: #3E3151; }
 * { scrollbar-width: thin; scrollbar-color: #CDBDEE transparent; }
 .kpi .value, .rp-pct, .dn-key b, .pay-stat .value { font-variant-numeric: tabular-nums; }
 .main h1, .main h2, .main h3 { text-wrap: balance; }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--primary-ring); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { .login-lean { animation: none; } }
+
+/* She works like a pet: tap her and she answers */
+.doll.pet { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.doll.pet:active .doll-tilt { transform: scale(.96); }
+.doll-bubble.b-pet, .doll-bubble.b-grumpy, .doll-bubble.b-hungry { right: 4px; top: 6px; }
+.doll-bubble.b-grumpy { color: #D14A6A; }
+.s-grumpy img { animation: doll-shake .45s ease-in-out 3; }
+.hero .doll.hero-lumi.pet { pointer-events: auto; z-index: 2; }

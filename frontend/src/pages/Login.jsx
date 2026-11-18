@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
+import Doll from "../components/Doll.jsx";
 
 function detectDeviceLabel() {
   const ua = navigator.userAgent;
@@ -17,7 +18,8 @@ export default function Login({ onLoggedIn }) {
   const [email, setEmail] = useState(() => { try { return localStorage.getItem("lastEmail") || ""; } catch { return ""; } });
   const [password, setPassword] = useState("");
   const [error, setError] = useState(() => { try { const m = sessionStorage.getItem("sessionMsg"); sessionStorage.removeItem("sessionMsg"); return m || ""; } catch { return ""; } });
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(false), [win, setWin] = useState(false);
+  const mood = win ? "celebrate" : busy ? "thinking" : error ? "wrong" : "hello"; // she reacts to the sign-in
 
   useEffect(() => {
     api.listRoster().then((rows) => {
@@ -38,7 +40,8 @@ export default function Login({ onLoggedIn }) {
       try { localStorage.setItem("lastTab", tab); if (tab === "password") localStorage.setItem("lastEmail", email); else localStorage.setItem("lastUserId", userId); } catch {}
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
-      onLoggedIn(data.user);
+      setWin(true);
+      setTimeout(() => onLoggedIn(data.user), 750);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -88,7 +91,7 @@ export default function Login({ onLoggedIn }) {
 
       <div className="login-panel">
         <div className="login-card">
-          <img className="login-lean" src="/hero-girl.webp" alt="" draggable="false" />
+          <div className="login-lean"><Doll mood={mood} size={250} /></div>
           <div className="login-eyebrow">Staff sign-in</div>
           <h1>Welcome Back</h1>
           <p className="sub">Sign in to see your tasks, checklists and what's happening at the clinic today.</p>
