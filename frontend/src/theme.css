@@ -1324,3 +1324,40 @@ html[data-theme="peach"] .kiosk { background: linear-gradient(160deg, #FFC7B5, #
 .sidebar-nav::-webkit-scrollbar { display: none; }
 .side-promo, .side-out { flex: none; }
 .eom-mo { margin-left: 8px; font-size: 11px; vertical-align: middle; }
+
+/* Patients dashboard in the new look: same purple/peach palette, one search (the top bar), menu as a row of pills */
+.cdx.cdx {
+  --bg-1: transparent; --bg-2: transparent; --surface: #FBF8FF; --surface-raised: #FFFFFF;
+  --ink-1: #3B2A5A; --ink-2: #6B5A8A; --ink-3: #9A8BB5; --hairline: #EAE1F8;
+  --spot-bg: linear-gradient(135deg, #9472C8, #B28CE0); --spot-ink: #FFFFFF; --spot-ink-dim: rgba(255,255,255,.8);
+  --gold: #9472C8; --gold-soft: #C9B3EE; --gold-wash: #F1EAFC;
+  --good: #1E9C68; --good-wash: #E2F6EC; --critical: #D14A6A; --critical-wash: #FDE8EE;
+  --radius-lg: 28px; --radius-md: 20px;
+  font-family: Poppins, system-ui, sans-serif; background: transparent; border: 0; border-radius: 0; overflow: visible;
+}
+html[data-theme="peach"] .cdx.cdx { --ink-1: #5A3A33; --ink-2: #8A5E54; --ink-3: #B58A7E; --hairline: #F6DDD3; --spot-bg: linear-gradient(135deg, #FF9B7A, #FFB89C); --gold: #E0705D; --gold-soft: #FFC7B5; --gold-wash: #FFEDE6; --surface: #FFF8F5; }
+.cdx.cdx h1, .cdx.cdx h2, .cdx.cdx h3, .cdx.cdx .sec-btn, .cdx.cdx .pill, .cdx.cdx .data-font, .cdx.cdx .cat-table, .cdx.cdx .legend-row, .cdx.cdx .filterbar label, .cdx.cdx .card-sub { font-family: Poppins, system-ui, sans-serif; }
+.cdx.cdx .app-shell { flex-direction: column; min-height: 0; gap: 16px; }
+.cdx.cdx .sidebar { width: 100%; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 10px; padding: 8px; border: 1px solid #fff; border-radius: 999px; background: #fff; box-shadow: var(--clay-shadow); position: static; height: auto; }
+.cdx.cdx .sidebar-brand { display: none; }
+.cdx.cdx .sidebar-nav { flex-direction: row; flex-wrap: wrap; gap: 6px; flex: 1 1 auto; }
+.cdx.cdx .sec-btn { width: auto; padding: 9px 16px; border-radius: 999px; font-size: 13px; font-weight: 600; }
+.cdx.cdx .sec-btn[aria-selected="true"] { background: var(--primary); border-color: var(--primary); color: #fff; box-shadow: 0 8px 18px rgba(110, 80, 190, .3); }
+.cdx.cdx .sec-btn[aria-selected="true"] .sec-icon { color: #fff; }
+.cdx.cdx .sidebar-foot { flex-direction: row; border: 0; margin: 0; padding: 0 6px 0 0; }
+.cdx.cdx .main { padding: 0; }
+.cdx.cdx .card, .cdx.cdx .filterbar { border: 1px solid #fff; box-shadow: var(--clay-shadow), var(--clay-inset); }
+.cdx.cdx .spot { background: var(--spot-bg); box-shadow: 0 16px 30px rgba(110, 80, 190, .28); }
+.cdx.cdx .btn-primary { background: var(--primary); color: #fff; }
+.cdx.cdx .bar-seg-done, .cdx.cdx .proc-rate-fill, .cdx.cdx .rowbar-fill { background: var(--primary); }
+.cdx.cdx .bar-seg-not { background: #CDB8EE; }
+.cdx.cdx .bar-tooltip { background: #3B2A5A; color: #fff; }
+.cdx.cdx.cdx-full { background: linear-gradient(160deg, #CDB8EE, #E9DEFA 55%, #FBE3EE); padding: 18px; }
+@media (max-width: 700px) { .cdx.cdx .sidebar { border-radius: 24px; } }
+.cdx.cdx .sidebar { border-radius: 28px; padding: 8px 10px; min-height: 0; width: 100%; max-width: none; inset: auto; transform: none; margin: 0; backdrop-filter: none; }
+.cdx.cdx .sec-btn { padding: 8px 13px; font-size: 12.5px; gap: 8px; }
+.cdx.cdx .sidebar-foot { flex: none; flex-wrap: nowrap; align-items: center; margin-left: auto; }
+.cdx.cdx .sidebar-foot .pill, .cdx.cdx .sidebar-foot .btn-ghost { white-space: nowrap; }
+.cdx.cdx .app-shell { position: static; inset: auto; margin: 0; padding: 0; border: 0; box-shadow: none; background: none; border-radius: 0; height: auto; min-height: 0; width: auto; max-width: none; overflow: visible; }
+.cdx.cdx .app-shell::before, .cdx.cdx .app-shell::after { display: none; }
+.cdx.cdx .sidebar-foot .btn-ghost { height: auto; min-width: 0; border-radius: 999px; padding: 7px 14px; }

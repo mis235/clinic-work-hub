@@ -181,6 +181,11 @@ const NAV = [
 
 export default function LiveNumbers({ user }) {
   const [sec, setSec] = useState("conv"), [full, setFull] = useState(false), [sq, setSq] = useState(""), [sqGo, setSqGo] = useState(""), [d, setD] = useState(null), [cfg, setCfg] = useState(null), [url, setUrl] = useState(""), [busy, setBusy] = useState(false), [msg, setMsg] = useState(""), [open, setOpen] = useState(false);
+  useEffect(() => { // the top bar is the one search box: it sends patient searches here
+    const f = (e) => { const q = String(e.detail || "").trim(); if (q.length >= 3) { setSq(q); setSqGo(q); setSec("search"); } };
+    window.addEventListener("hub-patient-search", f); window.dispatchEvent(new CustomEvent("hub-search-mode", { detail: "patient" }));
+    return () => { window.removeEventListener("hub-patient-search", f); window.dispatchEvent(new CustomEvent("hub-search-mode", { detail: "pages" })); };
+  }, []);
   const load = () => api.liveNumbers().then(setD).catch((e) => setMsg(e.message));
   const loadCfg = () => user.role === "admin" && api.liveConfig().then((c) => { setCfg(c); setUrl(c.url || ""); }).catch(() => {});
   useEffect(() => { load(); loadCfg(); const t = setInterval(load, 60000); window.addEventListener("hub-refresh", load); return () => { clearInterval(t); window.removeEventListener("hub-refresh", load); }; }, []);
@@ -193,10 +198,6 @@ export default function LiveNumbers({ user }) {
         <div className="sidebar-brand">
           <div className="logo-card"><img src="/logo.png" alt="Dr. Nishita's Clinic" /></div>
           <div className="brand-text"><h1 className="brand-title">Dr. Nishita's Clinic Dashboard</h1><p>{upd ? upd.replace("Updated", "Updated ·") : "Live from Google Sheets"}</p></div>
-        </div>
-        <div className="sidebar-search">
-          <svg className="sidebar-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
-          <input className="sidebar-search-input" placeholder="Search a patient…" value={sq} onChange={(e) => setSq(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && sq.trim().length >= 3) { setSqGo(sq.trim()); setSec("search"); } }} />
         </div>
         <nav className="sidebar-nav">
           {NAV.map(([k, l, ic]) => <button key={k} type="button" className="sec-btn" aria-selected={sec === k} onClick={() => setSec(k)}>{ic}<span>{l}</span></button>)}
@@ -363,17 +364,14 @@ export default function LiveNumbers({ user }) {
 }
 
 function PatientSearch({ initial = "" }) {
-  const [q, setQ] = useState(initial), [r, setR] = useState(null), [busy, setBusy] = useState(false), [err, setErr] = useState("");
+  const [r, setR] = useState(null), [busy, setBusy] = useState(false), [err, setErr] = useState(""), q = initial;
   const go = async () => { setBusy(true); setErr(""); setR(null); try { setR(await api.patientSearch(q.trim())); } catch (e) { setErr(e.message); } setBusy(false); };
   useEffect(() => { if (initial.length >= 3) go(); }, []);
   return (
     <div className="card">
-      <h3>Search a patient</h3><div style={{ height: 12 }} />
-      
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <input className="field" style={{ maxWidth: 360 }} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && q.trim().length >= 3 && go()} placeholder="Name, phone or patient ID" />
-        <button className="btn btn-primary btn-sm" disabled={busy || q.trim().length < 3} onClick={go}>{busy ? "Searching…" : "Search"}</button>
-      </div>
+      <h3>{q ? <>Patients matching “{q}”</> : "Search a patient"}</h3><div style={{ height: 12 }} />
+      {!q && <div className="meta">Use the search box at the top.</div>}
+      {busy && <div className="meta">Searching…</div>}
       {err && <div className="note warn" style={{ marginTop: 8 }}>{err}</div>}
       {r && r.rows.length === 0 && <div className="meta" style={{ marginTop: 10 }}>No patient found.</div>}
       {r && r.rows.length > 0 && (
