@@ -84,7 +84,7 @@ export function EomCard({ canAnnounce, onNavigate }) {
   const cur = eom?.current;
   return (
     <div className="card dw-card">
-      <div className="dw-head"><div className="dw-title">Employee of the month</div>{canAnnounce && <button className="dw-link" onClick={() => onNavigate?.("Events")}>{cur ? "Change" : "Announce"}</button>}</div>
+      <div className="dw-head"><div className="dw-title">Employee of the month{cur?.month && <span className="dw-pill eom-mo">{new Date(cur.month + "-01T00:00:00Z").toLocaleDateString("en-IN", { month: "short", year: "2-digit", timeZone: "UTC" }).replace(" ", " \u2019")}</span>}</div>{canAnnounce && <button className="dw-link" onClick={() => onNavigate?.("Events")}>{cur ? "Change" : "Announce"}</button>}</div>
       <div className="eom2">
         {cur?.hasPhoto ? <img src={photoUrl(cur.userId)} alt={cur.name} /> : cur ? <div className="eom2-blank">{initials(cur.name)}</div> : <img src="/dolls/s-excited.webp" alt="" className="eom2-art" />}
         <div className="eom2-cap">
