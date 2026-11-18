@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Icon from "../components/Icon.jsx";
 import { api } from "../api.js";
 import { navItemsFor } from "../navItems.js";
 import Sidebar from "../components/Sidebar.jsx";
@@ -22,7 +23,10 @@ export default function PayrollPage({ user, onLogout, onBack }) {
     api.listRosterFull().then(setRoster).catch(() => setRoster([]));
   }, []);
 
-  const [slips, setSlips] = useState(null), [slipEdit, setSlipEdit] = useState(null);
+  const [slips, setSlips] = useState(null), [slipEdit, setSlipEdit] = useState(null), [tab, setTab] = useState("draft");
+  const inCo = (slips || []).filter((x) => company === "all" || x.company_id === company);
+  const shown = inCo.filter((x) => tab === "all" || (tab === "draft" ? !x.published_at : !!x.published_at));
+  const monthName = (p) => new Date(p + "-01T00:00:00Z").toLocaleDateString("en-IN", { month: "short", year: "numeric", timeZone: "UTC" });
   const loadSlips = () => api.listPayslips().then(setSlips).catch(() => setSlips([]));
   useEffect(() => { loadSlips(); }, []);
   function flash(msg) { setToast(msg); setTimeout(() => setToast(null), 3500); }
@@ -82,42 +86,64 @@ export default function PayrollPage({ user, onLogout, onBack }) {
           </div>
         )}
 
-        <TemplateStudio kind="payslip" companies={companies} roster={roster} flash={flash} />
+        <div className="pay-stats">
+          <div className="pay-stat"><span className="pay-stat-ico"><Icon name="users" size={18} /></span><div><b>{(profiles || []).filter((p) => company === "all" || p.company_id === company).length}</b><span>Staff with pay set up</span></div></div>
+          <div className="pay-stat warn"><span className="pay-stat-ico"><Icon name="pencil" size={18} /></span><div><b>{inCo.filter((x) => !x.published_at).length}</b><span>Drafts waiting to be sent</span></div></div>
+          <div className="pay-stat ok"><span className="pay-stat-ico"><Icon name="send" size={18} /></span><div><b>{inCo.filter((x) => x.published_at).length}</b><span>Sent to staff</span></div></div>
+        </div>
 
-        <div className="section-head" style={{ marginTop: 24 }}><h2 style={{ fontSize: 15 }}>Salary details by company</h2></div>
         <div className="pill-row">
-          <button className={`pill ${company === "all" ? "active" : ""}`} onClick={() => setCompany("all")}>All <span className="n">{profiles?.length || 0}</span></button>
+          <button className={`pill ${company === "all" ? "active" : ""}`} onClick={() => setCompany("all")}>All companies</button>
           {companies.map((c) => <button key={c.id} className={`pill ${company === c.id ? "active" : ""}`} onClick={() => setCompany(c.id)}>{c.name} <span className="n">{(profiles || []).filter((p) => p.company_id === c.id).length}</span></button>)}
         </div>
-        {profiles?.filter((p) => company === "all" || p.company_id === company).map((p) => (
-          <div key={p.user_id} className="card">
-            <div className="card-head">
-              <div><span className="name">{p.name}</span><span className="dept">{p.employee_code || "no employee code"}</span></div>
-              <span className="phone">{p.email || "no email on file — payslip can't be emailed yet"}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginTop: 8 }}>
-              <span>Basic: ₹{p.basic_salary.toLocaleString("en-IN")} · Retention: ₹{p.retention.toLocaleString("en-IN")}</span>
-              <span style={{ display: "flex", gap: 6 }}>
-                <button className="btn btn-ghost btn-sm" onClick={() => setEditing(p)}>Edit</button>
-                <button className="btn-wa btn-sm" onClick={() => generateFor(p.user_id)}>Prepare payslip (this month)</button></span>
-            </div>
-          </div>
-        ))}
 
-        <div className="section-head" style={{ marginTop: 24, display: "flex", justifyContent: "space-between", alignItems: "center" }}><h2 style={{ fontSize: 15 }}>Generated payslips</h2><button className="btn btn-ghost btn-sm" onClick={sendAllDrafts}>Send all drafts</button></div>
-        {slips === null && <div className="empty">Loading…</div>}
-        {slips?.length === 0 && <div className="empty">No payslips yet. Press "Prepare payslip" on a staff member above.</div>}
-        {slips?.slice(0, 40).map((s) => (
-          <div key={s.id} className="card">
-            <div className="card-head"><div><span className="name">{s.user_name}</span><span className="dept">{s.pay_period} · {s.company_name}</span></div>
-              <span className="phone">Net ₹{Number(s.net_payable || 0).toLocaleString("en-IN")} · {s.published_at ? (s.emailed_at ? "Sent · in login · emailed" : "Sent · in login · not emailed") : "Draft · staff cannot see it yet"}</span></div>
-            <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-              <button className="btn btn-ghost btn-sm" onClick={() => setSlipEdit(s)}>Edit</button>
-              <button className="btn btn-ghost btn-sm" onClick={() => api.openPayslip(s.id).catch((e) => flash(e.message))}>View PDF</button>
-              <button className="btn-wa btn-sm" onClick={() => sendSlip(s)}>{s.published_at ? "Send again" : "Send to staff"}</button>
-            </div>
+        <div className="card pay-panel">
+          <div className="pay-panel-head">
+            <div><h2>Payslips</h2><p>Check each payslip, then send it. Staff see it in their login only after you send.</p></div>
+            <button className="btn btn-primary btn-sm" onClick={sendAllDrafts}><Icon name="send" size={15} /> Send all drafts</button>
           </div>
-        ))}
+          <div className="seg">{[["draft", "Drafts", inCo.filter((x) => !x.published_at).length], ["sent", "Sent", inCo.filter((x) => x.published_at).length], ["all", "All", inCo.length]].map(([k, l, n]) => <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{l} <span>{n}</span></button>)}</div>
+          {slips === null && <div className="empty">Loading…</div>}
+          {slips && shown.length === 0 && <div className="empty">{tab === "draft" ? "No drafts waiting. Press Prepare payslip on a staff member below." : "Nothing here yet."}</div>}
+          {shown.length > 0 && (
+            <div className="pay-table-wrap"><table className="pay-table">
+              <thead><tr><th>Employee</th><th>Month</th><th className="r">Net pay</th><th>Status</th><th className="r">Actions</th></tr></thead>
+              <tbody>{shown.map((x) => (
+                <tr key={x.id}>
+                  <td><div className="pt-name">{x.user_name}</div><div className="pt-sub">{x.company_name}</div></td>
+                  <td>{monthName(x.pay_period)}</td>
+                  <td className="r pt-net">₹{Number(x.net_payable || 0).toLocaleString("en-IN")}</td>
+                  <td>{x.published_at ? <span className="st st-sent">Sent</span> : <span className="st st-draft">Draft</span>}{x.published_at && <div className="pt-sub">{x.emailed_at ? "In login and emailed" : "In login, not emailed"}</div>}</td>
+                  <td className="r"><div className="pt-actions">
+                    <button className="btn btn-ghost btn-sm" onClick={() => api.openPayslip(x.id).catch((e) => flash(e.message))}><Icon name="eye" size={14} /> View</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setSlipEdit(x)}><Icon name="pencil" size={14} /> Edit</button>
+                    <button className={x.published_at ? "btn btn-ghost btn-sm" : "btn btn-primary btn-sm"} onClick={() => sendSlip(x)}><Icon name="send" size={14} /> {x.published_at ? "Send again" : "Send"}</button>
+                  </div></td>
+                </tr>))}</tbody>
+            </table></div>)}
+        </div>
+
+        <div className="card pay-panel">
+          <div className="pay-panel-head"><div><h2>Salary set-up</h2><p>Each person's monthly pay. Prepare makes this month's draft payslip.</p></div></div>
+          {profiles?.length === 0 && <div className="empty">No salary details yet. Press "+ Set up an employee's pay" above.</div>}
+          <div className="pay-table-wrap"><table className="pay-table">
+            <thead><tr><th>Employee</th><th>Company</th><th className="r">Basic</th><th className="r">Retention</th><th className="r">Actions</th></tr></thead>
+            <tbody>{(profiles || []).filter((p) => company === "all" || p.company_id === company).map((p) => (
+              <tr key={p.user_id}>
+                <td><div className="pt-name">{p.name}</div><div className="pt-sub">{p.employee_code || "No employee code"}{p.email ? "" : " · no email on file"}</div></td>
+                <td>{companies.find((c) => c.id === p.company_id)?.name || "-"}</td>
+                <td className="r">₹{Number(p.basic_salary || 0).toLocaleString("en-IN")}</td>
+                <td className="r">₹{Number(p.retention || 0).toLocaleString("en-IN")}</td>
+                <td className="r"><div className="pt-actions">
+                  <button className="btn btn-ghost btn-sm" onClick={() => setEditing(p)}><Icon name="pencil" size={14} /> Edit</button>
+                  <button className="btn btn-primary btn-sm" onClick={() => generateFor(p.user_id)}>Prepare payslip</button>
+                </div></td>
+              </tr>))}</tbody>
+          </table></div>
+        </div>
+
+        <TemplateStudio kind="payslip" companies={companies} roster={roster} flash={flash} />
+
         {slipEdit && <SlipEditor slip={slipEdit} onClose={() => setSlipEdit(null)} onSaved={() => { setSlipEdit(null); loadSlips(); flash("Payslip saved and PDF rebuilt. Check it with View PDF, then press Send to staff."); }} />}
 
         {toast && <div className="toast">{toast}</div>}

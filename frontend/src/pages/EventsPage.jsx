@@ -1,3 +1,4 @@
+import Icon from "../components/Icon.jsx";
 import { useEffect, useState } from "react";
 import { navItemsFor } from "../navItems.js";
 import { api } from "../api.js";
@@ -6,7 +7,7 @@ import MobileTopBar from "../components/MobileTopBar.jsx";
 
 const istMonth = () => new Date(Date.now() + 19800000).toISOString().slice(0, 7);
 const shift = (month, n) => { const [y, m] = month.split("-").map(Number); const d = new Date(Date.UTC(y, m - 1 + n, 1)); return d.toISOString().slice(0, 7); };
-const KIND = { birthday: ["Birthday", "accepted", "🎂"], anniversary: ["Work anniversary", "done", "⭐"], event: ["", "in_progress", "🎉"] };
+const KIND = { birthday: ["Birthday", "accepted", "cake"], anniversary: ["Work anniversary", "done", "star"], event: ["", "in_progress", "flag"] };
 const TYPE_LABEL = { holiday: "Holiday", festival: "Festival", important_date: "Important date", event: "Event" };
 
 function EomCard() {
@@ -20,7 +21,7 @@ function EomCard() {
   }
   return (
     <div className="card" style={{ marginBottom: 16 }}>
-      <div className="card-head"><div className="name">🏆 Employee of the Month</div>{cur && <span className="badge done">{cur.name} · {cur.label}</span>}</div>
+      <div className="card-head"><div className="name icon-h"><Icon name="trophy" size={18} /> Employee of the Month</div>{cur && <span className="badge done">{cur.name} · {cur.label}</span>}</div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         <select className="field" style={{ maxWidth: 260 }} value={uid} onChange={(e) => setUid(e.target.value)}>
           <option value="">Choose staff member</option>
@@ -103,7 +104,7 @@ export default function EventsPage({ user, onLogout, onBack }) {
                 <div key={i} className="task-row event-row">
                   <div className={`event-day ${date === today ? "today" : ""}`} style={{ flexDirection: "column", lineHeight: 1.1 }}><b>{it.day}</b><span style={{ fontSize: 10 }}>{dateObj.toLocaleDateString("en-IN", { month: "short", timeZone: "UTC" })}</span></div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div className="title">{icon} {it.title}</div>
+                    <div className="title icon-h"><Icon name={icon} size={15} /> {it.title}</div>
                     <div className="meta">📅 {when} · <b style={{ color: diff === 0 ? "#be185d" : undefined }}>{state}</b></div>
                     <div className="meta">{it.kind === "event" ? TYPE_LABEL[it.eventType] + (it.yearly ? " · every year" : "") : tag}</div>
                   </div>

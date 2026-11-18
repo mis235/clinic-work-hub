@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Icon from "../components/Icon.jsx";
 import { api } from "../api.js";
 import PageShell from "../components/PageShell.jsx";
 import WorkspacePanel from "../components/WorkspacePanel.jsx";
@@ -12,7 +13,26 @@ export default function DepartmentsPage({ user, onLogout, onBack, onOpenProfile 
   const [open, setOpen] = useState(null);
   const [detail, setDetail] = useState(null);
   const [tab, setTab] = useState("workspace");
-  useEffect(() => { api.portalDepartments().then((d) => setRows(d.rows)).catch(() => setRows([])); }, []);
+  const [msg, setMsg] = useState(""), [nameBox, setNameBox] = useState(null), [pick, setPick] = useState([]), [everyone, setEveryone] = useState([]);
+  const isAdmin = user.role === "admin";
+  const loadRows = () => api.portalDepartments().then((d) => setRows(d.rows)).catch(() => setRows([]));
+  const loadDetail = (id) => api.portalDepartment(id).then(setDetail).catch(() => {});
+  useEffect(() => { loadRows(); }, []);
+  useEffect(() => { if (isAdmin && open) api.listRosterAll().then((l) => setEveryone((l || []).filter((u) => u.active !== 0 && u.active !== false).sort((a, b) => a.name.localeCompare(b.name)))).catch(() => {}); }, [open]);
+  const say = (m) => { setMsg(m); setTimeout(() => setMsg(""), 4000); };
+  async function saveName() {
+    try {
+      if (nameBox.id) { await api.renameDepartment(nameBox.id, nameBox.name); loadDetail(nameBox.id); } else await api.addDepartment(nameBox.name);
+      setNameBox(null); loadRows(); say("Saved.");
+    } catch (e) { say(e.message); }
+  }
+  async function removeDept() {
+    if (!confirm(`Delete the department "${detail.department.name}"?`)) return;
+    try { await api.deleteDepartment(open); setOpen(null); loadRows(); say("Department deleted."); } catch (e) { say(e.message); }
+  }
+  async function addPeople() {
+    try { const r = await api.moveToDepartment(open, pick); setPick([]); loadDetail(open); loadRows(); say(`${r.moved} added to ${detail.department.name}.`); } catch (e) { say(e.message); }
+  }
   useEffect(() => { if (open) { setDetail(null); setTab("workspace"); api.portalDepartment(open).then(setDetail).catch(() => setDetail({ people: [], documents: [], stats: {}, department: { name: "" } })); } }, [open]);
 
   return (
@@ -20,7 +40,21 @@ export default function DepartmentsPage({ user, onLogout, onBack, onOpenProfile 
       <div className="page-head">
         <div className="eyebrow">People</div>
         <h1>{open && detail ? detail.department.name : "Department portal"}</h1>
+        {isAdmin && (
+          <div className="dept-tools">
+            {!open && <button className="btn btn-primary btn-sm" onClick={() => setNameBox({ name: "" })}><Icon name="plus" size={14} /> Add department</button>}
+            {open && detail && <><button className="btn btn-ghost btn-sm" onClick={() => setNameBox({ id: open, name: detail.department.name })}><Icon name="pencil" size={14} /> Rename</button>
+              <button className="btn btn-ghost btn-sm" onClick={removeDept}>Delete</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => { setOpen(null); loadRows(); }}><Icon name="back" size={14} /> All departments</button></>}
+          </div>)}
       </div>
+      {msg && <div className="note">{msg}</div>}
+      {nameBox && (
+        <div className="card" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
+          <input className="field" style={{ flex: "1 1 240px" }} autoFocus placeholder="Department name, e.g. Admin" value={nameBox.name} onChange={(e) => setNameBox({ ...nameBox, name: e.target.value })} onKeyDown={(e) => e.key === "Enter" && saveName()} />
+          <button className="btn btn-primary btn-sm" onClick={saveName}>{nameBox.id ? "Save name" : "Add"}</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setNameBox(null)}>Cancel</button>
+        </div>)}
 
       {!open && (!rows ? <div className="empty">Loading…</div> : (
         <div className="dept-grid">
@@ -48,6 +82,18 @@ export default function DepartmentsPage({ user, onLogout, onBack, onOpenProfile 
 
       {open && tab !== "workspace" && (!detail ? <div className="empty">Loading…</div> : (
         <>
+          {tab === "people" && isAdmin && (
+            <div className="card" style={{ marginBottom: 12 }}>
+              <div className="title" style={{ marginBottom: 6 }}>Add people to {detail.department.name}</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <select className="field" style={{ flex: "1 1 260px" }} value="" onChange={(e) => e.target.value && setPick((p) => [...new Set([...p, e.target.value])])}>
+                  <option value="">Choose staff…</option>
+                  {everyone.filter((u) => !pick.includes(u.id) && !(detail.people || []).some((p) => p.id === u.id)).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+                <button className="btn btn-primary btn-sm" disabled={!pick.length} onClick={addPeople}>Add {pick.length || ""} to department</button>
+              </div>
+              {pick.length > 0 && <div className="pill-row" style={{ marginTop: 8 }}>{pick.map((id) => <button key={id} className="pill" onClick={() => setPick(pick.filter((x) => x !== id))}>{everyone.find((u) => u.id === id)?.name} ×</button>)}</div>}
+            </div>)}
           {tab === "people" && <div className="card" style={{ marginBottom: 16 }}>
             <div className="title" style={{ marginBottom: 6 }}>People (work done = last 30 days)</div>
             {detail.people.map((p) => (

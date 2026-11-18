@@ -11,6 +11,7 @@ import { api } from "../api.js";
 import { STATUS, effectiveStatus } from "../constants.js";
 import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
+import HeroBanner from "../components/HeroBanner.jsx";
 import Icon, { initials } from "../components/Icon.jsx";
 
 const todayISO = () => new Date(Date.now() + 19800000).toISOString().slice(0, 10); // India date
@@ -105,13 +106,9 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
         <MobileTopBar title="Dashboard" onOpenMenu={() => setMobileOpen(true)} />
 
         <AskLumiBar />
-        <div className="hero">
-          <Lumi mood="wave" size={118} className="hero-lumi" />
-          <div style={{ position: "relative", zIndex: 1 }}>
-            <h2>{greeting()}</h2>
-            {canAssign && <div className="hero-actions"><button className="btn btn-light" onClick={() => setShowForm(true)}><Icon name="plus" size={16} /> Assign task</button></div>}
-          </div>
-        </div>
+        <HeroBanner user={user}>
+          {canAssign && <button className="btn btn-light" onClick={() => setShowForm(true)}><Icon name="plus" size={16} /> Assign task</button>}
+        </HeroBanner>
 
         <div className="kpi-grid">
           <Kpi icon="tasks" tone="teal" value={comp?.overall_pct == null ? "—" : `${comp.overall_pct}%`} label="Work completion · 30 days" hint={comp ? `${comp.done} of ${comp.total} checklist items + tasks done` : `${doneTasks} of ${totalTasks} tasks done`} />

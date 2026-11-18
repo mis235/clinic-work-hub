@@ -560,6 +560,17 @@ try {
     ok("removing an automatic fine waives it for good", (await call("DELETE", `/api/fines/${fid}`, null, admin)).status === 200 && (await call("POST", "/api/payroll/generate", { period: lateMonth, userId: lateU.id }, admin)).body[0].fine_amount === 0);
     ok("staff cannot edit a fine", (await call("PUT", `/api/fines/${fid}`, { amount: 1 }, lvTok)).status === 403);
 
+    // departments: add, rename, move people, delete
+    const dn = await call("POST", "/api/portal/departments", { name: "Test Team" }, admin);
+    ok("admin adds a department", dn.status === 201 && dn.body.id);
+    ok("duplicate department refused", (await call("POST", "/api/portal/departments", { name: "test team" }, admin)).status === 409);
+    ok("admin renames a department", (await call("PUT", `/api/portal/departments/${dn.body.id}`, { name: "Test Team 2" }, admin)).status === 200);
+    ok("admin moves staff in", (await call("POST", `/api/portal/departments/${dn.body.id}/members`, { userIds: [lvTarget.id] }, admin)).body.moved === 1);
+    ok("department with staff cannot be deleted", (await call("DELETE", `/api/portal/departments/${dn.body.id}`, null, admin)).status === 409);
+    ok("staff cannot add a department", (await call("POST", "/api/portal/departments", { name: "X" }, lvTok)).status === 403);
+    const adminDept = (await call("GET", "/api/portal/departments", null, admin)).body.rows.find((r) => r.name === "Admin");
+    ok("an Admin department exists", !!adminDept);
+
     // draft -> sent: staff only see a payslip after it is sent
     const lvSlip = g.body[0];
     ok("a new payslip is a draft", !lvSlip.published_at);

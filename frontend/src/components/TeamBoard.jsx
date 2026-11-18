@@ -1,3 +1,4 @@
+import Icon from "./Icon.jsx";
 import { useEffect, useState } from "react";
 import Avatar from "./Avatar.jsx";
 import { api } from "../api.js";
@@ -17,12 +18,12 @@ export default function TeamBoard({ canAnnounce = false, onNavigate }) {
     <div className="team-board">
       {!cur && canAnnounce && (
         <div className="eom-card">
-          <div className="eom-badge">🏆 Employee of the Month</div>
+          <div className="eom-badge icon-h"><Icon name="trophy" size={15} /> Employee of the Month</div>
           <div className="eom-body"><div><div className="eom-name">Not announced yet</div></div><button className="btn btn-sm" style={{ marginLeft: "auto", background: "#fff" }} onClick={() => onNavigate?.("Events")}>Announce</button></div>
         </div>)}
       {cur && (
         <div className="eom-card">
-          <div className="eom-badge">🏆 Employee of the Month · {cur.label}</div>
+          <div className="eom-badge icon-h"><Icon name="trophy" size={15} /> Employee of the Month · {cur.label}</div>
           <div className="eom-body">
             <Avatar id={cur.userId} name={cur.name} hasPhoto={cur.hasPhoto} size={84} className="eom-photo" />
             <div><div className="eom-name">{cur.name}</div><div className="eom-meta">{[cur.designation, cur.department].filter(Boolean).join(" · ")}</div>{cur.note && <div className="eom-note">“{cur.note}”</div>}</div>

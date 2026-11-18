@@ -2,6 +2,7 @@ import { Router } from "express";
 import db from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { accessFor } from "../access.js";
+import { randomUUID } from "node:crypto";
 import { monthCounts, markFor, MARKS } from "./attendance.js";
 
 const router = Router();
@@ -31,8 +32,52 @@ router.get("/departments", requireAuth, (req, res) => {
   if (!isLead(req.user)) return res.status(403).json({ error: "Not allowed" });
   const month = today().slice(0, 7), since = sinceDate();
   const depts = db.prepare("SELECT id, name FROM departments ORDER BY name").all();
-  res.json({ month, rows: depts.map((d) => ({ ...d, ...deptStats(d.id, month, since) })).filter((d) => d.staff > 0) });
+  res.json({ month, rows: depts.map((d) => ({ ...d, ...deptStats(d.id, month, since) })) });
 });
+
+const isAdminUser = (u) => u.roleName === "admin";
+const cleanName = (v) => String(v || "").replace(/\s+/g, " ").trim().slice(0, 60);
+// Admin: add a department.
+router.post("/departments", requireAuth, (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ error: "Only the admin can add a department" });
+  const name = cleanName(req.body?.name); if (!name) return res.status(400).json({ error: "Type a department name" });
+  if (db.prepare("SELECT 1 FROM departments WHERE lower(name) = lower(?)").get(name)) return res.status(409).json({ error: "That department already exists" });
+  const id = randomUUID(); db.prepare("INSERT INTO departments (id, name) VALUES (?, ?)").run(id, name);
+  res.status(201).json({ id, name });
+});
+// Admin: rename a department.
+router.put("/departments/:id", requireAuth, (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ error: "Only the admin can rename a department" });
+  const name = cleanName(req.body?.name); if (!name) return res.status(400).json({ error: "Type a department name" });
+  if (!db.prepare("SELECT 1 FROM departments WHERE id = ?").get(req.params.id)) return res.status(404).json({ error: "Not found" });
+  if (db.prepare("SELECT 1 FROM departments WHERE lower(name) = lower(?) AND id != ?").get(name, req.params.id)) return res.status(409).json({ error: "That name is already used" });
+  db.prepare("UPDATE departments SET name = ? WHERE id = ?").run(name, req.params.id);
+  res.json({ id: req.params.id, name });
+});
+// Admin: delete an empty department (move its people first).
+router.delete("/departments/:id", requireAuth, (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ error: "Only the admin can delete a department" });
+  const n = db.prepare("SELECT COUNT(*) n FROM users WHERE department_id = ?").get(req.params.id).n;
+  if (n) return res.status(409).json({ error: `${n} staff are still in this department. Move them to another department first.` });
+  db.prepare("DELETE FROM departments WHERE id = ?").run(req.params.id);
+  res.json({ ok: true });
+});
+// Admin: put people into a department (moves them from their old one).
+router.post("/departments/:id/members", requireAuth, (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ error: "Only the admin can move staff" });
+  if (!db.prepare("SELECT 1 FROM departments WHERE id = ?").get(req.params.id)) return res.status(404).json({ error: "Not found" });
+  const ids = Array.isArray(req.body?.userIds) ? req.body.userIds : [];
+  let moved = 0; for (const u of ids) moved += db.prepare("UPDATE users SET department_id = ? WHERE id = ? AND active = 1").run(req.params.id, u).changes;
+  res.json({ ok: true, moved });
+});
+
+// One-time: an "Admin" team with Naga and Neelima in it.
+if (!db.prepare("SELECT 1 FROM app_settings WHERE key = 'dept_admin_team_v1'").get()) {
+  let d = db.prepare("SELECT id FROM departments WHERE lower(name) = 'admin'").get();
+  if (!d) { d = { id: randomUUID() }; db.prepare("INSERT INTO departments (id, name) VALUES (?, 'Admin')").run(d.id); }
+  for (const u of db.prepare("SELECT id, name FROM users WHERE active = 1").all()) if (/\b(naga|neelima)\b/i.test(u.name)) db.prepare("UPDATE users SET department_id = ? WHERE id = ?").run(d.id, u.id);
+  db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('dept_admin_team_v1', '1')").run();
+}
 
 // One department: its people (today's status, completion, fines) and its documents.
 router.get("/departments/:id", requireAuth, (req, res) => {

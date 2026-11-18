@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import db from "../db.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
 import { sopsForRole } from "./policies.js";
+import { greetingFor, quoteFor } from "../quotes.js";
 
 const router = Router();
 
@@ -407,6 +408,13 @@ router.get("/events/feed", requireAuth, (req, res) => {
   }
   items.sort((a, b) => a.inDays - b.inDays);
   res.json({ today: t, items: items.slice(0, 8) });
+});
+
+// What the dashboard banner shows: greeting for the time of day, a quote, and today's events.
+router.get("/banner", requireAuth, (req, res) => {
+  const ist = new Date(Date.now() + 19800000).toISOString(), date = ist.slice(0, 10), hhmm = ist.slice(11, 16);
+  const events = db.prepare("SELECT title, event_type FROM clinic_events WHERE event_date = ? OR event_date = ?").all(date, date.slice(5)).map((e) => ({ title: e.title, type: e.event_type }));
+  res.json({ greeting: greetingFor(hhmm), quote: quoteFor(date, hhmm), period: Number(hhmm.slice(0, 2)) < 12 ? "morning" : Number(hhmm.slice(0, 2)) < 17 ? "afternoon" : "evening", events });
 });
 
 // ---- Employee of the Month ----

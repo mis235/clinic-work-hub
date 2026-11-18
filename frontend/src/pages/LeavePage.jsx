@@ -1,3 +1,4 @@
+import Icon from "../components/Icon.jsx";
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import PageShell from "../components/PageShell.jsx";
@@ -157,7 +158,7 @@ function Requests({ cfg, status }) {
   return (
     <>
       {msg && <div className="login-error">{msg}</div>}
-      {rows?.length === 0 && <div className="empty">{status === "open" ? "No requests are waiting. 🎉" : "No requests."}</div>}
+      {rows?.length === 0 && <div className="empty">{status === "open" ? "No requests are waiting." : "No requests."}</div>}
       {rows?.map((r) => (
         <div key={r.id} className="card">
           <div className="card-head"><div><span className="name">{r.staff_name}</span><span className="dept">{r.department || r.designation}{r.hr_confirmed_at ? " · HR received the letter" : ""}</span></div><span className={`badge ${STATUS[r.status][1]}`}>{STATUS[r.status][0]}</span></div>
@@ -219,7 +220,7 @@ function Birthdays() {
   if (!rows.length) return <div className="empty">No dates of birth saved yet. Add them in Staff → Edit.</div>;
   const groups = []; for (const r of rows) { const m = r.inDays === 0 ? "Today" : mon(r.next); (groups.at(-1)?.m === m ? groups.at(-1).r : (groups.push({ m, r: [] }), groups.at(-1).r)).push(r); }
   return groups.map((g) => (
-    <div key={g.m} className="card"><div className="title" style={{ marginBottom: 6 }}>{g.m === "Today" ? "🎂 Today" : g.m}</div>
+    <div key={g.m} className="card"><div className="title" style={{ marginBottom: 6 }}>{g.m === "Today" ? <span className="icon-h"><Icon name="cake" size={16} /> Today</span> : g.m}</div>
       {g.r.map((b) => <div key={b.id} className="task-row"><div><div className="title">{b.name}</div><div className="meta">{b.department || b.designation || ""}</div></div><div className="meta">{dmy(b.next).replace(/ \d{4}$/, "")}{b.inDays > 0 ? ` · in ${b.inDays} day${b.inDays === 1 ? "" : "s"}` : ""}</div></div>)}
     </div>
   ));

@@ -1,3 +1,4 @@
+import Icon from "./Icon.jsx";
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import Avatar from "./Avatar.jsx";
@@ -35,7 +36,7 @@ export default function HrOverview({ user, onNavigate }) {
       {banner}
       {pop && (
         <div className="modal-backdrop" onClick={close}><div className="modal" onClick={(e) => e.stopPropagation()}>
-          {pop.bd.length > 0 && <><h3>🎂 Birthday today</h3><p className="lead">{pop.bd.map((b) => b.name).join(", ")} — don't forget to wish {pop.bd.length > 1 ? "them" : "them"}!</p></>}
+          {pop.bd.length > 0 && <><h3 className="icon-h"><Icon name="cake" size={20} /> Birthday today</h3><p className="lead">{pop.bd.map((b) => b.name).join(", ")} — don't forget to wish {pop.bd.length > 1 ? "them" : "them"}!</p></>}
           {pop.news.length > 0 && <><h3 style={{ marginTop: pop.bd.length ? 14 : 0 }}>Your leave</h3>
             {pop.news.map((r) => <div key={r.id} className="task-row"><div><div className="title">{range(r)}</div><div className="meta">{r.hr_note || (r.status === "approved" ? `Approved by ${r.mgmt_ok}` : "")}</div></div><span className={`badge ${r.status === "approved" ? "done" : "overdue"}`}>{r.status === "approved" ? "Approved" : "Not approved"}</span></div>)}</>}
           {pop.pending.length > 0 && <><h3 style={{ marginTop: 14 }}>Leave waiting for you</h3><p className="lead">{pop.pending.length} request{pop.pending.length === 1 ? "" : "s"}: {pop.pending.slice(0, 4).map((r) => r.staff_name).join(", ")}</p></>}
@@ -69,11 +70,11 @@ export default function HrOverview({ user, onNavigate }) {
 function BirthdayCard({ d }) {
   const today = new Date(Date.now() + 19800000).toISOString().slice(0, 10), list = d.birthdaysMonth || [], soon = d.birthdaysSoon || [];
   const row = (b, k) => { const t = b.thisYear || b.next, cls = t === today ? "today" : t < today ? "past" : ""; return (
-    <div key={b.id + k} className={`bday-row ${cls}`}><Avatar id={b.id} name={b.name} hasPhoto={b.hasPhoto} size={34} /><div style={{ flex: 1 }}><div className="title" style={{ fontSize: 13 }}>{b.name} {t === today ? "🎂🎉" : t < today ? "🎈" : "🎁"}</div><div className="meta">{b.designation || b.department || ""}</div></div><div className="meta">{t === today ? "Today" : dmy(t)}</div></div>); };
+    <div key={b.id + k} className={`bday-row ${cls}`}><Avatar id={b.id} name={b.name} hasPhoto={b.hasPhoto} size={34} /><div style={{ flex: 1 }}><div className="title" style={{ fontSize: 13 }}>{b.name} {t === today ? <Icon name="cake" size={14} className="bd-ic" /> : t > today ? <Icon name="gift" size={14} className="bd-ic" /> : null}</div><div className="meta">{b.designation || b.department || ""}</div></div><div className="meta">{t === today ? "Today" : dmy(t)}</div></div>); };
   return (<>
-    <div className="card-head"><div className="name">🎂 Birthdays 🎉</div></div>
-    <Section title={`🎈 This month (${list.length})`} empty="No birthdays this month.">{list.map((b) => row(b, "m"))}</Section>
-    {soon.length > 0 && <Section title="🎁 Next 30 days">{soon.map((b) => row(b, "s"))}</Section>}
+    <div className="card-head"><div className="name icon-h"><Icon name="cake" size={18} /> Birthdays</div></div>
+    <Section title={`This month (${list.length})`} empty="No birthdays this month.">{list.map((b) => row(b, "m"))}</Section>
+    {soon.length > 0 && <Section title="Next 30 days">{soon.map((b) => row(b, "s"))}</Section>}
   </>);
 }
 const Section = ({ title, empty, children }) => { const arr = [].concat(children).flat().filter(Boolean); return <div style={{ marginTop: 10 }}><div className="meta" style={{ fontWeight: 700, fontSize: 11, letterSpacing: ".04em" }}>{title}</div>{arr.length ? arr : empty && <div className="meta" style={{ padding: "6px 0" }}>{empty}</div>}</div>; };

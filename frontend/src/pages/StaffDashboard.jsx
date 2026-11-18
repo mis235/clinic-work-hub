@@ -25,6 +25,7 @@ import StaffProfilePage from "./StaffProfilePage.jsx";
 import LeavePage from "./LeavePage.jsx";
 import HrOverview from "../components/HrOverview.jsx";
 import ChangePinModal from "../components/ChangePinModal.jsx";
+import HeroBanner from "../components/HeroBanner.jsx";
 import Icon from "../components/Icon.jsx";
 import { navItemsFor } from "../navItems.js";
 
@@ -106,15 +107,9 @@ export default function StaffDashboard({ user, onLogout }) {
         ) : (
           <>
         <AskLumiBar />
-        <div className="hero">
-          <Lumi mood="wave" size={118} className="hero-lumi" />
-          <div style={{ position: "relative", zIndex: 1 }}>
-            <h2>{new Date().getHours() < 12 ? "Good Morning" : new Date().getHours() < 17 ? "Good Afternoon" : "Good Evening"}</h2>
-            <div className="hero-actions">
-              <button className="btn btn-outline" onClick={() => setPinModal(true)}><Icon name="key" size={16} /> Change PIN</button>
-            </div>
-          </div>
-        </div>
+        <HeroBanner user={user}>
+          <button className="btn btn-outline" onClick={() => setPinModal(true)}><Icon name="key" size={16} /> Change PIN</button>
+        </HeroBanner>
         <TeamBoard />
         <MyDayCard onNavigate={setView} />
         <MyAttendanceCard />
