@@ -3,7 +3,7 @@ import { useId } from "react";
 // A friendly clay-style clinic character, drawn for this app. Each person gets a look (skin, hair, outfit) and a mood.
 // moods: wave, happy, wink, think, celebrate, calm
 export const LOOKS = [
-  { skin: "#F6C9A8", skinDark: "#E9AE88", hair: "#3B2418", style: "bun", top: "#8D72E0", coat: true },
+  { skin: "#F8D0B2", skinDark: "#EBB08A", hair: "#6A3B24", style: "long", top: "#8D72E0", coat: true },
   { skin: "#E3A982", skinDark: "#CF8E66", hair: "#1F1712", style: "short", top: "#5B9BE8", coat: true },
   { skin: "#F9D3BA", skinDark: "#EDB898", hair: "#7A3E1D", style: "long", top: "#F08FB5", coat: false },
   { skin: "#C98B65", skinDark: "#B2724D", hair: "#15100D", style: "bun", top: "#4FBF9B", coat: true },
@@ -11,7 +11,7 @@ export const LOOKS = [
 export const lookFor = (key = "") => { let h = 0; for (const c of String(key)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return LOOKS[h % LOOKS.length]; };
 
 function Eyes({ mood }) {
-  const open = (cx) => (<g key={cx}><ellipse cx={cx} cy="94" rx="7" ry="8.4" fill="#fff" /><ellipse cx={cx} cy="95" rx="5.6" ry="7" fill="url(#iris)" /><ellipse cx={cx} cy="95.5" rx="2.8" ry="3.6" fill="#1E1230" /><circle cx={cx + 2.4} cy="91.6" r="2.5" fill="#fff" /><circle cx={cx - 2} cy="98.4" r="1.2" fill="#fff" opacity=".85" /><path d={`M${cx - 7.5} 88.5 Q${cx} 84 ${cx + 7.5} 88.5`} stroke="#2B1B3A" strokeWidth="2.2" fill="none" strokeLinecap="round" /></g>);
+  const open = (cx) => (<g key={cx}><ellipse cx={cx} cy="94" rx="7" ry="8.4" fill="#fff" /><ellipse cx={cx} cy="95" rx="5.6" ry="7" fill="url(#iris)" /><ellipse cx={cx} cy="95.5" rx="2.8" ry="3.6" fill="#1E1230" /><circle cx={cx + 2.4} cy="91.6" r="2.5" fill="#fff" /><circle cx={cx - 2} cy="98.4" r="1.2" fill="#fff" opacity=".85" /><path d={`M${cx - 7.5} 88.5 Q${cx} 84 ${cx + 7.5} 88.5`} stroke="#2B1B3A" strokeWidth="2.4" fill="none" strokeLinecap="round" /><path d={cx < 100 ? `M${cx - 7} 89 l-4 -2.4 M${cx - 7.5} 92 l-4.4 -0.6` : `M${cx + 7} 89 l4 -2.4 M${cx + 7.5} 92 l4.4 -0.6`} stroke="#2B1B3A" strokeWidth="1.8" strokeLinecap="round" /></g>);
   const happy = (cx) => <path key={cx} d={`M${cx - 6} 96 Q${cx} 88 ${cx + 6} 96`} stroke="#2B1B3A" strokeWidth="3.2" fill="none" strokeLinecap="round" />;
   const sleepy = (cx) => <path key={cx} d={`M${cx - 6} 93 Q${cx} 99 ${cx + 6} 93`} stroke="#2B1B3A" strokeWidth="3" fill="none" strokeLinecap="round" />;
   if (mood === "happy" || mood === "celebrate") return <>{happy(82)}{happy(118)}</>;
@@ -53,7 +53,7 @@ export default function ClinicMate({ look, mood = "wave", size = 140, className 
       <ellipse cx="100" cy="222" rx="62" ry="7" fill="#7C5CD6" opacity=".16" filter={`url(#bl${id})`} />
 
       {/* hair behind */}
-      {L.style === "long" && <path d="M52 92 Q48 160 66 176 L134 176 Q152 160 148 92 Z" fill={`url(#hr${id})`} />}
+      {L.style === "long" && <><path d="M46 96 Q36 168 62 188 Q80 176 100 178 Q120 176 138 188 Q164 168 154 96 Z" fill={`url(#hr${id})`} /><path d="M54 120 Q50 160 64 178" stroke="#fff" strokeOpacity=".2" strokeWidth="4" fill="none" strokeLinecap="round" /><path d="M146 120 Q150 160 136 178" stroke="#000" strokeOpacity=".14" strokeWidth="5" fill="none" strokeLinecap="round" /></>}
       {L.style === "bun" && <circle cx="100" cy="30" r="19" fill={`url(#hr${id})`} />}
 
       {/* body */}
@@ -72,14 +72,14 @@ export default function ClinicMate({ look, mood = "wave", size = 140, className 
       <ellipse cx="53" cy="98" rx="7" ry="10" fill={L.skinDark} /><ellipse cx="147" cy="98" rx="7" ry="10" fill={L.skinDark} />
       <ellipse cx="100" cy="94" rx="49" ry="51" fill={`url(#hd${id})`} /><ellipse cx="100" cy="94" rx="49" ry="51" fill={`url(#hl${id})`} />
       {/* hair front */}
-      {L.style === "short" ? <path d="M52 88 Q48 40 100 40 Q152 40 148 88 Q140 66 118 62 Q100 70 78 62 Q60 68 52 88Z" fill={`url(#hr${id})`} /> : <path d="M52 92 Q46 42 100 42 Q154 42 148 92 Q138 62 106 58 Q76 62 52 92Z" fill={`url(#hr${id})`} />}
+      {L.style === "short" ? <path d="M52 88 Q48 40 100 40 Q152 40 148 88 Q140 66 118 62 Q100 70 78 62 Q60 68 52 88Z" fill={`url(#hr${id})`} /> : <><path d="M50 100 Q42 38 100 38 Q158 38 150 100 Q148 76 130 64 Q112 74 84 60 Q62 70 58 112 Q52 108 50 100Z" fill={`url(#hr${id})`} /><path d="M58 112 Q56 128 62 142 Q50 132 50 100Z M142 112 Q144 128 138 142 Q150 132 150 100Z" fill={`url(#hr${id})`} /><path d="M84 60 Q104 66 126 62" stroke="#fff" strokeOpacity=".25" strokeWidth="3" fill="none" strokeLinecap="round" /></>}
       <ellipse cx="100" cy="72" rx="40" ry="8" fill="#000" opacity=".10" filter={`url(#bl${id})`} />
       <ellipse cx="82" cy="52" rx="26" ry="7" fill="#fff" opacity=".28" filter={`url(#bl2${id})`} transform="rotate(-14 82 52)" />
       <path d="M66 62 Q76 48 98 46" stroke="#fff" strokeOpacity=".26" strokeWidth="3" fill="none" strokeLinecap="round" />
 
       {/* face */}
       <Brows mood={mood} /><Eyes mood={mood} /><Mouth mood={mood} />
-      <ellipse cx="66" cy="108" rx="11" ry="7" fill="#FF7FA0" opacity=".5" filter={`url(#bl2${id})`} /><ellipse cx="134" cy="108" rx="11" ry="7" fill="#FF7FA0" opacity=".5" filter={`url(#bl2${id})`} /><ellipse cx="98" cy="100" rx="2.4" ry="1.6" fill="#fff" opacity=".5" />
+      <ellipse cx="66" cy="108" rx="11" ry="7" fill="#FF7FA0" opacity=".5" filter={`url(#bl2${id})`} /><ellipse cx="134" cy="108" rx="11" ry="7" fill="#FF7FA0" opacity=".5" filter={`url(#bl2${id})`} /><ellipse cx="98" cy="100" rx="2.4" ry="1.6" fill="#fff" opacity=".5" /><ellipse cx="97" cy="111" rx="3.4" ry="1" fill="#fff" opacity=".55" /><path d="M54 80 Q50 100 58 124" stroke="#fff" strokeOpacity=".45" strokeWidth="3" fill="none" strokeLinecap="round" />
       <ellipse cx="100" cy="102" rx="3" ry="2.2" fill={L.skinDark} opacity=".6" />
 
       {/* extras */}
