@@ -2,6 +2,7 @@ import Avatar from "./Avatar.jsx";
 import { NAV, NAV_GROUPS } from "../navItems.js";
 import Icon, { initials } from "./Icon.jsx";
 
+const SHORT = { Dashboard: "Home", "My checklist": "Tasks", "Shift Checklist": "Shift", Attendance: "Attendance", Help: "Help", Leave: "Leave" };
 export default function Sidebar({ items, active, onSelect, who, me, onLogout, mobileOpen, onCloseMobile, badges = {} }) {
   const [name, ...rest] = (who || "").split(" · ");
   return (
@@ -42,12 +43,12 @@ export default function Sidebar({ items, active, onSelect, who, me, onLogout, mo
         </div>
       </aside>
       <nav className="bottom-nav" aria-label="Quick menu">
-        {["Dashboard", "My checklist", "Shift Checklist", "Dashboards", "Leave", "Tracker"].filter((k) => items.includes(k)).slice(0, 3).map((k) => (
+        {["Dashboard", "My checklist", "Shift Checklist", "Attendance", "Help", "Leave"].filter((k) => items.includes(k)).slice(0, 4).map((k) => (
           <button key={k} className={active === k ? "active" : ""} onClick={() => onSelect(k)} aria-label={NAV[k]?.label || k}>
-            <Icon name={NAV[k]?.icon || "list"} size={19} /><span>{NAV[k]?.label || k}</span>
+            <Icon name={NAV[k]?.icon || "list"} size={19} /><span>{SHORT[k] || NAV[k]?.label || k}</span>
           </button>
         ))}
-        <button onClick={() => window.dispatchEvent(new Event("open-menu"))} aria-label="More"><Icon name="menu" size={19} /></button>
+        <button onClick={() => window.dispatchEvent(new Event("open-menu"))} aria-label="More"><Icon name="menu" size={19} /><span>More</span></button>
       </nav>
     </>
   );

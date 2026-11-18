@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import Icon from "./Icon.jsx";
-import Lumi from "./Lumi.jsx";
+import ClinicMate, { lookFor } from "./ClinicMate.jsx";
 
 const PERIOD_ICON = { morning: "sun", afternoon: "sun", evening: "sunset" };
 
@@ -13,6 +13,8 @@ export default function HeroBanner({ user, children }) {
     const load = () => { api.banner().then(setB).catch(() => {}); api.leaveOverview().then((o) => setBd(o?.birthdaysToday || [])).catch(() => {}); };
     load(); const t = setInterval(load, 15 * 60000); return () => clearInterval(t);
   }, []);
+  const hour = Number(new Date(Date.now() + 19800000).toISOString().slice(11, 13));
+  const mood = bd.length ? "celebrate" : b?.period === "evening" || hour >= 17 ? "calm" : hour >= 12 ? "wink" : "wave";
   const first = String(user?.name || "").replace(/^(dr\.?\s*)/i, "").split(" ")[0];
   const celebrate = [
     ...bd.map((x) => ({ k: "b" + x.id, icon: "cake", text: x.id === user?.id ? "Happy birthday to you!" : `${x.name}'s birthday` })),
@@ -20,7 +22,7 @@ export default function HeroBanner({ user, children }) {
   ];
   return (
     <div className="hero">
-      <Lumi mood="wave" size={118} className="hero-lumi" />
+      <ClinicMate look={lookFor(user?.id)} mood={mood} size={150} className="hero-lumi" />
       <div style={{ position: "relative", zIndex: 1 }}>
         <div className="hero-greet"><Icon name={PERIOD_ICON[b?.period] || "sun"} size={18} /><h2>{b?.greeting || "Welcome"}{first ? `, ${first}` : ""}</h2></div>
         {b?.quote && <p className="hero-quote"><Icon name="quote" size={16} className="hq" />{b.quote}</p>}
