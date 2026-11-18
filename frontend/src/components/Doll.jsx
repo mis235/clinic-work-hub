@@ -12,7 +12,7 @@ const IMG = {
   thinking: D + "think.webp", working: D + "laptop.webp", music: D + "music.webp",
   success: D + "s-success.webp", closing: D + "wave.webp", goodbye: D + "wave.webp",
   hello: D + "wave.webp", wrong: D + "think.webp",
-  celebrate: D + "celebrate.webp", birthday: D + "s-celebrating.webp",
+  celebrate: D + "celebrate.webp", birthday: D + "celebrate.webp",
   notify: D + "s-surprised.webp", error: D + "s-confused.webp", sleepy: D + "s-sleepy.webp",
   tired: D + "s-tired.webp", idea: D + "s-idea.webp", worried: D + "s-worried.webp", sick: D + "s-sick.webp", pet: D + "s-happy.webp", grumpy: D + "s-angry.webp", hungry: D + "s-hungry.webp", angry: D + "s-angry.webp",
 };
