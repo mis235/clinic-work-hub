@@ -83,3 +83,11 @@ export function waLinkFor(userId, text) {
   const u = db.prepare("SELECT phone FROM users WHERE id = ?").get(userId);
   return wa(u?.phone, text);
 }
+
+/** A notification for one person (shows on their bell). Same kind on the same day updates the existing one and makes it unread again. */
+export function notifyUser(userId, kind, title, body) {
+  const date = new Date(Date.now() + 19800000).toISOString().slice(0, 10);
+  db.prepare(`INSERT INTO staff_messages (id, user_id, kind, msg_date, title, body) VALUES (?,?,?,?,?,?)
+    ON CONFLICT(user_id, msg_date, kind) DO UPDATE SET title = excluded.title, body = excluded.body, read_at = NULL, created_at = datetime('now')`)
+    .run(randomUUID(), userId, kind, date, String(title).slice(0, 120), String(body).slice(0, 400));
+}

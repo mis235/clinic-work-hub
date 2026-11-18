@@ -25,6 +25,7 @@ import StaffProfilePage from "./StaffProfilePage.jsx";
 import LeavePage from "./LeavePage.jsx";
 import HrOverview from "../components/HrOverview.jsx";
 import ChangePinModal from "../components/ChangePinModal.jsx";
+import HelpPage from "./HelpPage.jsx";
 import HeroBanner from "../components/HeroBanner.jsx";
 import Icon from "../components/Icon.jsx";
 import { navItemsFor } from "../navItems.js";
@@ -62,8 +63,9 @@ export default function StaffDashboard({ user, onLogout }) {
 
   const shiftSummary = [...shiftToday].sort((x, y) => (y.status === "in_progress") - (x.status === "in_progress"))[0] || null;
   const NAV_ITEMS = navItemsFor(user);
-  const ACTIVE_LABEL = { checklist: "My checklist", shiftchecklist: "Shift Checklist", rooms: "Procedure Rooms", grooming: "Grooming", tracker: "Tracker", profile: "My Profile", leave: "Leave", workspace: "My Workspace", assistant: "Assistant", policies: "Policies", sops: "SOPs", documents: "Documents", learning: "Learning", clinicassistant: "Clinic Assistant" };
-  const VIEW_FOR_LABEL = { "My checklist": "checklist", "Shift Checklist": "shiftchecklist", "Procedure Rooms": "rooms", "Grooming": "grooming", "Tracker": "tracker", "My Profile": "profile", "Leave": "leave", "My Workspace": "workspace", "Assistant": "assistant", "Policies": "policies", "SOPs": "sops", "Documents": "documents", "Learning": "learning", "Clinic Assistant": "clinicassistant" };
+  useEffect(() => { const f = (e) => { if (e.detail?.view === "Help") setView("help"); }; window.addEventListener("hub-goto", f); return () => window.removeEventListener("hub-goto", f); }, []);
+  const ACTIVE_LABEL = { checklist: "My checklist", shiftchecklist: "Shift Checklist", rooms: "Procedure Rooms", grooming: "Grooming", tracker: "Tracker", profile: "My Profile", leave: "Leave", workspace: "My Workspace", assistant: "Assistant", policies: "Policies", sops: "SOPs", documents: "Documents", learning: "Learning", clinicassistant: "Clinic Assistant", help: "Help" };
+  const VIEW_FOR_LABEL = { "My checklist": "checklist", "Shift Checklist": "shiftchecklist", "Procedure Rooms": "rooms", "Grooming": "grooming", "Tracker": "tracker", "My Profile": "profile", "Leave": "leave", "My Workspace": "workspace", "Assistant": "assistant", "Policies": "policies", "SOPs": "sops", "Documents": "documents", "Learning": "learning", "Clinic Assistant": "clinicassistant", "Help": "help" };
 
   return (
     <div className="app-shell">
@@ -102,6 +104,8 @@ export default function StaffDashboard({ user, onLogout }) {
           <LearningPage user={user} isStaffLayout />
         ) : view === "workspace" ? (
           <WorkspacePanel deptId="me" title="My workspace" />
+        ) : view === "help" ? (
+          <HelpPage user={user} isStaffLayout />
         ) : view === "assistant" ? (
           <AssistantPage user={user} isStaffLayout />
         ) : (

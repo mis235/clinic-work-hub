@@ -31,14 +31,15 @@ import DepartmentsPage from "./pages/DepartmentsPage.jsx";
 import DocumentsPage from "./pages/DocumentsPage.jsx";
 import KioskPage from "./pages/KioskPage.jsx";
 import LumiFloat from "./components/LumiFloat.jsx";
-import NoteBanner from "./components/NoteBanner.jsx";
+import NotificationBell from "./components/NotificationBell.jsx";
+import HelpPage from "./pages/HelpPage.jsx";
 import TaskPopup from "./components/TaskPopup.jsx";
 import ChangePinModal from "./components/ChangePinModal.jsx";
 
 const VIEW_KEY = {
   "Dashboard": "dashboard", "AI Advisors": "assistant", "Policies": "policies", "SOPs": "sops", "Reports": "reports",
   "About": "about", "Learning": "learning", "Events": "events", "Auto Messages": "automessages", "HR": "hr", "Payroll": "payroll", "Staff": "staff",
-  "Assistant": "assistant", "Tracker": "tracker", "Shift Checklist": "shiftchecklist", "Procedure Rooms": "rooms", "Grooming": "grooming", "Shift Logs": "dashboards", "Onboarding": "onboarding", "System": "system", "Attendance": "attendance", "Clinic Assistant": "clinicassistant", "Dashboards": "dashboards", "Documents": "documents", "Departments": "departments", "Roster": "roster", "Exits": "exits", "Leave": "leave", "My Profile": "myprofile",
+  "Assistant": "assistant", "Help": "help", "Tracker": "tracker", "Shift Checklist": "shiftchecklist", "Procedure Rooms": "rooms", "Grooming": "grooming", "Shift Logs": "dashboards", "Onboarding": "onboarding", "System": "system", "Attendance": "attendance", "Clinic Assistant": "clinicassistant", "Dashboards": "dashboards", "Documents": "documents", "Departments": "departments", "Roster": "roster", "Exits": "exits", "Leave": "leave", "My Profile": "myprofile",
 };
 
 export default function App() {
@@ -64,6 +65,11 @@ function MainApp() {
       });
     }).catch(() => {});
   }, []);
+  const [helpStart, setHelpStart] = useState("help");
+  useEffect(() => { // a tap on the bell opens the help desk or the message
+    const f = (e) => { if (e.detail?.view === "Help") { setHelpStart(String(e.detail.kind || "").startsWith("dm:") ? "dm" : "help"); setView("help"); } };
+    window.addEventListener("hub-goto", f); return () => window.removeEventListener("hub-goto", f);
+  }, []);
   const [profile, setProfile] = useState(null); // { id, from } while viewing a staff profile
 
   function logout() {
@@ -88,7 +94,7 @@ function MainApp() {
     setUser(next);
   }
   const pinGate = user.mustChangePin ? <ChangePinModal forced onDone={pinChanged} /> : null;
-  return <>{pinGate}<NoteBanner />{user && <TaskPopup onOpen={() => navigate(user.role === "staff" ? "My checklist" : "Dashboard")} />}{renderApp()}{user && view !== "clinicassistant" && <LumiFloat user={user} />}</>;
+  return <>{pinGate}<NotificationBell />{user && <TaskPopup onOpen={() => navigate(user.role === "staff" ? "My checklist" : "Dashboard")} />}{renderApp()}{user && view !== "clinicassistant" && <LumiFloat user={user} />}</>;
 
   function renderApp() {
   if (user.role === "admin" || user.role === "manager") {
@@ -115,6 +121,7 @@ function MainApp() {
     if (view === "learning") return <LearningPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "automessages") return <AutoMessagesPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "events") return <EventsPage user={user} onLogout={logout} onBack={navigate} />;
+    if (view === "help") return <HelpPage user={user} onLogout={logout} onBack={navigate} start={helpStart} />;
     if (view === "roster") return <RosterPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "hr" && user.role === "admin") return <OfferLettersPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "payroll" && user.role === "admin") return <PayrollPage user={user} onLogout={logout} onBack={navigate} />;

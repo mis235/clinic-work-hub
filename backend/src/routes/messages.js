@@ -14,6 +14,16 @@ const canSeeAll = (req) => req.user.roleName === "admin" || accessFor(req.user.u
 router.get("/mine", requireAuth, (req, res) => {
   res.json(db.prepare("SELECT id, kind, title, body, msg_date AS date FROM staff_messages WHERE user_id = ? AND read_at IS NULL ORDER BY created_at DESC LIMIT 3").all(req.user.userId));
 });
+// The bell: everything sent to this person, newest first, with how many are still unread.
+router.get("/inbox", requireAuth, (req, res) => {
+  const items = db.prepare("SELECT id, kind, title, body, msg_date AS date, created_at AS createdAt, (read_at IS NOT NULL) AS read FROM staff_messages WHERE user_id = ? ORDER BY created_at DESC LIMIT 60").all(req.user.userId).map((r) => ({ ...r, read: !!r.read }));
+  const unread = db.prepare("SELECT COUNT(*) n FROM staff_messages WHERE user_id = ? AND read_at IS NULL").get(req.user.userId).n;
+  res.json({ unread, items });
+});
+router.post("/read-all", requireAuth, (req, res) => {
+  db.prepare("UPDATE staff_messages SET read_at = datetime('now') WHERE user_id = ? AND read_at IS NULL").run(req.user.userId);
+  res.json({ ok: true });
+});
 router.post("/:id/read", requireAuth, (req, res) => {
   db.prepare("UPDATE staff_messages SET read_at = datetime('now') WHERE id = ? AND user_id = ?").run(req.params.id, req.user.userId);
   res.json({ ok: true });

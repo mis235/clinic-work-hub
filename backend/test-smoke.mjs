@@ -560,6 +560,29 @@ try {
     ok("removing an automatic fine waives it for good", (await call("DELETE", `/api/fines/${fid}`, null, admin)).status === 200 && (await call("POST", "/api/payroll/generate", { period: lateMonth, userId: lateU.id }, admin)).body[0].fine_amount === 0);
     ok("staff cannot edit a fine", (await call("PUT", `/api/fines/${fid}`, { amount: 1 }, lvTok)).status === 403);
 
+    // help desk, messages and the bell
+    const tk = await call("POST", "/api/helpdesk/tickets", { subject: "Cannot see payslip", category: "Payslip or salary", body: "It is empty" }, lvTok);
+    ok("staff raises a help request", tk.status === 201 && tk.body.id);
+    ok("staff needs a title", (await call("POST", "/api/helpdesk/tickets", { subject: "", body: "x" }, lvTok)).status === 400);
+    ok("admin sees the request and it is on the bell", (await call("GET", "/api/helpdesk/tickets", null, admin)).body.rows.some((r) => r.id === tk.body.id) && (await call("GET", "/api/messages/inbox", null, admin)).body.items.some((n) => n.kind === `help:${tk.body.id}`));
+    ok("another staff member cannot open it", (await call("GET", `/api/helpdesk/tickets/${tk.body.id}`, null, stoken)).status === 403);
+    ok("admin replies", (await call("POST", `/api/helpdesk/tickets/${tk.body.id}/replies`, { body: "Please check now" }, admin)).status === 201);
+    const inb = await call("GET", "/api/messages/inbox", null, lvTok);
+    ok("staff gets the reply on the bell with a count", inb.body.unread >= 1 && inb.body.items.some((n) => n.kind === `help:${tk.body.id}` && !n.read));
+    ok("request moves to being looked at", (await call("GET", `/api/helpdesk/tickets/${tk.body.id}`, null, lvTok)).body.ticket.status === "in_progress");
+    ok("staff cannot reopen as admin", (await call("PUT", `/api/helpdesk/tickets/${tk.body.id}/status`, { status: "open" }, lvTok)).status === 403);
+    ok("admin marks it solved", (await call("PUT", `/api/helpdesk/tickets/${tk.body.id}/status`, { status: "resolved" }, admin)).status === 200);
+    await call("POST", "/api/messages/read-all", null, lvTok);
+    ok("mark all as read clears the count", (await call("GET", "/api/messages/inbox", null, lvTok)).body.unread === 0);
+    const lvId = lvTarget.id, stId = (await call("GET", "/api/auth/me", null, stoken)).body?.id;
+    const dm = await call("POST", `/api/chat/with/${lvId}`, { body: "Hello from the admin" }, admin);
+    ok("admin messages a staff member", dm.status === 201);
+    ok("the message shows on their bell and in the thread", (await call("GET", "/api/messages/inbox", null, lvTok)).body.unread >= 1 && (await call("GET", `/api/chat/people`, null, lvTok)).body.some((p) => p.unread >= 1));
+    const admId = (await call("GET", "/api/chat/people", null, lvTok)).body.find((p) => p.isAdmin)?.id;
+    ok("opening the thread reads it", (await call("GET", `/api/chat/with/${admId}`, null, lvTok)).body.messages.length >= 1 && (await call("GET", "/api/chat/people", null, lvTok)).body.every((p) => p.unread === 0));
+    ok("staff can reply to admin", (await call("POST", `/api/chat/with/${admId}`, { body: "Thank you" }, lvTok)).status === 201);
+    ok("banner gives a fresh line for each day", (await import("./src/quotes.js")).quoteFor("2026-11-18", "09:00") !== (await import("./src/quotes.js")).quoteFor("2026-11-19", "09:00"));
+
     // departments: add, rename, move people, delete
     const dn = await call("POST", "/api/portal/departments", { name: "Test Team" }, admin);
     ok("admin adds a department", dn.status === 201 && dn.body.id);

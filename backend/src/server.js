@@ -3,6 +3,8 @@ import { documentsRouter, templatesRouter, linksRouter } from "./routes/document
 import finesRoutes from "./routes/fines.js";
 import groomingRoutes from "./routes/grooming.js";
 import portalRoutes from "./routes/portal.js";
+import helpdeskRoutes from "./routes/helpdesk.js";
+import chatRoutes from "./routes/chat.js";
 import rosterRoutes from "./routes/roster.js";
 import exitRoutes from "./routes/exits.js";
 import workspaceRoutes from "./routes/workspace.js";
@@ -156,6 +158,8 @@ app.use("/api/links", linksRouter);
 app.use("/api/fines", finesRoutes);
 app.use("/api/grooming", groomingRoutes);
 app.use("/api/portal", portalRoutes);
+app.use("/api/helpdesk", helpdeskRoutes);
+app.use("/api/chat", chatRoutes);
 app.use("/api/roster", rosterRoutes);
 app.use("/api/exits", exitRoutes);
 app.use("/api/workspace", workspaceRoutes);
