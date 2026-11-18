@@ -23,6 +23,7 @@ export function WeekBars({ trend = [], title = "Work overview" }) {
     const date = istDate(o), row = trend.find((r) => r.date === date);
     return { date, v: row ? row.completion_pct : null, label: new Date(date + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "short", timeZone: "UTC" }) };
   });
+  const empty = days.every((d) => d.v == null), GHOST = [55, 72, 46, 82, 62, 76, 50];
   return (
     <div className="card dw-card">
       <div className="dw-head"><div className="dw-title">{title}</div><span className="dw-pill">Last 7 days</span></div>
@@ -33,7 +34,7 @@ export function WeekBars({ trend = [], title = "Work overview" }) {
           <div className="wk-bars">
             {days.map((d, i) => (
               <div className="wk-col" key={d.date} title={d.v == null ? `${d.label}: no data` : `${d.label}: ${d.v}%`}>
-                <div className="wk-barbox">{d.v != null && <div className="wk-bar" style={{ height: `${Math.max(d.v, 3)}%`, background: BAR_COLORS[i], "--i": i }} />}</div>
+                <div className="wk-barbox">{empty && <div className="wk-bar ghost" style={{ height: `${GHOST[i]}%`, "--i": i }} />}{d.v != null && <div className="wk-bar" style={{ height: `${Math.max(d.v, 3)}%`, background: BAR_COLORS[i], "--i": i }} />}</div>
                 <span>{d.label}</span>
               </div>))}
           </div>
@@ -85,7 +86,7 @@ export function EomCard({ canAnnounce, onNavigate }) {
     <div className="card dw-card">
       <div className="dw-head"><div className="dw-title">Employee of the month</div>{canAnnounce && <button className="dw-link" onClick={() => onNavigate?.("Events")}>{cur ? "Change" : "Announce"}</button>}</div>
       <div className="eom2">
-        {cur?.hasPhoto ? <img src={photoUrl(cur.userId)} alt={cur.name} /> : <div className="eom2-blank">{cur ? initials(cur.name) : <Icon name="trophy" size={46} />}</div>}
+        {cur?.hasPhoto ? <img src={photoUrl(cur.userId)} alt={cur.name} /> : cur ? <div className="eom2-blank">{initials(cur.name)}</div> : <img src="/dolls/s-excited.webp" alt="" className="eom2-art" />}
         <div className="eom2-cap">
           <div><b>{cur ? cur.name : "Not announced yet"}</b>{cur && <small>{[cur.designation, cur.department].filter(Boolean).join(" · ")}</small>}</div>
           <span className="eom2-btn"><Icon name="trophy" size={18} /></span>

@@ -1,6 +1,7 @@
 import Avatar from "./Avatar.jsx";
 import { NAV, NAV_GROUPS } from "../navItems.js";
 import { givenName } from "../givenName.js";
+import GirlFace from "./GirlFace.jsx";
 import Icon, { initials } from "./Icon.jsx";
 
 const SHORT = { Dashboard: "Home", "My checklist": "Tasks", "Shift Checklist": "Shift", Attendance: "Attendance", Help: "Help", Leave: "Leave" };
@@ -18,7 +19,7 @@ export default function Sidebar({ items, active, onSelect, who, me, onLogout, mo
       <div className={`sidebar-backdrop ${mobileOpen ? "open" : ""}`} onClick={onCloseMobile} />
       <aside className={`sidebar ${mobileOpen ? "open" : ""}`}>
         <button className="side-me" onClick={() => go("My Profile")} aria-label="My profile">
-          <span className="side-ring">{meId ? <Avatar id={meId} name={name} size={78} /> : <span className="avatar" style={{ width: 78, height: 78, fontSize: 26 }}>{initials(name)}</span>}</span>
+          <span className="side-ring">{meId ? <Avatar id={meId} name={name} size={78} fallback={<GirlFace size={78} />} /> : <GirlFace size={78} />}</span>
           <span className="side-hi">{first ? `Hi, ${first}` : "Hi there"} <Icon name="wave" size={17} /></span>
         </button>
         <nav className="sidebar-nav" aria-label="Main">

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "./Icon.jsx";
 import Avatar from "./Avatar.jsx";
+import GirlFace from "./GirlFace.jsx";
 import NotificationBell from "./NotificationBell.jsx";
 import { NAV, navItemsFor } from "../navItems.js";
 import { getTheme, setTheme } from "../theme.js";
@@ -33,7 +34,7 @@ export default function MobileTopBar({ title, onOpenMenu }) {
       </div>
       <div className="theme-dots" role="group" aria-label="Colour theme">{[["lavender", "Lavender"], ["peach", "Peach and mint"]].map(([k, l]) => <button key={k} className={`td-${k} ${theme === k ? "on" : ""}`} title={l} aria-label={l} aria-pressed={theme === k} onClick={() => { setTheme(k); setT(k); }} />)}</div>
       <NotificationBell />
-      {user?.id && <button className="topbar-me" onClick={() => go("My Profile")} aria-label="My profile"><Avatar id={user.id} name={user.name} size={42} /></button>}
+      {user?.id && <button className="topbar-me" onClick={() => go("My Profile")} aria-label="My profile"><Avatar id={user.id} name={user.name} size={42} fallback={<GirlFace size={42} />} /></button>}
     </header>
   );
 }

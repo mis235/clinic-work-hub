@@ -1229,3 +1229,30 @@ html[data-theme="peach"] .rp-thumb { background: linear-gradient(135deg, #FFDCCB
 .bell-empty .doll { margin: 0 auto 4px; }
 .doll-empty, .pose-empty { text-align: center; }
 @media (prefers-reduced-motion: reduce) { .doll-swap, .s-celebrate img { animation: none !important; } }
+
+/* =====================================================================
+   Look v4: framed app, her face as the profile picture, polish
+   ===================================================================== */
+.girl-face { display: block; position: relative; overflow: hidden; border-radius: 50%; flex: none; background: linear-gradient(135deg, #EADCF8, #F8C9DD); }
+.girl-face img { width: 100%; height: 100%; object-fit: cover; display: block; user-select: none; }
+.eom2-art { object-position: 50% 15%; }
+.wk-bar.ghost { background: repeating-linear-gradient(135deg, rgba(148,114,200,.16) 0 6px, rgba(148,114,200,.07) 6px 12px) !important; box-shadow: none; }
+@media (min-width: 901px) {
+  body { background: linear-gradient(135deg, #C9BAF0 0%, #B7A3E8 55%, #C6B3EE 100%) fixed; }
+  html[data-theme="peach"] body { background: linear-gradient(135deg, #FFCDB8 0%, #F6B7A3 55%, #FFD2BF 100%) fixed; }
+  .app-shell { margin: 16px; padding: 16px; min-height: calc(100vh - 32px); border-radius: 44px; border: 1px solid rgba(255,255,255,.75);
+    background: linear-gradient(160deg, rgba(255,255,255,.66), rgba(244,236,254,.58));
+    box-shadow: 0 44px 90px rgba(70, 45, 150, .30), inset 0 3px 3px rgba(255,255,255,.95), inset 0 -10px 24px rgba(150, 120, 230, .12); }
+  .sidebar { top: 32px; height: calc(100vh - 64px); }
+}
+.login-panel { background: linear-gradient(160deg, #E9DFFA, #F8EEFB); }
+.login-card { position: relative; margin-top: 96px; padding: 0 30px 30px; border-radius: 36px; border: 1px solid #fff;
+  background: linear-gradient(180deg, #FFFFFF, #FBF6FF); box-shadow: var(--clay-shadow), var(--clay-inset); }
+.login-lean { display: block; width: 250px; max-width: 80%; margin: -98px auto 10px; position: relative; z-index: 1; filter: drop-shadow(0 14px 14px rgba(70,45,150,.25)); animation: doll-breathe 4.2s ease-in-out infinite; }
+@media (max-width: 880px) { .login-card { margin-top: 70px; } .login-lean { width: 200px; margin-top: -76px; } }
+::selection { background: #D9C8F6; color: #3E3151; }
+* { scrollbar-width: thin; scrollbar-color: #CDBDEE transparent; }
+.kpi .value, .rp-pct, .dn-key b, .pay-stat .value { font-variant-numeric: tabular-nums; }
+.main h1, .main h2, .main h3 { text-wrap: balance; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--primary-ring); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .login-lean { animation: none; } }

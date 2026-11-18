@@ -1,4 +1,3 @@
-import Doll from "../components/Doll.jsx";
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
 
@@ -57,14 +56,12 @@ export default function Login({ onLoggedIn }) {
           <img src="/clinic/dr-nishita.png" alt="Dr. Nishita Ranka" />
           <div>Dr. Nishita Ranka<small>Founder & Medical Director</small></div>
         </div>
-        <div className="login-lumi-sm"><Doll mood="welcome" size={110} follow={false} /></div>
         <div className="login-hero-top">
           <img src="/logo.png" alt="Dr. Nishita's Clinic" className="login-hero-logo" />
           <span className="name">Dr. Nishita's Clinic</span>
         </div>
 
         <div className="login-hero-mid">
-          <div className="login-lumi"><Doll mood="welcome" size={290} /></div>
           <div className="login-hero-eyebrow">Internal Work Hub · Dr. Nishita's Clinic</div>
           {tab === "password" ? (
             <h1>Dr. Nishita's Clinic,<br /><em>every task and every team</em>, one place.</h1>
@@ -91,6 +88,7 @@ export default function Login({ onLoggedIn }) {
 
       <div className="login-panel">
         <div className="login-card">
+          <img className="login-lean" src="/hero-girl.webp" alt="" draggable="false" />
           <div className="login-eyebrow">Staff sign-in</div>
           <h1>Welcome Back</h1>
           <p className="sub">Sign in to see your tasks, checklists and what's happening at the clinic today.</p>
