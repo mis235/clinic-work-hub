@@ -7,7 +7,7 @@ import path from "node:path";
 
 const PORT = 4590 + Math.floor(Math.random() * 100);
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hub-test-"));
-const env = { ...process.env, PORT: String(PORT), DATA_DIR: dir, JWT_SECRET: "test-secret-for-smoke-tests-1234567890", ADMIN_EMAIL: "admin@test.local", ADMIN_PASSWORD: "testpass123", DISABLE_CRON: "true", NODE_ENV: "test", MAIL_DRY_RUN: "1" };
+const env = { ...process.env, ATT_MANUAL_CUTOFF: "2099-01-01", PORT: String(PORT), DATA_DIR: dir, JWT_SECRET: "test-secret-for-smoke-tests-1234567890", ADMIN_EMAIL: "admin@test.local", ADMIN_PASSWORD: "testpass123", DISABLE_CRON: "true", NODE_ENV: "test", MAIL_DRY_RUN: "1" };
 const server = spawn("node", ["src/server.js"], { env, stdio: ["ignore", "pipe", "pipe"] });
 let log = ""; server.stdout.on("data", (d) => (log += d)); server.stderr.on("data", (d) => (log += d));
 const base = `http://localhost:${PORT}`;
@@ -748,7 +748,7 @@ try {
     ok("clear old preview", pv.status === 200 && typeof pv.body.count === "number");
     const rg = await call("GET", `/api/attendance/register?month=${today.slice(0, 7)}`, null, admin);
     ok("register shows late rule", rg.body.rule?.grace === 15 && rg.body.rule?.limit === 3);
-    if (today >= "2026-11-18") ok("hand-marking Present is closed from 18 Nov", (await call("PUT", "/api/attendance/mark", { userId: staff.id, date: today, status: "P" }, admin)).status === 400);
+    ok("hand-marking Present is closed from the cutoff date", (await call("PUT", "/api/attendance/mark", { userId: staff.id, date: "2099-02-01", status: "P" }, admin)).status === 400);
   }
   { // sheets dashboard
     const sh = await call("POST", "/api/sheets", { title: "T", category: "C", url: "https://docs.google.com/spreadsheets/d/abc123/edit#gid=0" }, admin);
@@ -777,6 +777,10 @@ try {
       const list = Array.isArray(inbox.body) ? inbox.body : [];
       const got = list.find((x) => /^Good (Morning|Afternoon|Evening), /.test(x.title || ""));
       ok("greeting uses the full name and a daily line", !!got && got.title.includes(staff.name) && !got.body.includes("{quote}") && got.body.length > 20, JSON.stringify(list.map((x) => [x.title, x.body.slice(0, 40)]))); }
+    { const ls = await call("GET", "/api/auto-messages", null, admin);
+      const rows = ls.body.messages || ls.body.items || [];
+      ok("morning and evening greetings are paused", rows.filter((m) => /^Good (Morning|Evening)/.test(m.title) && m.trigger !== "event").every((m) => !m.active), JSON.stringify(rows.filter((m) => /^Good (Morning|Evening)/.test(m.title)).map((m) => [m.title, m.active])));
+      ok("checklist reminder is switched on", rows.some((m) => m.trigger === "checklist_pending" && m.active), JSON.stringify(rows.map((m) => [m.trigger, m.active]).slice(0, 12))); }
     { const rm = await call("POST", "/api/auto-messages", { title: "Check in, {name}", body: "Hi {name}", trigger: "attendance_missing", time: "10:45", audience: "users", audienceUsers: [staff.id] }, admin);
       ok("reminder message can be created", rm.status === 201);
       ok("reminder send now answers", (await call("POST", "/api/auto-messages/" + rm.body.id + "/send-now", null, admin)).status === 200); }

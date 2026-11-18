@@ -130,7 +130,7 @@ export default router;
 (() => {
   try {
     if (db.prepare("SELECT value FROM app_settings WHERE key = 'auto_msgs_seeded_v2'").get()) return;
-    const add = (title, body, trigger, time) => db.prepare("INSERT INTO auto_messages (id, title, body, trigger_type, send_time, weekdays, audience, whatsapp, active) VALUES (?,?,?,?,?,?,?,?,?)").run(randomUUID(), title, body, trigger, time, "1,2,3,4,5,6", "all", 1, 1);
+    const add = (title, body, trigger, time) => db.prepare("INSERT INTO auto_messages (id, title, body, trigger_type, send_time, weekdays, audience, whatsapp, active) VALUES (?,?,?,?,?,?,?,?,?)").run(randomUUID(), title, body, trigger, time, "1,2,3,4,5,6", "all", 1, /^Good (Morning|Evening)/.test(title) ? 0 : 1);
     db.prepare("UPDATE auto_messages SET active = 0 WHERE title = 'Good Morning Team' AND trigger_type = 'daily'").run();
     add("Good Morning, {name}", "{quote}\n\nHave a wonderful day at Dr. Nishita's Clinic.", "weekly", "08:45");
     add("Good Evening, {name}", "{quote}\n\nThank you for your work today.", "weekly", "19:45");
@@ -139,6 +139,16 @@ export default router;
     add("Checklist not submitted, {name}", "Hi {name}, your shift checklist for today is not submitted yet. Please open Work Hub and submit it before you leave.", "checklist_pending", "17:30");
     db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('auto_msgs_seeded_v2', '1')").run();
   } catch (e) { console.error("auto message defaults v2:", e.message); }
+})();
+
+// Morning and evening greetings are paused until the clinic finalises the wording; reminders keep going. Turn them back on from Auto Messages.
+(() => {
+  try {
+    if (db.prepare("SELECT value FROM app_settings WHERE key = 'auto_greetings_paused_v3'").get()) return;
+    db.prepare("UPDATE auto_messages SET active = 0 WHERE trigger_type IN ('daily', 'weekly') AND (title LIKE 'Good Morning%' OR title LIKE 'Good Evening%')").run();
+    db.prepare("UPDATE auto_messages SET active = 1 WHERE trigger_type = 'checklist_pending'").run();
+    db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('auto_greetings_paused_v3', '1')").run();
+  } catch (e) { console.error("auto message pause:", e.message); }
 })();
 
 const ist = () => { const d = new Date(Date.now() + 19800000); return { date: d.toISOString().slice(0, 10), hhmm: d.toISOString().slice(11, 16), dow: d.getUTCDay(), md: d.toISOString().slice(5, 10) }; };

@@ -255,7 +255,7 @@ const istToday = () => new Date(Date.now() + 19800000).toISOString().slice(0, 10
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 // From this day, Present / Late / Half day come ONLY from the check-in and check-out times (face check-in), not from hand marking.
 // Leave, Absent and Week off can still be recorded by HR. Change with the app setting att_manual_cutoff.
-const manualCutoff = () => db.prepare("SELECT value FROM app_settings WHERE key = 'att_manual_cutoff'").get()?.value || "2026-11-18";
+const manualCutoff = () => db.prepare("SELECT value FROM app_settings WHERE key = 'att_manual_cutoff'").get()?.value || process.env.ATT_MANUAL_CUTOFF || "2026-11-18";
 const hhmmOk = (t) => /^([01]\d|2[0-3]):[0-5]\d$/.test(t || "");
 const mm = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
 
