@@ -1,7 +1,7 @@
 // Navigation model. Keys (left) are stable internal view ids used across the app;
 // `label` is what people see. Groups define the sidebar sections, in order.
 export const NAV = {
-  "Dashboard":        { label: "Overview",            icon: "home" },
+  "Dashboard":        { label: "Dashboard",           icon: "home" },
   "Help":             { label: "Help & Messages",     icon: "chat" },
   "My checklist":     { label: "My Tasks",            icon: "list" },
   "Shift Checklist":  { label: "My Shift Checklist",  icon: "clipboard" },

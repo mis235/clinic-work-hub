@@ -12,6 +12,7 @@ import { STATUS, effectiveStatus } from "../constants.js";
 import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
 import HeroBanner from "../components/HeroBanner.jsx";
+import { Kpi, WeekBars, StatusDonut, EomCard, Strip } from "../components/DashWidgets.jsx";
 import Icon, { initials } from "../components/Icon.jsx";
 
 const todayISO = () => new Date(Date.now() + 19800000).toISOString().slice(0, 10); // India date
@@ -111,48 +112,41 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
         </HeroBanner>
 
         <div className="kpi-grid">
-          <Kpi icon="tasks" tone="teal" value={comp?.overall_pct == null ? "—" : `${comp.overall_pct}%`} label="Work completion · 30 days" hint={comp ? `${comp.done} of ${comp.total} checklist items + tasks done` : `${doneTasks} of ${totalTasks} tasks done`} />
-          <Kpi icon="alert" tone={overdueTasks ? "red" : "green"} value={overdueTasks} label="Overdue tasks" hint={overdueTasks ? "Follow up today" : "All on track"} />
-          <Kpi icon="clipboard" tone="blue" value={`${submitted.length}/${expected || 0}`} label="Checklists submitted today" hint={inProgress.length ? `${inProgress.length} in progress now` : "Live from staff phones"} />
-          <Kpi icon="fingerprint" tone="violet" value={`${checkedIn}/${board?.total ?? assignable.length}`} label="Present today" hint="Open Attendance to mark" />
+          <Kpi icon="tasks" tone="violet" value={comp?.overall_pct == null ? "—" : `${comp.overall_pct}%`} label="Work completion" hint="Last 30 days" good />
+          <Kpi icon="alert" tone="red" value={overdueTasks} label="Overdue tasks" hint={overdueTasks ? "Follow up today" : "All on track"} good={!overdueTasks} />
+          <Kpi icon="clipboard" tone="amber" value={`${submitted.length}/${expected || 0}`} label="Checklists today" hint={inProgress.length ? `${inProgress.length} in progress` : "Submitted"} />
+          <Kpi icon="fingerprint" tone="blue" value={`${checkedIn}/${board?.total ?? assignable.length}`} label="Present today" hint="Attendance" />
         </div>
 
-        <TeamBoard canAnnounce onNavigate={onNavigate} />
+        <div className="dash-row r-65">
+          <WeekBars trend={summary?.completionTrend || []} />
+          <StatusDonut counts={counts} />
+        </div>
+
+        <div className="dash-row r-65">
+          <div className="card dw-card">
+            <div className="dw-head"><div className="dw-title">Today's shift checklists</div><button className="dw-link" onClick={() => onNavigate("Dashboards")}>See all</button></div>
+            {subs.length === 0 && <div className="meta" style={{ padding: "10px 0" }}>Nobody has started yet.</div>}
+            {subs.slice(0, 4).map((s) => (
+              <div key={s.id} className="rp-row">
+                <div className="rp-thumb">{initials(s.staffName)}</div>
+                <div className="rp-main"><div className="rp-name" onClick={() => onOpenProfile?.(s.userId)}>{s.staffName}</div><div className="rp-sub">{s.shift} · {s.roleName}</div>
+                  <div className={`progress ${s.status === "submitted" ? "green" : "amber"}`} style={{ marginTop: 6 }}><span style={{ width: `${s.completionPct}%` }} /></div></div>
+                <span className="rp-pct">{s.completionPct}%</span>
+                <button className="rp-go" onClick={() => onNavigate("Dashboards")} aria-label="Open"><Icon name="arrowRight" size={16} /></button>
+              </div>))}
+            {(shiftToday.missing || []).length > 0 && <div className="meta" style={{ paddingTop: 10 }}><strong>{shiftToday.missing.length}</strong> not started: {shiftToday.missing.slice(0, 3).map((m) => m.name).join(", ")}{shiftToday.missing.length > 3 ? "…" : ""}</div>}
+          </div>
+          <EomCard canAnnounce onNavigate={onNavigate} />
+        </div>
+
+        <Strip title="Shift checklists" sub={`${submitted.length} of ${expected || 0} submitted today`} action="Open" onClick={() => onNavigate("Dashboards")} />
+
+        <TeamBoard canAnnounce hideEom onNavigate={onNavigate} />
         <MyFinesCard />
         {user.role !== "admin" && <MyPayslips />}
         <HrOverview user={user} onNavigate={onNavigate} />
         <RoomsCard onNavigate={onNavigate} />
-
-        <div className="grid-2">
-          <div className="card" style={{ marginBottom: 0 }}>
-            <div className="card-head">
-              <div className="name">Today's shift checklists</div>
-              <button className="btn btn-ghost btn-sm" onClick={() => onNavigate("Dashboards")}>View all</button>
-            </div>
-            {subs.length === 0 && <div className="meta" style={{ padding: "14px 0" }}>Nobody has started a checklist yet today.</div>}
-            {subs.slice(0, 6).map((s) => (
-              <div key={s.id} style={{ padding: "10px 0", borderTop: "1px solid var(--line)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-                  <div className="person-row" style={{ gap: 10 }}>
-                    <div className="avatar sm">{initials(s.staffName)}</div>
-                    <div className="info"><div className="nm link" style={{ fontSize: 13 }} onClick={() => onOpenProfile?.(s.userId)}>{s.staffName}</div><div className="sub">{s.shift} · {s.roleName}</div></div>
-                  </div>
-                  <span className={`badge ${s.status === "submitted" ? "done" : "in_progress"}`}>{s.status === "submitted" ? "Submitted" : "In progress"}</span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
-                  <div className={`progress ${s.status === "submitted" ? "green" : "amber"}`} style={{ flex: 1 }}><span style={{ width: `${s.completionPct}%` }} /></div>
-                  <span className="meta" style={{ minWidth: 34, textAlign: "right", fontWeight: 700 }}>{s.completionPct}%</span>
-                </div>
-              </div>
-            ))}
-            {(shiftToday.missing || []).length > 0 && (
-              <div className="meta" style={{ paddingTop: 12, borderTop: "1px solid var(--line)" }}>
-                <strong>{shiftToday.missing.length}</strong> not started yet: {shiftToday.missing.slice(0, 4).map((m) => m.name).join(", ")}{shiftToday.missing.length > 4 ? "…" : ""}
-              </div>
-            )}
-          </div>
-
-        </div>
 
         <div className="section-head">
           <div><h2>Task Board</h2><div className="sub">Assigned work across the team, updated live</div></div>
@@ -209,16 +203,6 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
         {showForm && <AssignModal roster={assignable} onClose={() => setShowForm(false)} onAssign={handleAssign} />}
         {toast && <div className="toast">{toast}</div>}
       </main>
-    </div>
-  );
-}
-
-function Kpi({ icon, tone, value, label, hint }) {
-  return (
-    <div className="kpi">
-      <div className="kpi-top"><div className={`kpi-ico ${tone}`}><Icon name={icon} size={19} /></div></div>
-      <div className="value">{value}</div>
-      <div><div className="label">{label}</div>{hint && <div className="hint">{hint}</div>}</div>
     </div>
   );
 }

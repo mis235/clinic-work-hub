@@ -31,7 +31,6 @@ import DepartmentsPage from "./pages/DepartmentsPage.jsx";
 import DocumentsPage from "./pages/DocumentsPage.jsx";
 import KioskPage from "./pages/KioskPage.jsx";
 import LumiFloat from "./components/LumiFloat.jsx";
-import NotificationBell from "./components/NotificationBell.jsx";
 import HelpPage from "./pages/HelpPage.jsx";
 import TaskPopup from "./components/TaskPopup.jsx";
 import ChangePinModal from "./components/ChangePinModal.jsx";
@@ -71,6 +70,10 @@ function MainApp() {
     window.addEventListener("hub-goto", f); return () => window.removeEventListener("hub-goto", f);
   }, []);
   const [profile, setProfile] = useState(null); // { id, from } while viewing a staff profile
+  useEffect(() => { // the search box and the picture at the top open pages through this
+    const f = (e) => { if (e.detail) setView(VIEW_KEY[e.detail] || e.detail); };
+    window.addEventListener("hub-nav", f); return () => window.removeEventListener("hub-nav", f);
+  }, []);
 
   function logout() {
     localStorage.removeItem("token");
@@ -94,7 +97,7 @@ function MainApp() {
     setUser(next);
   }
   const pinGate = user.mustChangePin ? <ChangePinModal forced onDone={pinChanged} /> : null;
-  return <>{pinGate}<NotificationBell />{user && <TaskPopup onOpen={() => navigate(user.role === "staff" ? "My checklist" : "Dashboard")} />}{renderApp()}{user && view !== "clinicassistant" && <LumiFloat user={user} />}</>;
+  return <>{pinGate}{user && <TaskPopup onOpen={() => navigate(user.role === "staff" ? "My checklist" : "Dashboard")} />}{renderApp()}{user && view !== "clinicassistant" && <LumiFloat user={user} />}</>;
 
   function renderApp() {
   if (user.role === "admin" || user.role === "manager") {

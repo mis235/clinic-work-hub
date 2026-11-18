@@ -27,6 +27,7 @@ import HrOverview from "../components/HrOverview.jsx";
 import ChangePinModal from "../components/ChangePinModal.jsx";
 import HelpPage from "./HelpPage.jsx";
 import HeroBanner from "../components/HeroBanner.jsx";
+import { Kpi, StatusDonut, EomCard, Strip } from "../components/DashWidgets.jsx";
 import Icon from "../components/Icon.jsx";
 import { navItemsFor } from "../navItems.js";
 
@@ -60,10 +61,13 @@ export default function StaffDashboard({ user, onLogout }) {
 
   const open = tasks.filter((t) => t.status !== "done");
   const done = tasks.filter((t) => t.status === "done");
+  const myCounts = {}; tasks.forEach((t) => { const k = effectiveStatus(t); myCounts[k] = (myCounts[k] || 0) + 1; });
+  const overdue = myCounts.overdue || 0;
 
   const shiftSummary = [...shiftToday].sort((x, y) => (y.status === "in_progress") - (x.status === "in_progress"))[0] || null;
   const NAV_ITEMS = navItemsFor(user);
   useEffect(() => { const f = (e) => { if (e.detail?.view === "Help") setView("help"); }; window.addEventListener("hub-goto", f); return () => window.removeEventListener("hub-goto", f); }, []);
+  useEffect(() => { const f = (e) => setView(VIEW_FOR_LABEL[e.detail] || "checklist"); window.addEventListener("hub-nav", f); return () => window.removeEventListener("hub-nav", f); }, []);
   const ACTIVE_LABEL = { checklist: "My checklist", shiftchecklist: "Shift Checklist", rooms: "Procedure Rooms", grooming: "Grooming", tracker: "Tracker", profile: "My Profile", leave: "Leave", workspace: "My Workspace", assistant: "Assistant", policies: "Policies", sops: "SOPs", documents: "Documents", learning: "Learning", clinicassistant: "Clinic Assistant", help: "Help" };
   const VIEW_FOR_LABEL = { "My checklist": "checklist", "Shift Checklist": "shiftchecklist", "Procedure Rooms": "rooms", "Grooming": "grooming", "Tracker": "tracker", "My Profile": "profile", "Leave": "leave", "My Workspace": "workspace", "Assistant": "assistant", "Policies": "policies", "SOPs": "sops", "Documents": "documents", "Learning": "learning", "Clinic Assistant": "clinicassistant", "Help": "help" };
 
@@ -78,7 +82,7 @@ export default function StaffDashboard({ user, onLogout }) {
         mobileOpen={mobileOpen}
         onCloseMobile={() => setMobileOpen(false)}
       />
-      <main className="main" style={{ maxWidth: 760 }}>
+      <main className="main" style={{ maxWidth: view === "checklist" ? undefined : 860 }}>
         <MobileTopBar title={ACTIVE_LABEL[view]} onOpenMenu={() => setMobileOpen(true)} />
         {view === "sops" ? (
           <PoliciesPage user={user} mode="sops" isStaffLayout />
@@ -114,7 +118,18 @@ export default function StaffDashboard({ user, onLogout }) {
         <HeroBanner user={user}>
           <button className="btn btn-outline" onClick={() => setPinModal(true)}><Icon name="key" size={16} /> Change PIN</button>
         </HeroBanner>
-        <TeamBoard />
+        <div className="kpi-grid">
+          <Kpi icon="list" tone="violet" value={open.length} label="Open tasks" hint={open.length ? "To do" : "All clear"} good={!open.length} />
+          <Kpi icon="alert" tone="red" value={overdue} label="Overdue" hint={overdue ? "Please finish" : "On track"} good={!overdue} />
+          <Kpi icon="check" tone="amber" value={done.length} label="Completed" hint="Well done" />
+          <Kpi icon="clipboard" tone="blue" value={shiftSummary?.completionPct != null ? `${shiftSummary.completionPct}%` : "—"} label="Today's checklist" hint={shiftSummary ? (shiftSummary.status === "submitted" ? "Submitted" : "In progress") : "Not started"} />
+        </div>
+        <div className="dash-row r-65">
+          <StatusDonut counts={myCounts} title="My tasks" />
+          <EomCard />
+        </div>
+        <Strip title="Today's checklist" sub={shiftSummary ? `${shiftSummary.completionPct ?? 0}% done` : "Not started yet"} action="Open" onClick={() => setView("shiftchecklist")} />
+        <TeamBoard hideEom />
         <MyDayCard onNavigate={setView} />
         <MyAttendanceCard />
         <MyFinesCard />

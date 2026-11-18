@@ -1,46 +1,49 @@
 import Avatar from "./Avatar.jsx";
 import { NAV, NAV_GROUPS } from "../navItems.js";
+import { givenName } from "../givenName.js";
 import Icon, { initials } from "./Icon.jsx";
 
 const SHORT = { Dashboard: "Home", "My checklist": "Tasks", "Shift Checklist": "Shift", Attendance: "Attendance", Help: "Help", Leave: "Leave" };
+const savedId = () => { try { return JSON.parse(localStorage.getItem("user") || "null")?.id; } catch { return null; } };
+
 export default function Sidebar({ items, active, onSelect, who, me, onLogout, mobileOpen, onCloseMobile, badges = {} }) {
-  const [name, ...rest] = (who || "").split(" · ");
+  const [name] = (who || "").split(" · ");
+  const isStaff = (() => { try { return JSON.parse(localStorage.getItem("user") || "null")?.role === "staff"; } catch { return false; } })();
+  const first = isStaff ? givenName(name) : "";
+  const meId = me?.id ?? savedId();
+  const go = (k) => { onSelect(k); onCloseMobile?.(); };
+  const groups = NAV_GROUPS.map((g) => g.keys.filter((k) => items.includes(k))).filter((k) => k.length);
   return (
     <>
       <div className={`sidebar-backdrop ${mobileOpen ? "open" : ""}`} onClick={onCloseMobile} />
       <aside className={`sidebar ${mobileOpen ? "open" : ""}`}>
-        <div className="sidebar-brand">
-          <img src="/logo.png" alt="" className="sidebar-logo" />
-          <div>
-            Work Hub
-            <small>Dr. Nishita's Clinic</small>
-          </div>
-        </div>
+        <button className="side-me" onClick={() => go("My Profile")} aria-label="My profile">
+          <span className="side-ring">{meId ? <Avatar id={meId} name={name} size={78} /> : <span className="avatar" style={{ width: 78, height: 78, fontSize: 26 }}>{initials(name)}</span>}</span>
+          <span className="side-hi">{first ? `Hi, ${first}` : "Hi there"} <Icon name="wave" size={17} /></span>
+        </button>
         <nav className="sidebar-nav" aria-label="Main">
-          {NAV_GROUPS.map((g) => {
-            const keys = g.keys.filter((k) => items.includes(k));
-            if (keys.length === 0) return null;
-            return (
-              <div key={g.title}>
-                <div className="nav-group-label">{g.title}</div>
-                {keys.map((k) => (
-                  <button key={k} className={active === k ? "active" : ""} onClick={() => { onSelect(k); onCloseMobile?.(); }}>
-                    <Icon name={NAV[k]?.icon || "list"} size={18} />
-                    <span>{NAV[k]?.label || k}</span>
-                    {badges[k] > 0 && <span className="nav-count">{badges[k]}</span>}
-                  </button>
-                ))}
-              </div>
-            );
-          })}
+          {groups.map((keys, gi) => (
+            <div key={gi}>
+              {gi > 0 && <div className="nav-sep" />}
+              {keys.map((k) => (
+                <button key={k} className={active === k ? "active" : ""} onClick={() => go(k)}>
+                  <Icon name={NAV[k]?.icon || "list"} size={19} />
+                  <span>{NAV[k]?.label || k}</span>
+                  {badges[k] > 0 && <span className="nav-count">{badges[k]}</span>}
+                </button>
+              ))}
+            </div>
+          ))}
         </nav>
-        <div className="sidebar-foot">
-          <button onClick={() => { onSelect("My Profile"); onCloseMobile?.(); }} title="My profile" aria-label="My profile" style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, textAlign: "left", background: "none", border: 0, padding: 0, color: "inherit", cursor: "pointer" }}>
-            {me?.id ? <Avatar id={me.id} name={name} size={36} /> : <div className="avatar">{initials(name)}</div>}
-            <div className="who">{name}<small>{rest.join(" · ")}</small></div>
-          </button>
-          <button onClick={onLogout} title="Sign out" aria-label="Sign out"><Icon name="logout" size={18} /></button>
-        </div>
+        {items.includes("Help") && (
+          <div className="side-promo">
+            <span className="crown"><Icon name="chat" size={22} /></span>
+            <b>Need help?</b>
+            <small>Ask the admin team</small>
+            <button onClick={() => go("Help")}>Open Help desk</button>
+          </div>
+        )}
+        <button className="side-out" onClick={onLogout}><Icon name="logout" size={16} /> Sign out</button>
       </aside>
       <nav className="bottom-nav" aria-label="Quick menu">
         {["Dashboard", "My checklist", "Shift Checklist", "Attendance", "Help", "Leave"].filter((k) => items.includes(k)).slice(0, 4).map((k) => (

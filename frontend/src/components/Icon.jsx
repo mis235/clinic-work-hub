@@ -45,6 +45,9 @@ const PATHS = {
   chat: <><path d="M4 5h16v11H9l-5 4z" /><path d="M8 9.5h8M8 12.5h5" /></>,
   help: <><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="3.2" /><path d="m6 6 3.8 3.8M18 6l-3.8 3.8M6 18l3.8-3.8M18 18l-3.8-3.8" /></>,
   fingerprint: <><path d="M6 11a6 6 0 0 1 12 0c0 3 .3 5.5 1.5 8M9 20c.8-1.6 1-3.4 1-5.5a2 2 0 0 1 4 0c0 2 .3 3.8 1.2 5.5M4.5 15c.4-1.2.5-2.4.5-4" /></>,
+  search: <><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" /></>,
+  wave: <><path d="M8 12V6.5a1.5 1.5 0 0 1 3 0V11M11 10.5V5a1.5 1.5 0 0 1 3 0v6M14 10.5V6.5a1.5 1.5 0 0 1 3 0V14" /><path d="M8 12l-1.6-1.8a1.5 1.5 0 0 0-2.2 2L8 17c1 1.6 2.4 3 5 3 3 0 4.6-2 4.6-5v-1.2" /></>,
+  arrowRight: <><path d="M5 12h14M13 6l6 6-6 6" /></>,
 };
 
 export default function Icon({ name, size = 18, className = "", strokeWidth = 1.8 }) {

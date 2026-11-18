@@ -8,15 +8,15 @@ const dm = (d) => new Date(d + "T00:00:00Z").toLocaleDateString("en-IN", { weekd
 const initials = (n) => String(n || "").split(" ").filter(Boolean).slice(0, 2).map((x) => x[0]).join("").toUpperCase();
 
 // What everyone in the clinic sees on their dashboard: this month's Employee of the Month and the next events and holidays.
-export default function TeamBoard({ canAnnounce = false, onNavigate }) {
+export default function TeamBoard({ canAnnounce = false, onNavigate, hideEom = false }) {
   const [eom, setEom] = useState(null), [feed, setFeed] = useState(null);
   const load = () => { api.eom().then(setEom).catch(() => {}); api.eventsFeed().then(setFeed).catch(() => {}); };
   useEffect(() => { load(); const t = setInterval(load, 60000); window.addEventListener("hub-refresh", load); return () => { clearInterval(t); window.removeEventListener("hub-refresh", load); }; }, []);
-  const cur = eom?.current, items = feed?.items || [];
-  if (!cur && items.length === 0 && !canAnnounce) return null;
+  const cur = hideEom ? null : eom?.current, items = feed?.items || [];
+  if (!cur && items.length === 0 && (!canAnnounce || hideEom)) return null;
   return (
     <div className="team-board">
-      {!cur && canAnnounce && (
+      {!cur && canAnnounce && !hideEom && (
         <div className="eom-card">
           <div className="eom-badge icon-h"><Icon name="trophy" size={15} /> Employee of the Month</div>
           <div className="eom-body"><div><div className="eom-name">Not announced yet</div></div><button className="btn btn-sm" style={{ marginLeft: "auto", background: "#fff" }} onClick={() => onNavigate?.("Events")}>Announce</button></div>
