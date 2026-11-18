@@ -30,13 +30,23 @@ export default function PayrollPage({ user, onLogout, onBack }) {
   async function generateFor(userId) {
     const period = new Date().toISOString().slice(0, 7), who = profiles?.find((p) => p.user_id === userId)?.name || "staff";
     try {
-      const ready = await api.emailSettings().then((r) => r.configured).catch(() => false);
-      const out = await api.generatePayroll({ period, userId, sendEmail: ready });
-      const slip = out?.[0];
-      if (!ready) flash(`Payslip generated for ${period}. Email is not set up yet (System & Backups → Email settings). ${who} can see it in their login.`);
-      else if (slip?.emailed_at && !slip?.email_error) flash(`Payslip for ${period} emailed to ${who}, copy to accounts and COO. It is also in their login.`);
-      else flash(`Payslip generated and visible in ${who}'s login, but the email did not go: ${slip?.email_error || "no email address on their profile. Add it in Staff Profiles → Edit."}`);
+      await api.generatePayroll({ period, userId, sendEmail: false });
+      loadSlips();
+      flash(`Payslip for ${who} is ready as a draft. Check it under "Generated payslips" below (View PDF), then press Send to staff.`);
     } catch (e) { flash(e.message); }
+  }
+  async function sendSlip(s) {
+    try {
+      const r = await api.sendPayslip(s.id); loadSlips();
+      flash(r.emailed ? `Sent. In ${s.user_name}'s login and emailed to ${r.to}, copy to accounts and COO.` : r.warning);
+    } catch (e) { flash(e.message); }
+  }
+  async function sendAllDrafts() {
+    const drafts = (slips || []).filter((s) => !s.published_at);
+    if (!drafts.length) return flash("No drafts waiting.");
+    if (!confirm(`Send ${drafts.length} draft payslip(s) to staff now?`)) return;
+    let ok = 0; for (const s of drafts) { try { await api.sendPayslip(s.id); ok++; } catch { /* keep going */ } }
+    loadSlips(); flash(`Sent ${ok} of ${drafts.length} payslip(s).`);
   }
 
   async function runMonthlyNow() {
@@ -89,26 +99,26 @@ export default function PayrollPage({ user, onLogout, onBack }) {
               <span>Basic: ₹{p.basic_salary.toLocaleString("en-IN")} · Retention: ₹{p.retention.toLocaleString("en-IN")}</span>
               <span style={{ display: "flex", gap: 6 }}>
                 <button className="btn btn-ghost btn-sm" onClick={() => setEditing(p)}>Edit</button>
-                <button className="btn-wa btn-sm" onClick={() => generateFor(p.user_id)}>Send payslip (this month)</button></span>
+                <button className="btn-wa btn-sm" onClick={() => generateFor(p.user_id)}>Prepare payslip (this month)</button></span>
             </div>
           </div>
         ))}
 
-        <div className="section-head" style={{ marginTop: 24 }}><h2 style={{ fontSize: 15 }}>Generated payslips</h2></div>
+        <div className="section-head" style={{ marginTop: 24, display: "flex", justifyContent: "space-between", alignItems: "center" }}><h2 style={{ fontSize: 15 }}>Generated payslips</h2><button className="btn btn-ghost btn-sm" onClick={sendAllDrafts}>Send all drafts</button></div>
         {slips === null && <div className="empty">Loading…</div>}
-        {slips?.length === 0 && <div className="empty">No payslips yet. Use "Send payslip" above.</div>}
+        {slips?.length === 0 && <div className="empty">No payslips yet. Press "Prepare payslip" on a staff member above.</div>}
         {slips?.slice(0, 40).map((s) => (
           <div key={s.id} className="card">
             <div className="card-head"><div><span className="name">{s.user_name}</span><span className="dept">{s.pay_period} · {s.company_name}</span></div>
-              <span className="phone">Net ₹{Number(s.net_payable || 0).toLocaleString("en-IN")} · {s.emailed_at ? "emailed" : "not emailed"}</span></div>
+              <span className="phone">Net ₹{Number(s.net_payable || 0).toLocaleString("en-IN")} · {s.published_at ? (s.emailed_at ? "Sent · in login · emailed" : "Sent · in login · not emailed") : "Draft · staff cannot see it yet"}</span></div>
             <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
               <button className="btn btn-ghost btn-sm" onClick={() => setSlipEdit(s)}>Edit</button>
               <button className="btn btn-ghost btn-sm" onClick={() => api.openPayslip(s.id).catch((e) => flash(e.message))}>View PDF</button>
-              <button className="btn-wa btn-sm" onClick={async () => { try { const r = await api.sendPayslip(s.id); flash(`Emailed to ${r.to}, copy to accounts and COO.`); loadSlips(); } catch (e) { flash(e.message); } }}>Send to staff</button>
+              <button className="btn-wa btn-sm" onClick={() => sendSlip(s)}>{s.published_at ? "Send again" : "Send to staff"}</button>
             </div>
           </div>
         ))}
-        {slipEdit && <SlipEditor slip={slipEdit} onClose={() => setSlipEdit(null)} onSaved={() => { setSlipEdit(null); loadSlips(); flash("Payslip saved. PDF rebuilt. Press Send to staff to email it."); }} />}
+        {slipEdit && <SlipEditor slip={slipEdit} onClose={() => setSlipEdit(null)} onSaved={() => { setSlipEdit(null); loadSlips(); flash("Payslip saved and PDF rebuilt. Check it with View PDF, then press Send to staff."); }} />}
 
         {toast && <div className="toast">{toast}</div>}
         {(showForm || editing) && (

@@ -79,6 +79,7 @@ async function generateOneSlip({ profile: baseProfile, period, payDate, adminUse
   const company = db.prepare("SELECT * FROM companies WHERE id = ?").get(profile.company_id);
   const netPayable = computeNet(profile);
   const id = randomUUID();
+  const before = db.prepare("SELECT published_at, emailed_at FROM payslips WHERE user_id = ? AND pay_period = ?").get(user.id, period);
 
   db.prepare(
     `INSERT OR REPLACE INTO payslips
@@ -89,6 +90,7 @@ async function generateOneSlip({ profile: baseProfile, period, payDate, adminUse
     profile.pf, profile.tds, profile.other_deductions, profile.retention, netPayable, profile.incentive || 0, profile.arrears || 0);
 
   stampPayslip(id, profile);
+  if (before?.published_at) db.prepare("UPDATE payslips SET published_at = ?, emailed_at = ? WHERE id = ?").run(before.published_at, before.emailed_at, id);
   const payslip = db.prepare("SELECT * FROM payslips WHERE id = ?").get(id);
   const pdfPath = generatePayslipPdf({
     company,
@@ -97,6 +99,7 @@ async function generateOneSlip({ profile: baseProfile, period, payDate, adminUse
   });
   db.prepare("UPDATE payslips SET pdf_path = ? WHERE id = ?").run(pdfPath, id);
 
+  if (sendNow) db.prepare("UPDATE payslips SET published_at = COALESCE(published_at, datetime('now')) WHERE id = ?").run(id); // visible in the staff login
   if (sendNow && user.email) {
     try {
       await sendEmail({
@@ -151,15 +154,18 @@ router.post("/generate", requireAuth, requirePermission("payroll:manage"), async
 router.post("/:id/send", requireAuth, requirePermission("payroll:manage"), async (req, res) => {
   const slip = db.prepare("SELECT * FROM payslips WHERE id = ?").get(req.params.id);
   if (!slip) return res.status(404).json({ error: "Payslip not found" });
-  if (!isEmailConfigured()) return res.status(503).json({ error: "Email is not set up yet. Open System & Backups → Email settings first." });
+  if (!slip.pdf_path || !fs.existsSync(slip.pdf_path)) return res.status(404).json({ error: "PDF not found. Prepare the payslip again." });
+  // Step 1: put it in the staff member's own login (this is the "sent" step)
+  db.prepare("UPDATE payslips SET published_at = COALESCE(published_at, datetime('now')) WHERE id = ?").run(slip.id);
   const user = db.prepare("SELECT name, email FROM users WHERE id = ?").get(slip.user_id), company = db.prepare("SELECT name FROM companies WHERE id = ?").get(slip.company_id);
-  if (!user?.email) return res.status(400).json({ error: `${user?.name || "This person"} has no email address on their profile. Add it in Staff Profiles → Edit.` });
-  if (!slip.pdf_path || !fs.existsSync(slip.pdf_path)) return res.status(404).json({ error: "PDF not found. Generate the payslip again." });
+  // Step 2: email it (with the copy to accounts and COO) if email is ready
+  if (!isEmailConfigured()) return res.json({ ok: true, published: true, emailed: false, warning: "Now in their login. The email did not go because email is not set up yet (System & Backups → Email settings)." });
+  if (!user?.email) return res.json({ ok: true, published: true, emailed: false, warning: `Now in ${user?.name || "their"} login. No email address on their profile, so no email went. Add it in Staff Profiles → Edit.` });
   try {
     await sendEmail({ to: user.email, cc: payslipCc(), subject: `Payslip — ${slip.pay_period} — ${company?.name || "Clinic"}`, html: `<p>Hi ${user.name},</p><p>Please find attached your payslip for ${slip.pay_period} from ${company?.name || "the clinic"}.</p>`, attachments: [{ filename: slip.pdf_path.split("/").pop(), path: slip.pdf_path }] });
     db.prepare("UPDATE payslips SET emailed_at = datetime('now'), email_error = NULL WHERE id = ?").run(slip.id);
-    res.json({ ok: true, to: user.email });
-  } catch (err) { db.prepare("UPDATE payslips SET email_error = ? WHERE id = ?").run(friendlyMailError(err), slip.id); res.status(502).json({ error: friendlyMailError(err) }); }
+    res.json({ ok: true, published: true, emailed: true, to: user.email });
+  } catch (err) { const m = friendlyMailError(err); db.prepare("UPDATE payslips SET email_error = ? WHERE id = ?").run(m, slip.id); res.json({ ok: true, published: true, emailed: false, warning: `Now in their login, but the email did not go: ${m}` }); }
 });
 
 // PUT /api/payroll/:id — edit a generated payslip (amounts and the details printed on it), rebuild the PDF. Admin / payroll only.
@@ -195,7 +201,7 @@ router.get("/", requireAuth, (req, res) => {
 
   const rows = granted.includes("payroll:view_all")
     ? db.prepare(`SELECT ps.*, u.name AS user_name, c.name AS company_name FROM payslips ps JOIN users u ON u.id = ps.user_id JOIN companies c ON c.id = ps.company_id ORDER BY ps.pay_period DESC`).all()
-    : db.prepare(`SELECT ps.*, c.name AS company_name FROM payslips ps JOIN companies c ON c.id = ps.company_id WHERE ps.user_id = ? ORDER BY ps.pay_period DESC`).all(req.user.userId);
+    : db.prepare(`SELECT ps.*, c.name AS company_name FROM payslips ps JOIN companies c ON c.id = ps.company_id WHERE ps.user_id = ? AND ps.published_at IS NOT NULL ORDER BY ps.pay_period DESC`).all(req.user.userId);
   res.json(rows);
 });
 
@@ -208,6 +214,8 @@ router.get("/:id/pdf", requireAuth, (req, res) => {
       .prepare(`SELECT p.action FROM role_permissions rp JOIN permissions p ON p.id = rp.permission_id WHERE rp.role_id = ?`)
       .all(req.user.roleId).map((r) => r.action);
     if (!granted.includes("payroll:view_all")) return res.status(403).json({ error: "Not authorized" });
+  } else if (!slip.published_at && !db.prepare("SELECT 1 FROM role_permissions rp JOIN permissions p ON p.id = rp.permission_id WHERE rp.role_id = ? AND p.action = 'payroll:manage'").get(req.user.roleId)) {
+    return res.status(404).json({ error: "Payslip not found" }); // still a draft, not sent to the staff member yet
   }
   if (!slip.pdf_path || !fs.existsSync(slip.pdf_path)) return res.status(404).json({ error: "PDF not found on disk" });
   res.download(slip.pdf_path);

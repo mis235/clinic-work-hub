@@ -560,11 +560,20 @@ try {
     ok("removing an automatic fine waives it for good", (await call("DELETE", `/api/fines/${fid}`, null, admin)).status === 200 && (await call("POST", "/api/payroll/generate", { period: lateMonth, userId: lateU.id }, admin)).body[0].fine_amount === 0);
     ok("staff cannot edit a fine", (await call("PUT", `/api/fines/${fid}`, { amount: 1 }, lvTok)).status === 403);
 
+    // draft -> sent: staff only see a payslip after it is sent
+    const lvSlip = g.body[0];
+    ok("a new payslip is a draft", !lvSlip.published_at);
+    ok("staff cannot see a draft payslip", !(await call("GET", "/api/payroll", null, lvTok)).body.some((x) => x.id === lvSlip.id) && (await call("GET", `/api/payroll/${lvSlip.id}/pdf`, null, lvTok)).status === 404);
+    const sent = await call("POST", `/api/payroll/${lvSlip.id}/send`, null, admin);
+    ok("sending puts it in the staff login", sent.status === 200 && sent.body.published === true && (await call("GET", "/api/payroll", null, lvTok)).body.some((x) => x.id === lvSlip.id));
+    const rg = await call("POST", "/api/payroll/generate", { period: month, userId: lvTarget.id }, admin);
+    ok("regenerating keeps a sent payslip sent", !!rg.body[0].published_at);
+
     // payslip edit: incentive/arrears, loss of pay stays separate, PDF rebuilt
-    const ed = await call("PUT", `/api/payroll/${g.body[0].id}`, { incentive: 500, arrears: 250, info: { position: "Senior Exec" } }, admin);
+    const ed = await call("PUT", `/api/payroll/${rg.body[0].id}`, { incentive: 500, arrears: 250, info: { position: "Senior Exec" } }, admin);
     ok("edited payslip recalculates net and keeps loss of pay", ed.status === 200 && ed.body.incentive === 500 && ed.body.arrears === 250 && ed.body.lop_amount === 1000 && ed.body.net_payable === 29750 && /Senior Exec/.test(ed.body.info_json), JSON.stringify(ed.body));
     ok("edited payslip PDF exists", !!ed.body.pdf_path && (await import("node:fs")).existsSync(ed.body.pdf_path));
-    ok("staff cannot edit a payslip", (await call("PUT", `/api/payroll/${g.body[0].id}`, { incentive: 1 }, lvTok)).status === 403);
+    ok("staff cannot edit a payslip", (await call("PUT", `/api/payroll/${rg.body[0].id}`, { incentive: 1 }, lvTok)).status === 403);
 
     // birthdays
     await call("PATCH", `/api/users/${lvTarget.id}`, { birthday: ymd(t0).slice(5) }, admin);

@@ -352,6 +352,11 @@ function ensureColumn(table, column, ddl) {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
   if (!cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
 }
+{ // payslips made before the draft/sent step existed count as already sent, so staff do not lose sight of them
+  const had = db.prepare("PRAGMA table_info(payslips)").all().some((c) => c.name === "published_at");
+  ensureColumn("payslips", "published_at", "published_at TEXT");
+  if (!had) db.exec("UPDATE payslips SET published_at = COALESCE(emailed_at, datetime('now'))");
+}
 ensureColumn("fines", "locked", "locked INTEGER DEFAULT 0");
 ensureColumn("pay_profiles", "incentive", "incentive REAL DEFAULT 0");
 ensureColumn("pay_profiles", "arrears", "arrears REAL DEFAULT 0");
