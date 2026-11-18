@@ -560,6 +560,10 @@ try {
     ok("removing an automatic fine waives it for good", (await call("DELETE", `/api/fines/${fid}`, null, admin)).status === 200 && (await call("POST", "/api/payroll/generate", { period: lateMonth, userId: lateU.id }, admin)).body[0].fine_amount === 0);
     ok("staff cannot edit a fine", (await call("PUT", `/api/fines/${fid}`, { amount: 1 }, lvTok)).status === 403);
 
+    // patient information library
+    const lib = await call("GET", "/api/hr/training-videos", null, admin);
+    ok("patient information is in the training library", Array.isArray(lib.body) && lib.body.filter((v) => v.department === "Patient Information").length >= 100 && lib.body.some((v) => v.department === "Therapists" && v.kind === "video") && lib.body.some((v) => v.kind === "file" && /^https:\/\//.test(v.url)), String(lib.body?.length));
+
     // help desk, messages and the bell
     const tk = await call("POST", "/api/helpdesk/tickets", { subject: "Cannot see payslip", category: "Payslip or salary", body: "It is empty" }, lvTok);
     ok("staff raises a help request", tk.status === 201 && tk.body.id);

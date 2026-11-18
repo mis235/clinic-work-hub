@@ -3,6 +3,7 @@ import { documentsRouter, templatesRouter, linksRouter } from "./routes/document
 import finesRoutes from "./routes/fines.js";
 import groomingRoutes from "./routes/grooming.js";
 import portalRoutes from "./routes/portal.js";
+import "./libraryImport.js";
 import helpdeskRoutes from "./routes/helpdesk.js";
 import chatRoutes from "./routes/chat.js";
 import rosterRoutes from "./routes/roster.js";

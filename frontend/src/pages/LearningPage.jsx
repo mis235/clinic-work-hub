@@ -113,9 +113,9 @@ export default function LearningPage({ user, isStaffLayout, onLogout, onBack }) 
                   </div>)}
                 {isOpen && items.map((v, i) => (
                   <div key={v.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 6px", borderBottom: "1px solid var(--line)" }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--surface-sunk, #f1f5f9)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 16 }}>{v.kind === "file" ? "📄" : "▶"}</div>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--surface-sunk, #f1f5f9)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 16 }}><Icon name={v.kind === "file" ? "file" : "play"} size={17} /></div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className="link" style={{ fontSize: 14, fontWeight: 600, whiteSpace: "normal", wordBreak: "break-word" }} onClick={() => (v.kind === "file" || (!v.is_upload && !embedUrl(v.url) && false)) ? window.open(videoStreamUrl(v.id), "_blank") : setPlaying(v)}>{v.title}</div>
+                      <div className="link" style={{ fontSize: 14, fontWeight: 600, whiteSpace: "normal", wordBreak: "break-word" }} onClick={() => v.kind === "file" ? (v.is_upload ? window.open(videoStreamUrl(v.id), "_blank") : (window.open(v.url, "_blank", "noopener"), markWatched(v.id))) : setPlaying(v)}>{v.title}</div>
                       {v.description && <div className="meta">{v.description}</div>}
                       {v.kind === "file" && v.file_name && <div className="meta">{v.file_name}</div>}
                     </div>

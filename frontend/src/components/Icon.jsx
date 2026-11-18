@@ -40,6 +40,7 @@ const PATHS = {
   pencil: <><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="m13.5 6.5 4 4" /></>,
   send: <><path d="M21 3 10.5 13.5M21 3l-6.5 18-4-7.5L3 9.5z" /></>,
   flag: <><path d="M5 21V4M5 4h11l-2 4 2 4H5" /></>,
+  play: <><circle cx="12" cy="12" r="8.5" /><path d="m10.2 8.8 5 3.2-5 3.2z" /></>,
   bell: <><path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15z" /><path d="M10 21h4" /></>,
   chat: <><path d="M4 5h16v11H9l-5 4z" /><path d="M8 9.5h8M8 12.5h5" /></>,
   help: <><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="3.2" /><path d="m6 6 3.8 3.8M18 6l-3.8 3.8M6 18l3.8-3.8M18 18l-3.8-3.8" /></>,
