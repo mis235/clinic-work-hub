@@ -38,10 +38,10 @@ export default function Sidebar({ items, active, onSelect, who, me, onLogout, mo
         </nav>
         {items.includes("Help") && (
           <div className="side-promo">
-            <span className="crown"><Icon name="chat" size={22} /></span>
+            <span className="crown">{isStaff ? <Icon name="chat" size={22} /> : <GirlFace size={46} />}</span>
             <b>Need help?</b>
-            <small>Ask the admin team</small>
-            <button onClick={() => go("Help")}>Open Help desk</button>
+            <small>{isStaff ? "Ask the admin team" : "I'll solve it for you"}</small>
+            <button onClick={() => (isStaff ? go("Help") : window.dispatchEvent(new CustomEvent("lumi-open")))}>{isStaff ? "Open Help desk" : "Ask me"}</button>
           </div>
         )}
         <button className="side-out" onClick={onLogout}><Icon name="logout" size={16} /> Sign out</button>

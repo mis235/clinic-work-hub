@@ -1,3 +1,4 @@
+import { givenName } from "../givenName.js";
 import { useEffect, useRef, useState } from "react";
 import { navItemsFor } from "../navItems.js";
 import { api } from "../api.js";
@@ -10,7 +11,7 @@ const SOURCE_LABEL = { data: "Live data", policy: "Policy", ai: "AI", fallback: 
 export default function AssistantPage({ user, isStaffLayout, onLogout, onBack }) {
   const [suggestions, setSuggestions] = useState([]);
   const [messages, setMessages] = useState([
-    { role: "assistant", content: `Hi ${(user.name || "").split(" ").find((w) => !/^dr\.?$/i.test(w)) || "there"}, I am Lumi, your assistant. Ask me about your tasks, leave or any clinic policy.` },
+    { role: "assistant", content: `Hi${user.role === "staff" ? " " + givenName(user.name) : ""}, I am Lumi, your assistant. Ask me about your tasks, leave or any clinic policy.` },
   ]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);

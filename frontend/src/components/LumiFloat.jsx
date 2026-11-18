@@ -1,15 +1,16 @@
+import { givenName } from "../givenName.js";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
 import Lumi from "./Lumi.jsx";
 
 // Lumi in the corner of every screen: tap her to ask about your tasks, leave, attendance rules or clinic policies.
 export default function LumiFloat({ user }) {
-  const first = (user.name || "").split(/\s+/).find((w) => !/^dr\.?$/i.test(w)) || "there";
+  const first = givenName(user.name);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [input, setInput] = useState("");
   const [ideas, setIdeas] = useState([]);
-  const [msgs, setMsgs] = useState([{ role: "assistant", content: `Hi ${first}, I am Lumi. Ask me about your tasks, leave or any clinic policy.` }]);
+  const [msgs, setMsgs] = useState([{ role: "assistant", content: `Hi${user?.role === "staff" && first ? " " + first : ""}, I am Lumi. Ask me about your tasks, leave or any clinic policy.` }]);
   const end = useRef(null);
   useEffect(() => { const f = () => setOpen(true); window.addEventListener("lumi-open", f); return () => window.removeEventListener("lumi-open", f); }, []);
   useEffect(() => { if (open && !ideas.length) api.getAssistantFaqs().then((d) => setIdeas((d.suggestions || []).slice(0, 3))).catch(() => {}); }, [open]);

@@ -17,7 +17,7 @@ export default function ClinicAIPage({ user, isStaffLayout, onLogout, onBack }) 
   const [url, setUrl] = useState("");
   const [editing, setEditing] = useState(false);
   const [err, setErr] = useState("");
-  const [messages, setMessages] = useState([{ role: "assistant", content: `Hi ${user.name.split(" ").find((w) => !/^dr\.?$/i.test(w))}, I am Lumi. Ask me about patients, procedures, revenue, packages, pharmacy or the call log.` }]);
+  const [messages, setMessages] = useState([{ role: "assistant", content: `Hi, I am Lumi. Ask me about patients, procedures, revenue, packages, pharmacy or the call log.` }]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const bottom = useRef(null);
