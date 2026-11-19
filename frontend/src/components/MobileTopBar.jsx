@@ -22,7 +22,7 @@ export default function MobileTopBar({ title, onOpenMenu }) {
     <header className="topbar">
       <button className="hamburger-btn" onClick={onOpenMenu} aria-label="Open menu"><Icon name="menu" size={18} /></button>
       <h1 className="topbar-title">{label(title)}</h1>
-      <div className="topbar-search" ref={box}>
+      <div className="topbar-search" ref={box} style={mode === "none" ? { visibility: "hidden" } : undefined}>
         <Icon name="search" size={17} />
         <input value={q} placeholder={mode === "patient" ? "Search a patient (name, phone or ID)…" : "Search pages…"} aria-label="Search"
           onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}

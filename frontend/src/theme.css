@@ -1361,3 +1361,8 @@ html[data-theme="peach"] .cdx.cdx { --ink-1: #5A3A33; --ink-2: #8A5E54; --ink-3:
 .cdx.cdx .app-shell { position: static; inset: auto; margin: 0; padding: 0; border: 0; box-shadow: none; background: none; border-radius: 0; height: auto; min-height: 0; width: auto; max-width: none; overflow: visible; }
 .cdx.cdx .app-shell::before, .cdx.cdx .app-shell::after { display: none; }
 .cdx.cdx .sidebar-foot .btn-ghost { height: auto; min-width: 0; border-radius: 999px; padding: 7px 14px; }
+
+/* The full clinic dashboard inside the app */
+.cdv-frame { width: 100%; height: calc(100vh - 150px); min-height: 680px; border: 1px solid #fff; border-radius: 28px; background: #fff; box-shadow: var(--clay-shadow); display: block; }
+.cdv-bar { display: flex; align-items: center; gap: 10px; justify-content: flex-end; margin: 0 0 10px; }
+.cdv-add { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }

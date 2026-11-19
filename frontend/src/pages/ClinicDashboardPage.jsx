@@ -4,7 +4,7 @@ import PageShell from "../components/PageShell.jsx";
 import ChecklistDashboard from "../components/ChecklistDashboard.jsx";
 import ClinicAIPage from "./ClinicAIPage.jsx";
 import Icon from "../components/Icon.jsx";
-import LiveNumbers from "../components/LiveNumbers.jsx";
+import ClinicDashboardView from "../components/ClinicDashboardView.jsx";
 
 const rupee = (n) => "₹" + Number(n || 0).toLocaleString("en-IN");
 const pctText = (p) => (p == null ? "—" : p + "%");
@@ -42,7 +42,7 @@ export default function ClinicDashboardPage({ user, onLogout, onBack, onNavigate
         ))}
       </div>
       {tab === "checklist" && <ChecklistDashboard user={user} />}
-            {tab === "patients" && (SETUP ? <PatientDashboard user={user} /> : <LiveNumbers user={user} />)}
+            {tab === "patients" && <ClinicDashboardView user={user} />}
       {tab === "chat" && <ClinicAIPage user={user} isStaffLayout />}
       {tab === "live" && (!depts ? <div className="empty">Loading…</div> : (
         <>
