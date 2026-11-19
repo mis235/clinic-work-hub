@@ -10,19 +10,22 @@ const head = () => ({ Authorization: `Bearer ${localStorage.getItem("token")}` }
 export default function ClinicDashboardView({ user }) {
   const [info, setInfo] = useState(null), [html, setHtml] = useState(""), [err, setErr] = useState(""), [busy, setBusy] = useState(false), file = useRef(null);
   const isAdmin = user.role === "admin";
-  const [auto, setAuto] = useState(null), [show, setShow] = useState(false), [url, setUrl] = useState(""), [msg, setMsg] = useState("");
-  const openAuto = async () => { setShow(!show); if (!auto) { const a = await (await fetch(`${BASE}/api/clinic-dashboard/auto`, { headers: head() })).json(); setAuto(a); setUrl(a.sourceUrl || ""); } };
+  const [gh, setGh] = useState({ repo: "", path: "", token: "" }), [auto, setAuto] = useState(null), [show, setShow] = useState(false), [url, setUrl] = useState(""), [msg, setMsg] = useState("");
+  const openAuto = async () => { setShow(!show); if (!auto) { const a = await (await fetch(`${BASE}/api/clinic-dashboard/auto`, { headers: head() })).json(); setAuto(a); setUrl(a.sourceUrl || ""); setGh({ repo: a.ghRepo || "", path: a.ghPath || "", token: "" }); } };
   const saveAuto = async (pullNow) => {
     setMsg("Working…");
-    const r = await fetch(`${BASE}/api/clinic-dashboard/auto`, { method: "POST", headers: { ...head(), "Content-Type": "application/json" }, body: JSON.stringify({ sourceUrl: url, pullNow }) });
+    const r = await fetch(`${BASE}/api/clinic-dashboard/auto`, { method: "POST", headers: { ...head(), "Content-Type": "application/json" }, body: JSON.stringify({ sourceUrl: url, ghRepo: gh.repo, ghPath: gh.path, ghToken: gh.token, pullNow }) });
     const j = await r.json().catch(() => ({})); setMsg(r.ok ? (pullNow ? "Updated now." : "Saved.") : j.error || "Failed");
-    if (r.ok && pullNow) { setHtml(""); load(); }
+    if (r.ok) setGh((g) => ({ ...g, token: "" })); if (r.ok && pullNow) { setHtml(""); load(); }
   };
   const pushUrl = auto ? `${location.origin}/api/clinic-dashboard/push?key=${auto.key}` : "";
   const autoCard = show && auto && (
     <div className="card cdv-auto">
       <b>Automatic update</b>
-      <label className="meta">1. Address where your nightly job saves the file (the app checks it every 3 hours)</label>
+      <label className="meta">GitHub (private repo that holds the nightly dashboard file)</label>
+      <div className="cdv-row"><input className="input" value={gh.repo} onChange={(e) => setGh({ ...gh, repo: e.target.value })} placeholder="owner/repo" /><input className="input" value={gh.path} onChange={(e) => setGh({ ...gh, path: e.target.value })} placeholder="clinic-dashboard.html" /></div>
+      <div className="cdv-row"><input className="input" type="password" autoComplete="off" value={gh.token} onChange={(e) => setGh({ ...gh, token: e.target.value })} placeholder={auto.hasToken ? "Token saved (type to replace)" : "Read-only token"} /><button className="btn btn-primary btn-sm" onClick={() => saveAuto(false)}>Save</button><button className="btn btn-ghost btn-sm" onClick={() => saveAuto(true)}>Update now</button></div>
+      <label className="meta">Or: address where your nightly job saves the file (the app checks it every 3 hours)</label>
       <div className="cdv-row"><input className="input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" /><button className="btn btn-primary btn-sm" onClick={() => saveAuto(false)}>Save</button><button className="btn btn-ghost btn-sm" onClick={() => saveAuto(true)}>Update now</button></div>
       <label className="meta">2. Or let the nightly job send the file to this private address</label>
       <div className="cdv-row"><input className="input" readOnly value={pushUrl} onFocus={(e) => e.target.select()} /><button className="btn btn-ghost btn-sm" onClick={() => navigator.clipboard?.writeText(pushUrl)}>Copy</button></div>

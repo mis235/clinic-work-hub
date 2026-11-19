@@ -20,15 +20,29 @@ const set = (k, v) => db.prepare("INSERT INTO app_settings (key, value) VALUES (
 const key = () => { let k = get("dash_push_key"); if (!k) { k = randomBytes(16).toString("hex"); set("dash_push_key", k); } return k; };
 const valid = (b) => typeof b === "string" && b.length > 100000 && /<html/i.test(b) && /sec-suggested/.test(b);
 const save = (body) => { const tmp = file() + ".tmp"; fs.writeFileSync(tmp, body); fs.renameSync(tmp, file()); gz = null; set("dash_last_update", new Date().toISOString()); };
-// Pull the newest file from the address the nightly job publishes to.
+// Pull the newest file: from the private GitHub data repo if one is saved, else from the saved address.
 async function pull() {
-  const url = get("dash_source_url"); if (!url) throw new Error("No address saved yet.");
-  const r = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(120000) });
+  const repo = get("dash_gh_repo"), tok = get("dash_gh_token"), url = get("dash_source_url");
+  let r;
+  if (repo && tok) {
+    const gpath = get("dash_gh_path") || "clinic-dashboard.html", etag = get("dash_gh_etag");
+    r = await fetch(`https://api.github.com/repos/${repo}/contents/${gpath.split("/").map(encodeURIComponent).join("/")}`, {
+      headers: { Authorization: `Bearer ${tok}`, Accept: "application/vnd.github.raw+json", "User-Agent": "clinic-work-hub", ...(etag ? { "If-None-Match": etag } : {}) },
+      redirect: "follow", signal: AbortSignal.timeout(120000) });
+    if (r.status === 304) { set("dash_pull_status", "ok " + new Date().toISOString()); return 0; }
+    if (r.status === 401 || r.status === 403) throw new Error("GitHub did not accept the token.");
+    if (r.status === 404) throw new Error("GitHub could not find that repo or file yet.");
+    if (r.ok && r.headers.get("etag")) set("dash_gh_etag", r.headers.get("etag"));
+  } else {
+    if (!url) throw new Error("No address saved yet.");
+    r = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(120000) });
+  }
   if (!r.ok) throw new Error(`The address answered ${r.status}.`);
-  const t = await r.text(); if (!valid(t)) throw new Error("That address did not give the dashboard file.");
+  const t = await r.text();
+  if (!valid(t)) { set("dash_gh_etag", ""); throw new Error("That did not give the dashboard file."); } // old file stays
   save(t); set("dash_pull_status", "ok " + new Date().toISOString()); return t.length;
 }
-if (!process.env.DISABLE_CRON) setInterval(() => { if (get("dash_source_url")) pull().catch((e) => set("dash_pull_status", "failed: " + e.message)); }, 3 * 3600 * 1000).unref?.();
+if (!process.env.DISABLE_CRON) setInterval(() => { if (get("dash_source_url") || (get("dash_gh_repo") && get("dash_gh_token"))) pull().catch((e) => set("dash_pull_status", "failed: " + e.message)); }, 3600 * 1000).unref?.();
 
 // The nightly job sends the new file here with the key (no sign-in needed). Keep the key private.
 router.post("/push", express.text({ type: "*/*", limit: "40mb" }), (req, res) => {
@@ -38,11 +52,14 @@ router.post("/push", express.text({ type: "*/*", limit: "40mb" }), (req, res) =>
 });
 router.get("/auto", requireAuth, requireLeadership, (req, res) => {
   if (req.user.roleName !== "admin") return res.status(403).json({ error: "Admin only." });
-  res.json({ key: key(), sourceUrl: get("dash_source_url"), status: get("dash_pull_status"), last: get("dash_last_update") });
+  res.json({ key: key(), sourceUrl: get("dash_source_url"), ghRepo: get("dash_gh_repo"), ghPath: get("dash_gh_path"), hasToken: !!get("dash_gh_token"), status: get("dash_pull_status"), last: get("dash_last_update") });
 });
 router.post("/auto", requireAuth, requireLeadership, express.json(), async (req, res) => {
   if (req.user.roleName !== "admin") return res.status(403).json({ error: "Admin only." });
   if (typeof req.body.sourceUrl === "string") set("dash_source_url", req.body.sourceUrl.trim());
+  if (typeof req.body.ghRepo === "string") { const v = req.body.ghRepo.trim(); if (v && !/^[\w.-]+\/[\w.-]+$/.test(v)) return res.status(400).json({ error: "Repo should look like owner/name." }); set("dash_gh_repo", v); set("dash_gh_etag", ""); }
+  if (typeof req.body.ghPath === "string") set("dash_gh_path", req.body.ghPath.trim());
+  if (typeof req.body.ghToken === "string" && req.body.ghToken.trim()) { set("dash_gh_token", req.body.ghToken.trim()); set("dash_gh_etag", ""); }
   if (req.body.pullNow) { try { await pull(); } catch (e) { set("dash_pull_status", "failed: " + e.message); return res.status(400).json({ error: e.message }); } }
   res.json({ ok: true });
 });
