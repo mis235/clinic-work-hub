@@ -421,11 +421,12 @@ router.get("/banner", requireAuth, (req, res) => {
 db.exec("CREATE TABLE IF NOT EXISTS employee_of_month (id TEXT PRIMARY KEY, month TEXT NOT NULL, user_id TEXT NOT NULL, note TEXT, created_by TEXT, created_at TEXT DEFAULT (datetime('now')))");
 const eomRow = (r) => r && ({ id: r.id, month: r.month, label: new Date(r.month + "-01T00:00:00Z").toLocaleDateString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" }), note: r.note || "", userId: r.user_id, hasPhoto: !!r.has_photo, name: r.name, designation: r.designation || "", department: r.department || "" });
 const EOM_SQL = "SELECT e.*, u.name, u.designation, (u.photo_path IS NOT NULL) AS has_photo, d.name AS department FROM employee_of_month e JOIN users u ON u.id = e.user_id LEFT JOIN departments d ON d.id = u.department_id";
+const prevMonth = () => { const m = istMonth(); return new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5)) - 2, 1)).toISOString().slice(0, 7); };
 router.get("/eom", requireAuth, (req, res) => {
-  // This month's winner; in the first days of a month the last month's winner stays up.
-  const m = istMonth(), prev = new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5)) - 2, 1)).toISOString().slice(0, 7);
-  let row = db.prepare(EOM_SQL + " WHERE e.month = ? ORDER BY e.created_at DESC LIMIT 1").get(m);
-  if (!row) row = db.prepare(EOM_SQL + " WHERE e.month <= ? ORDER BY e.month DESC, e.created_at DESC LIMIT 1").get(m); // stays up until the next winner is announced
+  // Shows the PREVIOUS month's winner (e.g. in November: October). The current month is never shown.
+  const prev = prevMonth();
+  let row = db.prepare(EOM_SQL + " WHERE e.month = ? ORDER BY e.created_at DESC LIMIT 1").get(prev);
+  if (!row) row = db.prepare(EOM_SQL + " WHERE e.month <= ? ORDER BY e.month DESC, e.created_at DESC LIMIT 1").get(prev); // stays up until the next winner is announced
   const history = db.prepare(EOM_SQL + " ORDER BY e.month DESC, e.created_at DESC LIMIT 12").all().map(eomRow);
   res.json({ current: eomRow(row) || null, history });
 });
@@ -433,7 +434,7 @@ router.post("/eom", requireAuth, requirePermission("staff:manage"), (req, res) =
   const { userId, month, note } = req.body || {};
   const u = db.prepare("SELECT id, name FROM users WHERE id = ? AND active = 1").get(userId);
   if (!u) return res.status(400).json({ error: "Choose a staff member" });
-  const m = /^\d{4}-\d{2}$/.test(month || "") ? month : istMonth();
+  const m = /^\d{4}-\d{2}$/.test(month || "") ? month : prevMonth();
   db.prepare("DELETE FROM employee_of_month WHERE month = ?").run(m);
   const id = randomUUID();
   db.prepare("INSERT INTO employee_of_month (id, month, user_id, note, created_by) VALUES (?,?,?,?,?)").run(id, m, u.id, String(note || "").trim().slice(0, 300), req.user.userId);

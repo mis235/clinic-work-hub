@@ -10,6 +10,7 @@ const shift = (month, n) => { const [y, m] = month.split("-").map(Number); const
 const KIND = { birthday: ["Birthday", "accepted", "cake"], anniversary: ["Work anniversary", "done", "star"], event: ["", "in_progress", "flag"] };
 const TYPE_LABEL = { holiday: "Holiday", festival: "Festival", important_date: "Important date", event: "Event" };
 
+const prevLabel = (() => { const d = new Date(); d.setMonth(d.getMonth() - 1, 1); return d.toLocaleDateString("en-IN", { month: "long", year: "numeric" }); })();
 function EomCard() {
   const [people, setPeople] = useState([]), [cur, setCur] = useState(null), [uid, setUid] = useState(""), [note, setNote] = useState(""), [msg, setMsg] = useState(""), [busy, setBusy] = useState(false);
   const load = () => api.eom().then((d) => setCur(d.current)).catch(() => {});
@@ -21,7 +22,7 @@ function EomCard() {
   }
   return (
     <div className="card" style={{ marginBottom: 16 }}>
-      <div className="card-head"><div className="name icon-h"><Icon name="trophy" size={18} /> Employee of the Month</div>{cur && <span className="badge done">{cur.name} · {cur.label}</span>}</div>
+      <div className="card-head"><div className="name icon-h"><Icon name="trophy" size={18} /> Employee of the Month · {prevLabel}</div>{cur && <span className="badge done">{cur.name} · {cur.label}</span>}</div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         <select className="field" style={{ maxWidth: 260 }} value={uid} onChange={(e) => setUid(e.target.value)}>
           <option value="">Choose staff member</option>
