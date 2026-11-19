@@ -1366,3 +1366,10 @@ html[data-theme="peach"] .cdx.cdx { --ink-1: #5A3A33; --ink-2: #8A5E54; --ink-3:
 .cdv-frame { width: 100%; height: calc(100vh - 150px); min-height: 680px; border: 1px solid #fff; border-radius: 28px; background: #fff; box-shadow: var(--clay-shadow); display: block; }
 .cdv-bar { display: flex; align-items: center; gap: 10px; justify-content: flex-end; margin: 0 0 10px; }
 .cdv-add { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+
+.cdv-auto { display: grid; gap: 8px; margin-bottom: 12px; }
+.cdv-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.cdv-row .input { flex: 1; min-width: 200px; }
+@media (max-width: 900px) {
+  .cdv-frame { height: calc(100dvh - 250px); min-height: 520px; border-radius: 22px; margin-bottom: 96px; }
+}

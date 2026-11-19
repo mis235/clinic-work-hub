@@ -9,6 +9,24 @@ const head = () => ({ Authorization: `Bearer ${localStorage.getItem("token")}` }
 export default function ClinicDashboardView({ user }) {
   const [info, setInfo] = useState(null), [html, setHtml] = useState(""), [err, setErr] = useState(""), [busy, setBusy] = useState(false), file = useRef(null);
   const isAdmin = user.role === "admin";
+  const [auto, setAuto] = useState(null), [show, setShow] = useState(false), [url, setUrl] = useState(""), [msg, setMsg] = useState("");
+  const openAuto = async () => { setShow(!show); if (!auto) { const a = await (await fetch(`${BASE}/api/clinic-dashboard/auto`, { headers: head() })).json(); setAuto(a); setUrl(a.sourceUrl || ""); } };
+  const saveAuto = async (pullNow) => {
+    setMsg("Working…");
+    const r = await fetch(`${BASE}/api/clinic-dashboard/auto`, { method: "POST", headers: { ...head(), "Content-Type": "application/json" }, body: JSON.stringify({ sourceUrl: url, pullNow }) });
+    const j = await r.json().catch(() => ({})); setMsg(r.ok ? (pullNow ? "Updated now." : "Saved.") : j.error || "Failed");
+    if (r.ok && pullNow) { setHtml(""); load(); }
+  };
+  const pushUrl = auto ? `${location.origin}/api/clinic-dashboard/push?key=${auto.key}` : "";
+  const autoCard = show && auto && (
+    <div className="card cdv-auto">
+      <b>Automatic update</b>
+      <label className="meta">1. Address where your nightly job saves the file (the app checks it every 3 hours)</label>
+      <div className="cdv-row"><input className="input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" /><button className="btn btn-primary btn-sm" onClick={() => saveAuto(false)}>Save</button><button className="btn btn-ghost btn-sm" onClick={() => saveAuto(true)}>Update now</button></div>
+      <label className="meta">2. Or let the nightly job send the file to this private address</label>
+      <div className="cdv-row"><input className="input" readOnly value={pushUrl} onFocus={(e) => e.target.select()} /><button className="btn btn-ghost btn-sm" onClick={() => navigator.clipboard?.writeText(pushUrl)}>Copy</button></div>
+      <span className="meta">{auto.status ? auto.status.replace(/^ok /, "Last checked ").replace(/T.*/, "") : ""} {msg}</span>
+    </div>);
   const load = async () => {
     try {
       const i = await (await fetch(`${BASE}/api/clinic-dashboard/info`, { headers: head() })).json(); setInfo(i);
@@ -42,7 +60,8 @@ export default function ClinicDashboardView({ user }) {
   );
   return (
     <div className="cdv">
-      {isAdmin && <div className="cdv-bar"><span className="meta">Updated {new Date(info.updatedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span><button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => file.current.click()}>{busy ? "Replacing…" : "Replace file"}</button>{picker}{err && <span className="note warn">{err}</span>}</div>}
+      {isAdmin && <div className="cdv-bar"><span className="meta">Updated {new Date(info.updatedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span><button className="btn btn-ghost btn-sm" onClick={openAuto}>Auto-update</button><button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => file.current.click()}>{busy ? "Replacing…" : "Replace file"}</button>{picker}{err && <span className="note warn">{err}</span>}</div>}
+      {autoCard}
       {html ? <iframe title="Clinic dashboard" className="cdv-frame" srcDoc={html} sandbox="allow-scripts allow-same-origin allow-modals allow-downloads allow-popups" /> : <div className="empty">Loading…</div>}
     </div>
   );
