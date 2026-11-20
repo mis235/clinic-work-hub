@@ -136,6 +136,11 @@ try {
   ok("duties is a one-per-line list field", pf.body.fields.find((f) => f.key === "duties")?.type === "list");
   const og = await call("POST", "/api/doc-templates/generate", { templateId: stdT.id, userIds: [staff.id], overrides: { [staff.id]: { address: "Flat 4, Road 7\nBanjara Hills", gross_salary: "22,000", duties: "Greet patients\nKeep records" } } }, admin);
   ok("offer letter generates with edited values", og.status === 201 && og.body.generated.length === 1, JSON.stringify(og.body));
+  const mineOL = await call("GET", "/api/doc-templates/mine", null, stoken);
+  ok("staff sees their own offer letter", mineOL.status === 200 && mineOL.body.length >= 1 && mineOL.body.some((m) => m.id === og.body.generated[0].id));
+  ok("staff can download their own offer letter", (await raw(`/api/doc-templates/mine/${mineOL.body[0].id}/file`, stoken)).status === 200);
+  const others = gen.body.generated.find((g) => !mineOL.body.some((m) => m.id === g.id));
+  ok("staff cannot open someone else's offer letter", !others || (await raw(`/api/doc-templates/mine/${others.id}/file`, stoken)).status === 404);
   const ogf = Buffer.from(await (await raw(`/api/doc-templates/generated/${og.body.generated[0].id}/file`, admin)).arrayBuffer());
   const ogx = new (await import("pizzip")).default(ogf).file("word/document.xml").asText().replace(/<[^>]+>/g, "");
   ok("edited address, salary and bullet points appear in the letter", /Banjara Hills/.test(ogx) && /22,000/.test(ogx) && /Greet patients/.test(ogx) && /Keep records/.test(ogx) && !/\{/.test(ogx), ogx.slice(0, 300));

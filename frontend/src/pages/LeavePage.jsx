@@ -27,7 +27,6 @@ export default function LeavePage({ user, onLogout, onBack, isStaffLayout }) {
   const tabs = [["mine", "My leave"], ["sign", "To sign"], ["cover", "Covering for others"], ["sig", "My signature"], ...(cfg.isHr ? [["approve", "Approvals"], ["all", "All requests"], ["late", "Late & fines"], ["bday", "Birthdays"], ["rules", "HR rules"]] : [])];
   return (
     <PageShell user={user} active="Leave" title="Leave & HR" isStaffLayout={isStaffLayout} onLogout={onLogout} onBack={onBack}>
-      <div className="page-head"><div className="eyebrow">People</div><h1>Leave &amp; HR</h1></div>
       {tabs.length > 1 && <div className="pills leave-tabs" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>{tabs.map(([k, l]) => <button key={k} className={`pill ${tab === k ? "active" : ""}`} onClick={() => setTab(k)}>{l}</button>)}</div>}
       {tab === "mine" && <Mine cfg={cfg} />}
       {tab === "sign" && <ToSign />}

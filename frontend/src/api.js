@@ -96,6 +96,8 @@ export const api = {
   listDocTemplates: (kind) => req(`/api/doc-templates${kind ? `?kind=${kind}` : ""}`),
   uploadDocTemplate: (formData) => reqForm("/api/doc-templates", formData),
   deleteDocTemplate: (id) => req(`/api/doc-templates/${id}`, { method: "DELETE" }),
+  myOfferLetters: () => req("/api/doc-templates/mine"),
+  downloadMyOfferLetter: (id, name) => downloadFile(`/api/doc-templates/mine/${id}/file`, name),
   downloadSampleTemplate: (kind) => downloadFile(`/api/doc-templates/sample/${kind}`, `sample-${kind}.docx`),
   downloadTemplate: (id, name) => downloadFile(`/api/doc-templates/${id}/file`, name),
   prefillDocs: (payload) => req("/api/doc-templates/prefill", { method: "POST", body: payload }),

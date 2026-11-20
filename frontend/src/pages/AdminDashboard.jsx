@@ -1,5 +1,6 @@
 import MyFinesCard from "../components/MyFinesCard.jsx";
 import MyPayslips from "../components/MyPayslips.jsx";
+import MyOfferLetters from "../components/MyOfferLetters.jsx";
 import TeamBoard from "../components/TeamBoard.jsx";
 import AskLumiBar from "../components/AskLumiBar.jsx";
 import Lumi from "../components/Lumi.jsx";
@@ -147,7 +148,7 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
 
         <TeamBoard canAnnounce hideEom onNavigate={onNavigate} />
         <MyFinesCard />
-        {user.role !== "admin" && <MyPayslips />}
+        {user.role !== "admin" && <><MyPayslips /><MyOfferLetters /></>}
         <HrOverview user={user} onNavigate={onNavigate} />
         <RoomsCard onNavigate={onNavigate} />
 

@@ -495,6 +495,16 @@ templatesRouter.post("/generated/email", requireAuth, adminOnly, async (req, res
   res.json({ sent, failed });
 });
 
+// A person's own offer letters (only theirs): list and download.
+templatesRouter.get("/mine", requireAuth, (req, res) => {
+  res.json(db.prepare("SELECT id, file_name, created_at FROM generated_docs WHERE user_id = ? AND kind = 'offer_letter' ORDER BY created_at DESC").all(req.user.userId));
+});
+templatesRouter.get("/mine/:id/file", requireAuth, (req, res) => {
+  const g = db.prepare("SELECT * FROM generated_docs WHERE id = ? AND user_id = ? AND kind = 'offer_letter'").get(req.params.id, req.user.userId);
+  if (!g || !fs.existsSync(g.file_path)) return res.status(404).json({ error: "Not found" });
+  res.download(g.file_path, g.file_name);
+});
+
 templatesRouter.get("/generated", requireAuth, adminOnly, (req, res) => {
   const { kind } = req.query;
   res.json(db.prepare(
