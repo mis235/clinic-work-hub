@@ -924,6 +924,54 @@ try {
     ok("master switch turns all automatic messages off", off.status === 200 && g.body.master === false);
     ok("staff cannot flip the master switch", (await call("PUT", "/api/auto-messages/master", { on: true }, stoken)).status === 403);
   }
+  { // staff-file zip import: sorted by folder, matched by name, private to the person
+    const PizZipT = (await import("pizzip")).default, z = new PizZipT();
+    const first = staff.name.replace(/^dr\.?\s*/i, "").split(/\s+/)[0], root = "Staff data/CLINIC STAFF'S FILE/Employee's Profile/";
+    z.file(root + `Increment Letters/Therapist/${first} Increment Letter.pdf`, "%PDF increment");
+    z.file(root + `Offer letters/Therapist/${first} Offer Letter.pdf`, "%PDF offer");
+    z.file(root + `Employee's documents/${first}/Aadhar.jpg`, "img-aadhar");
+    z.file(root + `Behavioural Complaints/${first}/note.jpg`, "secret complaint");
+    z.file(root + "Offer letters/Doctors/Doctors Offer Letter.docx", "blank template");
+    z.file(root + "Offer letters/Doctors/~$tmp.docx", "junk");
+    const zbuf = z.generate({ type: "nodebuffer" });
+    const fdz = new FormData(); fdz.append("file", new Blob([zbuf]), "Staff_data.zip");
+    ok("staff cannot import files", (await form("POST", "/api/staff-import/preview", fdz, stoken)).status === 403);
+    const fdz2 = new FormData(); fdz2.append("file", new Blob([zbuf]), "Staff_data.zip");
+    const pv = await form("POST", "/api/staff-import/preview", fdz2, admin);
+    ok("zip preview sorts files and matches the person", pv.status === 200 && pv.body.items.filter((i) => i.userId === staff.id).length >= 4, JSON.stringify(pv.body).slice(0, 300));
+    ok("blank templates and temporary files are skipped", pv.body.items.filter((i) => i.skip).length === 2);
+    const cm = await call("POST", "/api/staff-import/commit", { stagingId: pv.body.stagingId, items: pv.body.items.filter((i) => !i.skip && i.userId).map((i) => ({ i: i.i, userId: i.userId, type: i.type })) }, admin);
+    ok("import saves the files", cm.status === 200 && cm.body.imported === 3 && cm.body.offer === 1, JSON.stringify(cm.body));
+    const mf = await call("GET", "/api/documents/staff/me", null, stoken);
+    ok("person sees their increment letter and ID proof", mf.body.files.some((f) => f.doc_type === "increment_letter") && mf.body.files.some((f) => f.doc_type === "id_proof"));
+    ok("complaints are hidden from the person", !mf.body.files.some((f) => f.doc_type === "complaint"));
+    ok("person sees the imported offer letter", mf.body.offerLetters.some((o) => /Offer Letter/.test(o.file_name)));
+    const af = await call("GET", `/api/documents/staff/${staff.id}`, null, admin);
+    const comp = af.body.files.find((f) => f.doc_type === "complaint");
+    ok("admin sees the complaint", !!comp);
+    ok("person cannot download the complaint", (await raw(`/api/documents/${comp.id}/file`, stoken)).status === 403);
+    ok("admin can download it", (await raw(`/api/documents/${comp.id}/file`, admin)).status === 200);
+    const dep = (await call("GET", "/api/departments", null, admin)).body;
+    const again = new FormData(); again.append("file", new Blob([zbuf]), "Staff_data.zip");
+    const pv2 = await form("POST", "/api/staff-import/preview", again, admin);
+    const cm2 = await call("POST", "/api/staff-import/commit", { stagingId: pv2.body.stagingId, items: pv2.body.items.filter((i) => !i.skip && i.userId).map((i) => ({ i: i.i, userId: i.userId, type: i.type })) }, admin);
+    ok("importing the same zip again adds no duplicates", cm2.status === 200 && cm2.body.imported === 0 && cm2.body.offer === 0 && cm2.body.duplicates === 4, JSON.stringify(cm2.body));
+  }
+  { // admin can edit / replace / delete personal-file documents and offer letters
+    const af2 = await call("GET", `/api/documents/staff/${staff.id}`, null, admin);
+    const inc = af2.body.files.find((f) => f.doc_type === "increment_letter");
+    ok("admin can rename and re-type a document", (await call("PATCH", `/api/documents/${inc.id}`, { fileName: "Increment 2026.pdf", docType: "other" }, admin)).status === 200);
+    ok("staff cannot edit documents", (await call("PATCH", `/api/documents/${inc.id}`, { fileName: "x" }, stoken)).status === 403);
+    ok("unknown type is refused", (await call("PATCH", `/api/documents/${inc.id}`, { docType: "nope" }, admin)).status === 400);
+    const rpd = new FormData(); rpd.append("file", new Blob([Buffer.from("new content")]), "Increment v2.pdf");
+    ok("admin can replace a document's file", (await form("POST", `/api/documents/${inc.id}/replace`, rpd, admin)).status === 200);
+    const af3 = await call("GET", `/api/documents/staff/${staff.id}`, null, admin);
+    const inc2 = af3.body.files.find((f) => f.id === inc.id);
+    ok("edit shows in the person's file", inc2?.doc_type === "other" && inc2.file_name === "Increment v2.pdf");
+    ok("admin can delete a document", (await call("DELETE", `/api/documents/${inc.id}`, null, admin)).status === 200);
+    const ol = (await call("GET", "/api/doc-templates/generated?kind=offer_letter", null, admin)).body[0];
+    ok("admin can rename an offer letter", (await call("PATCH", `/api/doc-templates/generated/${ol.id}`, { fileName: "Renamed offer.docx" }, admin)).status === 200 && (await call("GET", "/api/doc-templates/generated?kind=offer_letter", null, admin)).body.some((g) => g.file_name === "Renamed offer.docx"));
+  }
   ok("unknown API route returns 404 JSON", (await call("GET", "/api/nope", null, admin)).status === 404);
 } catch (e) {
   fail++; console.log("  FAIL  unexpected error:", e.message);

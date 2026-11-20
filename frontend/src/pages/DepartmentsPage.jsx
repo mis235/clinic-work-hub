@@ -3,6 +3,7 @@ import Icon from "../components/Icon.jsx";
 import { api } from "../api.js";
 import PageShell from "../components/PageShell.jsx";
 import WorkspacePanel from "../components/WorkspacePanel.jsx";
+import DeptStaffFiles from "../components/DeptStaffFiles.jsx";
 
 const pctText = (p) => (p == null ? "—" : p + "%");
 const rupee = (n) => "₹" + Number(n || 0).toLocaleString("en-IN");
@@ -76,11 +77,13 @@ export default function DepartmentsPage({ user, onLogout, onBack, onOpenProfile 
           <button className={`pill ${tab === "workspace" ? "active" : ""}`} onClick={() => setTab("workspace")}>Workspace</button>
           <button className={`pill ${tab === "people" ? "active" : ""}`} onClick={() => setTab("people")}>People & work</button>
           <button className={`pill ${tab === "docs" ? "active" : ""}`} onClick={() => setTab("docs")}>Documents</button>
+          {isAdmin && <button className={`pill ${tab === "files" ? "active" : ""}`} onClick={() => setTab("files")}>Staff files</button>}
         </div>
       )}
       {open && tab === "workspace" && <WorkspacePanel deptId={open} />}
+      {open && tab === "files" && isAdmin && <DeptStaffFiles deptId={open} onOpenProfile={onOpenProfile} />}
 
-      {open && tab !== "workspace" && (!detail ? <div className="empty">Loading…</div> : (
+      {open && tab !== "workspace" && tab !== "files" && (!detail ? <div className="empty">Loading…</div> : (
         <>
           {tab === "people" && isAdmin && (
             <div className="card" style={{ marginBottom: 12 }}>

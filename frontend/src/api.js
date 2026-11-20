@@ -82,6 +82,13 @@ export function assetUrl(path) {
 
 export const api = {
   listStaffFiles: (userId) => req(`/api/documents/staff/${userId}`),
+  updateDocument: (id, body) => req(`/api/documents/${id}`, { method: "PATCH", body }),
+  replaceDocument: (id, fd) => reqForm(`/api/documents/${id}/replace`, fd),
+  updateGenerated: (id, body) => req(`/api/doc-templates/generated/${id}`, { method: "PATCH", body }),
+  importPreview: (fd) => reqForm("/api/staff-import/preview", fd),
+  importCommit: (b) => req("/api/staff-import/commit", { method: "POST", body: b }),
+  importCancel: (id) => req(`/api/staff-import/${id}`, { method: "DELETE" }),
+  listDeptStaffFiles: (deptId) => req(`/api/documents/by-department/${deptId}`),
   addStaffFile: (userId, formData) => reqForm(`/api/documents/staff/${userId}`, formData),
   listLinks: () => req("/api/links"),
   setLink: (key, payload) => req(`/api/links/${key}`, { method: "PUT", body: payload }),

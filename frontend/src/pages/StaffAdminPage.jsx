@@ -9,6 +9,7 @@ import Avatar from "../components/Avatar.jsx";
 import FaceEnrollModal from "../components/FaceEnrollModal.jsx";
 import FaceCapture from "../components/FaceCapture.jsx";
 import StaffListImport from "../components/StaffListImport.jsx";
+import StaffImport from "../components/StaffImport.jsx";
 
 const DEPTS = ["Management", "Front Desk", "Therapist", "MDO", "Doctors", "Pharmacy", "Floor Coordinator", "Finance", "Supporting Staff"];
 
@@ -42,6 +43,7 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
   const allDepts = useMemo(() => [...new Set([...DEPTS, ...(roster || []).map((s) => s.department).filter(Boolean)])], [roster]);
   const removedCount = (roster || []).filter((s) => !s.active).length;
   const managers = (roster || []).filter((r) => r.active && (r.role === "admin" || r.role === "manager")).map((r) => r.name);
+  const [importing, setImporting] = useState(false);
   const shown = (roster || []).filter((s) => (showRemoved ? !s.active : !!s.active) && (dept === "All" || s.department === dept) && (!q || s.name.toLowerCase().includes(q.toLowerCase())));
 
   return (
@@ -58,10 +60,12 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <input className="field" style={{ width: 200 }} placeholder="Search by name…" value={q} onChange={(e) => setQ(e.target.value)} />
             <button className="btn btn-outline" onClick={() => setPasting(true)}>Paste staff list</button>
+            <button className="btn btn-outline" onClick={() => setImporting(true)}>Import staff files</button>
             <button className="btn btn-primary" onClick={() => setAdding(true)}><Icon name="userplus" size={16} /> Onboard Staff</button>
           </div>
         </div>
 
+        {importing && <StaffImport onClose={() => setImporting(false)} onDone={() => refresh()} />}
         {pasting && <StaffListImport onClose={() => setPasting(false)} onDone={(m) => { setPasting(false); flash(m); refresh(); }} />}
         <div className="pill-row">
           {removedCount > 0 && <button className={`pill ${showRemoved ? "active" : ""}`} onClick={() => setShowRemoved((x) => !x)}>{showRemoved ? "← Back to active staff" : `Removed staff (${removedCount})`}</button>}

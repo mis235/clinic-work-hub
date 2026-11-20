@@ -14,12 +14,13 @@ import { withFines } from "./fines.js";
 import { inWords } from "../words.js";
 import { requireAuth } from "../middleware/auth.js";
 import { DOC_CHECKLIST } from "./users.js";
+import { RECORD_TYPES, ADMIN_ONLY_TYPES } from "../staffFiles.js";
 import { sendEmail, isEmailConfigured, friendlyMailError } from "../email.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA = process.env.DATA_DIR || path.join(__dirname, "..", "..");
 const PRIVATE = path.join(DATA, "private");
-const DOC_DIR = path.join(PRIVATE, "documents");
+export const DOC_DIR = path.join(PRIVATE, "documents");
 const TPL_DIR = path.join(PRIVATE, "templates");
 export const GEN_DIR = path.join(PRIVATE, "generated");
 for (const d of [DOC_DIR, TPL_DIR, GEN_DIR]) fs.mkdirSync(d, { recursive: true });
@@ -76,7 +77,7 @@ documentsRouter.post("/", requireAuth, docUpload.single("file"), (req, res) => {
 });
 
 function canAccessDoc(req, d) {
-  if (d.staff_user_id) return isAdmin(req) || d.staff_user_id === req.user.userId; // personal HR files: admin + the person only
+  if (d.staff_user_id) return isAdmin(req) || (d.staff_user_id === req.user.userId && !ADMIN_ONLY_TYPES.includes(d.doc_type)); // personal HR files: admin + the person only (complaints: admin only)
   return isLead(req) || d.uploaded_by === req.user.userId || (d.department_id && d.department_id === myDeptId(req));
 }
 
@@ -87,7 +88,9 @@ documentsRouter.get("/staff/:userId", requireAuth, (req, res) => {
   const files = db.prepare(
     `SELECT d.id, d.doc_type, d.title, d.file_name, d.size, d.created_at, u.name AS uploaded_by_name
      FROM documents d LEFT JOIN users u ON u.id = d.uploaded_by WHERE d.staff_user_id = ? ORDER BY d.created_at DESC`).all(uid);
-  res.json({ types: DOC_CHECKLIST, files, canManage: isAdmin(req) });
+  const visible = isAdmin(req) ? files : files.filter((f) => !ADMIN_ONLY_TYPES.includes(f.doc_type));
+  const offerLetters = db.prepare("SELECT id, file_name, size_note, created_at FROM (SELECT id, file_name, NULL AS size_note, created_at FROM generated_docs WHERE user_id = ? AND kind = 'offer_letter') ORDER BY created_at DESC").all(uid);
+  res.json({ types: DOC_CHECKLIST, files: visible, recordTypes: RECORD_TYPES.filter((t) => t.key !== "offer_letter" && (isAdmin(req) || !ADMIN_ONLY_TYPES.includes(t.key))), offerLetters, canManage: isAdmin(req) });
 });
 
 documentsRouter.post("/staff/:userId", requireAuth, adminOnly, docUpload.single("file"), (req, res) => {
@@ -95,16 +98,52 @@ documentsRouter.post("/staff/:userId", requireAuth, adminOnly, docUpload.single(
   if (!user) return res.status(404).json({ error: "Staff member not found" });
   if (!req.file) return res.status(400).json({ error: "Choose a file" });
   const type = DOC_CHECKLIST.find((t) => t.key === req.body?.docType);
+  const rec = !type && RECORD_TYPES.find((t) => t.key === req.body?.docType && t.key !== "offer_letter");
   const id = randomUUID();
   db.prepare(
     `INSERT INTO documents (id, department_id, title, category, kind, file_path, file_name, mime, size, uploaded_by, staff_user_id, doc_type)
      VALUES (?, ?, ?, 'Staff file', 'file', ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, user.department_id, type?.label || fixName(req.file.originalname), req.file.path, fixName(req.file.originalname), req.file.mimetype, req.file.size, req.user.userId, user.id, type?.key || null);
+  ).run(id, user.department_id, type?.label || fixName(req.file.originalname), req.file.path, fixName(req.file.originalname), req.file.mimetype, req.file.size, req.user.userId, user.id, type?.key || rec?.key || null);
   if (type) { // uploading the paper marks it as collected in the onboarding checklist
     const merged = { ...(user.onboarding_docs ? JSON.parse(user.onboarding_docs) : {}), [type.key]: true };
     db.prepare("UPDATE users SET onboarding_docs = ? WHERE id = ?").run(JSON.stringify(merged), user.id);
   }
   res.status(201).json({ id });
+});
+
+// Department view: everyone in a department with the files on their personal file (admin only).
+documentsRouter.get("/by-department/:deptId", requireAuth, adminOnly, (req, res) => {
+  const dep = db.prepare("SELECT id, name FROM departments WHERE id = ?").get(req.params.deptId);
+  if (!dep) return res.status(404).json({ error: "Department not found" });
+  const users = db.prepare("SELECT id, name, designation, active FROM users WHERE department_id = ? ORDER BY active DESC, name").all(dep.id);
+  const out = users.map((u) => ({
+    ...u,
+    files: db.prepare("SELECT id, doc_type, file_name, size, created_at FROM documents WHERE staff_user_id = ? ORDER BY doc_type, created_at DESC").all(u.id),
+    offerLetters: db.prepare("SELECT id, file_name, created_at FROM generated_docs WHERE user_id = ? AND kind = 'offer_letter' ORDER BY created_at DESC").all(u.id),
+  }));
+  res.json({ department: dep, people: out, recordTypes: RECORD_TYPES, checklist: DOC_CHECKLIST });
+});
+
+// Admin: rename, re-type or move a personal-file document to another person; replace its file.
+documentsRouter.patch("/:id", requireAuth, adminOnly, (req, res) => {
+  const d = db.prepare("SELECT * FROM documents WHERE id = ? AND staff_user_id IS NOT NULL").get(req.params.id);
+  if (!d) return res.status(404).json({ error: "Not found" });
+  const { fileName, docType, userId } = req.body || {};
+  const valid = new Set([...DOC_CHECKLIST.map((t) => t.key), ...RECORD_TYPES.filter((t) => t.key !== "offer_letter").map((t) => t.key)]);
+  const fn = typeof fileName === "string" && fileName.trim() ? fileName.trim().slice(0, 200) : d.file_name;
+  let dt = d.doc_type, uid = d.staff_user_id, dept = d.department_id;
+  if (docType !== undefined) { if (!valid.has(docType)) return res.status(400).json({ error: "Unknown document type" }); dt = docType; }
+  if (userId && userId !== d.staff_user_id) { const u = db.prepare("SELECT id, department_id FROM users WHERE id = ?").get(userId); if (!u) return res.status(400).json({ error: "Staff member not found" }); uid = u.id; dept = u.department_id; }
+  const label = DOC_CHECKLIST.find((t) => t.key === dt)?.label || RECORD_TYPES.find((t) => t.key === dt)?.label || d.title;
+  db.prepare("UPDATE documents SET file_name = ?, doc_type = ?, staff_user_id = ?, department_id = ?, title = ? WHERE id = ?").run(fn, dt, uid, dept, label, d.id);
+  res.json({ ok: true });
+});
+documentsRouter.post("/:id/replace", requireAuth, adminOnly, docUpload.single("file"), (req, res) => {
+  const d = db.prepare("SELECT * FROM documents WHERE id = ? AND staff_user_id IS NOT NULL").get(req.params.id);
+  if (!d || !req.file) { if (req.file) fs.rm(req.file.path, { force: true }, () => {}); return res.status(d ? 400 : 404).json({ error: d ? "Choose a file" : "Not found" }); }
+  db.prepare("UPDATE documents SET file_path = ?, file_name = ?, mime = ?, size = ?, created_at = datetime('now') WHERE id = ?").run(req.file.path, fixName(req.file.originalname), req.file.mimetype, req.file.size, d.id);
+  if (d.file_path) fs.rm(d.file_path, { force: true }, () => {});
+  res.json({ ok: true });
 });
 
 documentsRouter.get("/:id/file", requireAuth, (req, res) => {
@@ -506,6 +545,14 @@ templatesRouter.post("/upload-existing", requireAuth, adminOnly, letterUpload.si
   db.prepare("INSERT INTO generated_docs (id, template_id, kind, user_id, company_id, period, file_path, file_name, created_by) VALUES (?, NULL, 'offer_letter', ?, NULL, NULL, ?, ?, ?)")
     .run(id, u.id, req.file.path, fixName(req.file.originalname), req.user.userId);
   res.status(201).json({ id });
+});
+templatesRouter.patch("/generated/:id", requireAuth, adminOnly, (req, res) => {
+  const g = db.prepare("SELECT * FROM generated_docs WHERE id = ? AND kind = 'offer_letter'").get(req.params.id);
+  if (!g) return res.status(404).json({ error: "Not found" });
+  const { fileName, userId } = req.body || {};
+  if (userId && !db.prepare("SELECT 1 FROM users WHERE id = ?").get(userId)) return res.status(400).json({ error: "Staff member not found" });
+  db.prepare("UPDATE generated_docs SET file_name = ?, user_id = ? WHERE id = ?").run(typeof fileName === "string" && fileName.trim() ? fileName.trim().slice(0, 200) : g.file_name, userId || g.user_id, g.id);
+  res.json({ ok: true });
 });
 templatesRouter.post("/generated/:id/replace", requireAuth, adminOnly, letterUpload.single("file"), (req, res) => {
   const g = db.prepare("SELECT * FROM generated_docs WHERE id = ? AND kind = 'offer_letter'").get(req.params.id);
