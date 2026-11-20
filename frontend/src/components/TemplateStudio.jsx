@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api.js";
 
 // Upload Word templates, then generate a personalised document for every staff member in one click.
@@ -44,14 +44,22 @@ export default function TemplateStudio({ kind, companies = [], roster = [], flas
         </div>
       ))}
 
-      {generated.length > 0 && <GeneratedList items={generated} onChange={load} flash={flash} />}
+      {kind === "offer_letter" && <UploadExisting roster={roster} onDone={load} flash={flash} />}
+      {generated.length > 0 && <GeneratedList items={generated} onChange={load} flash={flash} kind={kind} />}
       {showUpload && <UploadModal kind={kind} companies={companies} onClose={() => setShowUpload(false)} onDone={() => { setShowUpload(false); flash("Template saved."); load(); }} />}
       {gen && <GenerateModal kind={kind} template={gen} roster={roster} onClose={() => setGen(null)} onDone={(r) => { setGen(null); flash(`Generated ${r.generated.length} document(s)${r.emailed ? ` · emailed ${r.emailed}` : ""}${r.emailFailed?.length ? ` · NOT emailed: ${r.emailFailed.slice(0, 3).map((s) => `${s.name} (${s.reason})`).join(", ")}` : ""}${r.skipped.length ? ` · skipped ${r.skipped.length}: ${r.skipped.slice(0, 3).map((s) => `${s.name} (${s.reason})`).join(", ")}` : ""}`); load(); }} />}
     </div>
   );
 }
 
-function GeneratedList({ items, onChange, flash }) {
+function GeneratedList({ items, onChange, flash, kind }) {
+  const replaceRef = useRef(null), [replId, setReplId] = useState(null);
+  async function replaceWith(file) {
+    if (!file || !replId) return;
+    const fd = new FormData(); fd.append("file", file);
+    try { await api.replaceGenerated(replId, fd); flash("Letter replaced."); onChange(); } catch (e) { flash(e.message); }
+    setReplId(null);
+  }
   const [sel, setSel] = useState(new Set());
   const toggle = (id) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const all = sel.size === items.length;
@@ -61,7 +69,8 @@ function GeneratedList({ items, onChange, flash }) {
   return (
     <>
       <div className="section-head" style={{ marginTop: 20 }}>
-        <h2 style={{ fontSize: 15 }}>Generated documents ({items.length})</h2>
+        <h2 style={{ fontSize: 15 }}>{kind === "offer_letter" ? "Offer letters" : "Generated documents"} ({items.length})</h2>
+        <input ref={replaceRef} type="file" hidden accept=".doc,.docx,.pdf,.png,.jpg,.jpeg" onChange={(e) => { replaceWith(e.target.files[0]); e.target.value = ""; }} />
         <div style={{ display: "flex", gap: 8 }}>
           <button className="btn btn-ghost btn-sm" onClick={() => setSel(all ? new Set() : new Set(items.map((i) => i.id)))}>{all ? "Clear" : "Select all"}</button>
           <button className="btn btn-outline btn-sm" disabled={!sel.size} onClick={() => emailSel([...sel])}>Email {sel.size || ""} to staff</button>
@@ -72,11 +81,12 @@ function GeneratedList({ items, onChange, flash }) {
         <div key={g.id} className="task-row">
           <label style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer" }}>
             <input type="checkbox" checked={sel.has(g.id)} onChange={() => toggle(g.id)} />
-            <span><div className="title">{g.user_name}</div><div className="meta">{g.emailed_at ? "✉ emailed · " : ""}{g.email_error ? <span style={{ color: "var(--red)" }}>not emailed: {g.email_error} · </span> : null}{[g.company, g.period].filter(Boolean).join(" · ")} · {new Date(g.created_at.replace(" ", "T") + "Z").toLocaleDateString("en-IN")}</div></span>
+            <span><div className="title">{g.user_name}</div><div className="meta">{g.emailed_at ? "✉ emailed · " : ""}{g.email_error ? <span style={{ color: "var(--red)" }}>not emailed: {g.email_error} · </span> : null}{[g.company, g.period, kind === "offer_letter" ? g.file_name : null].filter(Boolean).join(" · ")} · {new Date(g.created_at.replace(" ", "T") + "Z").toLocaleDateString("en-IN")}</div></span>
           </label>
           <div className="right" style={{ gap: 6 }}>
             <button className="btn btn-ghost btn-sm" onClick={() => emailSel([g.id])}>Email</button>
             <button className="btn btn-outline btn-sm" onClick={() => api.downloadGenerated(g.id, g.file_name).catch((e) => flash(e.message))}>Download</button>
+            {kind === "offer_letter" && <button className="btn btn-ghost btn-sm" onClick={() => { setReplId(g.id); setTimeout(() => replaceRef.current?.click(), 0); }}>Replace</button>}
             <button className="btn btn-ghost btn-sm" onClick={async () => { await api.deleteGenerated(g.id); onChange(); }}>Remove</button>
           </div>
         </div>
@@ -197,4 +207,27 @@ function GenerateModal({ kind, template, roster, onClose, onDone }) {
       </div>
     </div>
   );
+}
+
+// Upload a letter that already exists (Word, PDF or photo) for one person; that person sees it under "My offer letter".
+function UploadExisting({ roster, onDone, flash }) {
+  const [uid, setUid] = useState(""), [file, setFile] = useState(null), [busy, setBusy] = useState(false), ref = useRef(null);
+  const people = [...(roster || [])].filter((u) => u.active !== 0 && u.active !== false).sort((a, b) => a.name.localeCompare(b.name));
+  async function go() {
+    setBusy(true);
+    try { const fd = new FormData(); fd.append("userId", uid); fd.append("file", file); await api.uploadExistingOfferLetter(fd); flash("Letter added."); setUid(""); setFile(null); if (ref.current) ref.current.value = ""; onDone(); } catch (e) { flash(e.message); }
+    setBusy(false);
+  }
+  return (
+    <div className="card" style={{ marginTop: 14 }}>
+      <div className="card-head"><div className="name">Upload an existing offer letter</div></div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <select className="field" style={{ maxWidth: 260 }} value={uid} onChange={(e) => setUid(e.target.value)}>
+          <option value="">Choose staff member</option>
+          {people.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+        </select>
+        <input ref={ref} type="file" accept=".doc,.docx,.pdf,.png,.jpg,.jpeg" onChange={(e) => setFile(e.target.files[0] || null)} />
+        <button className="btn btn-primary btn-sm" disabled={!uid || !file || busy} onClick={go}>{busy ? "Adding…" : "Add letter"}</button>
+      </div>
+    </div>);
 }

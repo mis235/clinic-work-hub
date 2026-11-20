@@ -495,6 +495,26 @@ templatesRouter.post("/generated/email", requireAuth, adminOnly, async (req, res
   res.json({ sent, failed });
 });
 
+// Existing offer letters (any Word / PDF / photo file) can be uploaded for a person, and replaced after editing.
+const letterUpload = multer({ storage: storage(GEN_DIR), limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => cb(null, /\.(docx?|pdf|png|jpe?g)$/i.test(file.originalname || "")) });
+templatesRouter.post("/upload-existing", requireAuth, adminOnly, letterUpload.single("file"), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "Choose a Word, PDF or photo file." });
+  const u = db.prepare("SELECT id FROM users WHERE id = ?").get(req.body?.userId);
+  if (!u) { fs.rm(req.file.path, { force: true }, () => {}); return res.status(400).json({ error: "Choose a staff member." }); }
+  const id = randomUUID();
+  db.prepare("INSERT INTO generated_docs (id, template_id, kind, user_id, company_id, period, file_path, file_name, created_by) VALUES (?, NULL, 'offer_letter', ?, NULL, NULL, ?, ?, ?)")
+    .run(id, u.id, req.file.path, fixName(req.file.originalname), req.user.userId);
+  res.status(201).json({ id });
+});
+templatesRouter.post("/generated/:id/replace", requireAuth, adminOnly, letterUpload.single("file"), (req, res) => {
+  const g = db.prepare("SELECT * FROM generated_docs WHERE id = ? AND kind = 'offer_letter'").get(req.params.id);
+  if (!g || !req.file) { if (req.file) fs.rm(req.file.path, { force: true }, () => {}); return res.status(g ? 400 : 404).json({ error: g ? "Choose a Word, PDF or photo file." : "Not found" }); }
+  db.prepare("UPDATE generated_docs SET file_path = ?, file_name = ?, created_at = datetime('now'), emailed_at = NULL, email_error = NULL WHERE id = ?").run(req.file.path, fixName(req.file.originalname), g.id);
+  fs.rm(g.file_path, { force: true }, () => {});
+  res.json({ ok: true });
+});
+
 // A person's own offer letters (only theirs): list and download.
 templatesRouter.get("/mine", requireAuth, (req, res) => {
   res.json(db.prepare("SELECT id, file_name, created_at FROM generated_docs WHERE user_id = ? AND kind = 'offer_letter' ORDER BY created_at DESC").all(req.user.userId));

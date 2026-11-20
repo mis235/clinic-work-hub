@@ -141,6 +141,21 @@ try {
   ok("staff can download their own offer letter", (await raw(`/api/doc-templates/mine/${mineOL.body[0].id}/file`, stoken)).status === 200);
   const others = gen.body.generated.find((g) => !mineOL.body.some((m) => m.id === g.id));
   ok("staff cannot open someone else's offer letter", !others || (await raw(`/api/doc-templates/mine/${others.id}/file`, stoken)).status === 404);
+  { // upload an existing letter, replace it, staff sees it; staff cannot upload
+    const up = new FormData(); up.append("userId", staff.id); up.append("file", new Blob([Buffer.from("%PDF-1.4 old letter")]), "Old offer.pdf");
+    const ur = await form("POST", "/api/doc-templates/upload-existing", up, admin);
+    ok("admin can upload an existing offer letter for a person", ur.status === 201, JSON.stringify(ur.body));
+    const up2 = new FormData(); up2.append("userId", staff.id); up2.append("file", new Blob([Buffer.from("x")]), "x.pdf");
+    ok("staff cannot upload offer letters", (await form("POST", "/api/doc-templates/upload-existing", up2, stoken)).status === 403);
+    const up3 = new FormData(); up3.append("userId", staff.id); up3.append("file", new Blob([Buffer.from("x")]), "bad.exe");
+    ok("only Word, PDF or photo files are accepted", (await form("POST", "/api/doc-templates/upload-existing", up3, admin)).status === 400);
+    const rp = new FormData(); rp.append("file", new Blob([Buffer.from("%PDF-1.4 edited letter")]), "Edited offer.pdf");
+    ok("an offer letter can be replaced after editing", (await form("POST", `/api/doc-templates/generated/${ur.body.id}/replace`, rp, admin)).status === 200);
+    const mine2 = await call("GET", "/api/doc-templates/mine", null, stoken);
+    ok("staff sees the replaced file under their name", mine2.body.some((m) => m.id === ur.body.id && m.file_name === "Edited offer.pdf"));
+    const dl = await raw(`/api/doc-templates/mine/${ur.body.id}/file`, stoken);
+    ok("staff downloads the edited file", dl.status === 200 && /edited letter/.test(await dl.text()));
+  }
   const ogf = Buffer.from(await (await raw(`/api/doc-templates/generated/${og.body.generated[0].id}/file`, admin)).arrayBuffer());
   const ogx = new (await import("pizzip")).default(ogf).file("word/document.xml").asText().replace(/<[^>]+>/g, "");
   ok("edited address, salary and bullet points appear in the letter", /Banjara Hills/.test(ogx) && /22,000/.test(ogx) && /Greet patients/.test(ogx) && /Keep records/.test(ogx) && !/\{/.test(ogx), ogx.slice(0, 300));
