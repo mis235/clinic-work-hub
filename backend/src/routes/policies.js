@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
+import fs from "node:fs";
 import db from "../db.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
 
@@ -29,6 +30,13 @@ try {
   const has = db.prepare("SELECT 1 FROM policies WHERE title = ?"), ins = db.prepare("INSERT INTO policies (id, title, category, body, version) VALUES (?, ?, ?, ?, 1)");
   for (const [cat, title, id] of DRIVE_SOPS) if (!has.get(title)) ins.run(randomUUID(), title, cat, `Open the full document:\n${DRIVE(id)}\n\nPlease read it carefully, then tap "I Have Read This".`);
 } catch {}
+
+// The clinic's written SOPs (organisation structure + Front Office operating manual), added once; a title already there is skipped.
+try {
+  const docs = JSON.parse(fs.readFileSync(new URL("../sopDocs.json", import.meta.url), "utf8"));
+  const has = db.prepare("SELECT 1 FROM policies WHERE title = ? AND category = ?"), ins = db.prepare("INSERT INTO policies (id, title, category, body, version) VALUES (?, ?, ?, ?, 1)");
+  for (const d of docs) if (!has.get(d.title, d.category)) ins.run(randomUUID(), d.title, d.category, d.body);
+} catch (e) { console.warn("SOP documents not loaded:", e.message); }
 
 // An SOP is "for" a person when its category/title names their department or job title
 // (e.g. "SOP — Front Desk" for someone in the Front Desk department). General SOPs (no team named) are for everyone.
