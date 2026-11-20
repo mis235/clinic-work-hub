@@ -1,10 +1,19 @@
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import multer from "multer";
 import db from "../db.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
 
 const router = Router();
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const SOP_DIR = path.join(process.env.DATA_DIR || path.join(HERE, "..", ".."), "private", "sops");
+fs.mkdirSync(SOP_DIR, { recursive: true });
+const sopUpload = multer({ storage: multer.diskStorage({ destination: (r, f, cb) => cb(null, SOP_DIR), filename: (r, f, cb) => cb(null, `${randomUUID()}${path.extname(f.originalname || "").toLowerCase()}`) }), limits: { fileSize: 50 * 1024 * 1024 } });
+const fixName = (n) => { try { return Buffer.from(n, "latin1").toString("utf8"); } catch { return n; } };
+const READ_LINE = '\n\nPlease read it carefully, then tap "I Have Read This".';
 
 
 // The clinic's SOP documents in Google Drive: added once (skipped when a title is already there).
@@ -28,7 +37,7 @@ const DRIVE_SOPS = [
 ];
 try {
   const has = db.prepare("SELECT 1 FROM policies WHERE title = ?"), ins = db.prepare("INSERT INTO policies (id, title, category, body, version) VALUES (?, ?, ?, ?, 1)");
-  for (const [cat, title, id] of DRIVE_SOPS) if (!has.get(title)) ins.run(randomUUID(), title, cat, `Open the full document:\n${DRIVE(id)}\n\nPlease read it carefully, then tap "I Have Read This".`);
+  for (const [cat, title, id] of DRIVE_SOPS) if (!has.get(title)) ins.run(randomUUID(), title, cat, `Open the full document:\n${DRIVE(id)}`);
 } catch {}
 
 // The clinic's written SOPs (organisation structure + Front Office operating manual), added once; a title already there is skipped.
@@ -37,6 +46,24 @@ try {
   const has = db.prepare("SELECT 1 FROM policies WHERE title = ? AND category = ?"), ins = db.prepare("INSERT INTO policies (id, title, category, body, version) VALUES (?, ?, ?, ?, 1)");
   for (const d of docs) if (!has.get(d.title, d.category)) ins.run(randomUUID(), d.title, d.category, d.body);
 } catch (e) { console.warn("SOP documents not loaded:", e.message); }
+
+// SOPs are for reading, not sign-off: take the old "tap I Have Read This" sentence off documents already saved.
+try { db.prepare("UPDATE policies SET body = replace(body, ?, '') WHERE body LIKE '%I Have Read This%' AND (lower(category) LIKE '%sop%' OR lower(title) LIKE '%sop%' OR lower(title) LIKE '%procedure%')").run(READ_LINE); } catch {}
+
+// The two full Word documents, kept inside the app so staff can read and download them here.
+try {
+  const FULL = [
+    ["SOP — Front Office · Full documents", "Full document — Front Office & Patient Experience Governance Manual v1.1", "Front Office & Patient Experience Governance Manual v1.1.docx", "The complete manual as one Word file. Download it to read offline or print."],
+    ["SOP — General · Organisation", "Full document — Organisation Structure", "Organisation Structure.docx", "The organisation chart as one Word file. Download it to read offline or print."],
+  ];
+  const has = db.prepare("SELECT 1 FROM policies WHERE title = ? AND category = ?"), ins = db.prepare("INSERT INTO policies (id, title, category, body, version, file_name, file_path) VALUES (?, ?, ?, ?, 1, ?, ?)");
+  for (const [cat, title, file, note] of FULL) {
+    const src = path.join(HERE, "..", "sop-files", file);
+    if (has.get(title, cat) || !fs.existsSync(src)) continue;
+    const dst = path.join(SOP_DIR, `${randomUUID()}.docx`); fs.copyFileSync(src, dst);
+    ins.run(randomUUID(), title, cat, note, file, dst);
+  }
+} catch (e) { console.warn("SOP files not added:", e.message); }
 
 // An SOP is "for" a person when its category/title names their department or job title
 // (e.g. "SOP — Front Desk" for someone in the Front Desk department). General SOPs (no team named) are for everyone.
@@ -63,8 +90,9 @@ router.get("/", requireAuth, (req, res) => {
   const ackMap = new Map(myAcks.map((a) => [`${a.policy_id}:${a.policy_version}`, true]));
 
   res.json(
-    policies.map((p) => ({
+    policies.map(({ file_path, ...p }) => ({
       ...p,
+      hasFile: !!file_path,
       acknowledgedByMe: ackMap.has(`${p.id}:${p.version}`),
       forMyRole: isSopRow(p) && mine.has(p.id),
     }))
@@ -132,7 +160,7 @@ router.post("/bulk", requireAuth, requirePermission("policies:manage"), (req, re
     for (const it of items) {
       const category = String(it?.category || "").trim().slice(0, 60), title = String(it?.title || "").trim().slice(0, 160), url = String(it?.url || "").trim();
       if (!category || !title || !/^https?:\/\//i.test(url) || has.get(title, category)) { skipped++; continue; }
-      ins.run(randomUUID(), title, category, `Open the full document:\n${url}\n\nPlease read it carefully, then tap "I Have Read This".`);
+      ins.run(randomUUID(), title, category, `Open the full document:\n${url}` + (/sop|procedure/i.test(`${category} ${title}`) ? "" : READ_LINE));
       added++;
     }
   })();
@@ -148,6 +176,36 @@ router.patch("/:id", requireAuth, requirePermission("policies:manage"), (req, re
   db.prepare(
     `UPDATE policies SET title = ?, category = ?, body = ?, version = version + 1, updated_at = datetime('now') WHERE id = ?`
   ).run(title || policy.title, category || policy.category, body || policy.body, policy.id);
+  res.json({ ok: true });
+});
+
+// Files that belong to an SOP/policy: everyone signed in can read or download; the admin attaches, replaces or removes.
+router.get("/:id/file", requireAuth, (req, res) => {
+  const p = db.prepare("SELECT file_name, file_path FROM policies WHERE id = ?").get(req.params.id);
+  if (!p?.file_path || !fs.existsSync(p.file_path)) return res.status(404).json({ error: "No file attached" });
+  if (req.query.inline === "1" && /\.pdf$/i.test(p.file_name || "")) { res.setHeader("Content-Type", "application/pdf"); res.setHeader("Content-Disposition", "inline"); return res.sendFile(p.file_path); }
+  res.download(p.file_path, p.file_name || "document");
+});
+router.post("/:id/file", requireAuth, requirePermission("policies:manage"), sopUpload.single("file"), (req, res) => {
+  const p = db.prepare("SELECT id, file_path FROM policies WHERE id = ?").get(req.params.id);
+  if (!p || !req.file) { if (req.file) fs.rmSync(req.file.path, { force: true }); return res.status(p ? 400 : 404).json({ error: p ? "Choose a file." : "Not found" }); }
+  if (p.file_path) fs.rmSync(p.file_path, { force: true });
+  db.prepare("UPDATE policies SET file_name = ?, file_path = ? WHERE id = ?").run(fixName(req.file.originalname), req.file.path, p.id);
+  res.json({ ok: true, fileName: fixName(req.file.originalname) });
+});
+router.delete("/:id/file", requireAuth, requirePermission("policies:manage"), (req, res) => {
+  const p = db.prepare("SELECT id, file_path FROM policies WHERE id = ?").get(req.params.id);
+  if (!p) return res.status(404).json({ error: "Not found" });
+  if (p.file_path) fs.rmSync(p.file_path, { force: true });
+  db.prepare("UPDATE policies SET file_name = NULL, file_path = NULL WHERE id = ?").run(p.id);
+  res.json({ ok: true });
+});
+router.delete("/:id", requireAuth, requirePermission("policies:manage"), (req, res) => {
+  const p = db.prepare("SELECT id, file_path FROM policies WHERE id = ?").get(req.params.id);
+  if (!p) return res.status(404).json({ error: "Not found" });
+  if (p.file_path) fs.rmSync(p.file_path, { force: true });
+  db.prepare("DELETE FROM policy_acknowledgments WHERE policy_id = ?").run(p.id);
+  db.prepare("DELETE FROM policies WHERE id = ?").run(p.id);
   res.json({ ok: true });
 });
 

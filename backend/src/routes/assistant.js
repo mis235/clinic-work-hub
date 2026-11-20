@@ -69,7 +69,7 @@ function myAttendanceLine(userId) {
 }
 
 function policyGapLine(userId) {
-  const policies = db.prepare("SELECT id, title, version FROM policies").all();
+  const policies = db.prepare("SELECT id, title, version FROM policies WHERE lower(category || ' ' || title) NOT LIKE '%sop%' AND lower(category || ' ' || title) NOT LIKE '%procedure%'").all();
   const acked = new Set(
     db
       .prepare("SELECT policy_id, policy_version FROM policy_acknowledgments WHERE user_id = ?")

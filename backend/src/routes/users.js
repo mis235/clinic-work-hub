@@ -424,10 +424,11 @@ router.get("/:id/profile", requireAuth, (req, res) => {
   };
 
   // --- policies ---
-  const policiesTotal = db.prepare(`SELECT COUNT(*) AS n FROM policies`).get().n;
+  const NOT_SOP = "lower(category || ' ' || title) NOT LIKE '%sop%' AND lower(category || ' ' || title) NOT LIKE '%procedure%'";
+  const policiesTotal = db.prepare(`SELECT COUNT(*) AS n FROM policies WHERE ${NOT_SOP}`).get().n;
   const policiesAcked = db.prepare(
     `SELECT COUNT(*) AS n FROM policies p
-     WHERE EXISTS (SELECT 1 FROM policy_acknowledgments a WHERE a.policy_id = p.id AND a.policy_version = p.version AND a.user_id = ?)`
+     WHERE ${NOT_SOP} AND EXISTS (SELECT 1 FROM policy_acknowledgments a WHERE a.policy_id = p.id AND a.policy_version = p.version AND a.user_id = ?)`
   ).get(id).n;
   const policies = { total: policiesTotal, acknowledged: policiesAcked, pending: policiesTotal - policiesAcked };
 

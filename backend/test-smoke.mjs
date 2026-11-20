@@ -944,6 +944,19 @@ try {
     ok("import saves the files", cm.status === 200 && cm.body.imported === 3 && cm.body.offer === 1, JSON.stringify(cm.body));
     const mf = await call("GET", "/api/documents/staff/me", null, stoken);
     ok("person sees their increment letter and ID proof", mf.body.files.some((f) => f.doc_type === "increment_letter") && mf.body.files.some((f) => f.doc_type === "id_proof"));
+    // SOP files: everyone reads/downloads, only the admin attaches or removes; SOPs do not count as "needs review"
+    const pl = await call("GET", "/api/policies", null, stoken);
+    const full = pl.body.find((p) => /^Full document — Organisation Structure/.test(p.title));
+    ok("the Organisation Structure Word file is in the app", !!full && full.hasFile && !("file_path" in full));
+    ok("staff can download an SOP file", (await raw(`/api/policies/${full.id}/file`, stoken)).status === 200);
+    const sopRow = pl.body.find((p) => /^1\. Department Structure/.test(p.title));
+    ok("written SOPs are seeded without a review sentence", !!sopRow && !/I Have Read This/.test(sopRow.body));
+    const fdp = new FormData(); fdp.append("file", new Blob(["hello"]), "extra.pdf");
+    ok("staff cannot attach an SOP file", (await form("POST", `/api/policies/${sopRow.id}/file`, fdp, stoken)).status === 403);
+    const fdp2 = new FormData(); fdp2.append("file", new Blob(["%PDF-1.4 test"]), "extra.pdf");
+    ok("admin attaches an SOP file", (await form("POST", `/api/policies/${sopRow.id}/file`, fdp2, admin)).status === 200);
+    ok("staff can view the attached PDF", (await raw(`/api/policies/${sopRow.id}/file?inline=1`, stoken)).headers.get("content-type").includes("pdf"));
+    ok("admin removes the file", (await call("DELETE", `/api/policies/${sopRow.id}/file`, null, admin)).status === 200 && (await raw(`/api/policies/${sopRow.id}/file`, stoken)).status === 404);
     ok("complaints are hidden from the person", !mf.body.files.some((f) => f.doc_type === "complaint"));
     ok("person sees the imported offer letter", mf.body.offerLetters.some((o) => /Offer Letter/.test(o.file_name)));
     const af = await call("GET", `/api/documents/staff/${staff.id}`, null, admin);

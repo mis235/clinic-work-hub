@@ -491,5 +491,7 @@ ensureColumn("users", "shift_start", "shift_start TEXT");
 ensureColumn("users", "shift_end", "shift_end TEXT");
 ensureColumn("users", "late_fine_type", "late_fine_type TEXT");
 ensureColumn("users", "late_fine_value", "late_fine_value REAL");
+ensureColumn("policies", "file_name", "file_name TEXT");
+ensureColumn("policies", "file_path", "file_path TEXT");
 
 export default db;

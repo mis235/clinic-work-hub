@@ -269,6 +269,19 @@ export const api = {
   listAdvisors: () => req("/api/advisors"),
   chatWithAdvisor: (id, messages) => req(`/api/advisors/${id}/chat`, { method: "POST", body: { messages } }),
   listPolicies: () => req("/api/policies"),
+  downloadPolicyFile: (id, name) => downloadFile(`/api/policies/${id}/file`, name),
+  async openPolicyFile(id) {
+    const w = window.open("", "_blank");
+    try {
+      const res = await fetch(`${BASE}/api/policies/${id}/file?inline=1`, { headers: authHeaders() });
+      if (!res.ok) throw new Error("Could not open the file");
+      const url = URL.createObjectURL(await res.blob());
+      if (w) w.location.href = url; else window.location.href = url;
+    } catch (e) { if (w) w.close(); alert(e.message); }
+  },
+  attachPolicyFile: (id, fd) => reqForm(`/api/policies/${id}/file`, fd),
+  removePolicyFile: (id) => req(`/api/policies/${id}/file`, { method: "DELETE" }),
+  deletePolicy: (id) => req(`/api/policies/${id}`, { method: "DELETE" }),
   acknowledgePolicy: (id) => req(`/api/policies/${id}/acknowledge`, { method: "POST" }),
   getReports: (days = 30) => req(`/api/reports/summary?days=${days}`),
   getAbout: () => req("/api/hr/about"),

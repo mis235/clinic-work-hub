@@ -54,7 +54,7 @@ router.get("/summary", requireAuth, requirePermission("reports:view"), (req, res
   // Policy acknowledgment gaps — staff who haven't acknowledged the CURRENT
   // version of at least one policy. This turns "everyone should have read this"
   // into something admin can actually verify.
-  const policies = db.prepare("SELECT id, title, version FROM policies").all();
+  const policies = db.prepare("SELECT id, title, version FROM policies WHERE lower(category || ' ' || title) NOT LIKE '%sop%' AND lower(category || ' ' || title) NOT LIKE '%procedure%'").all();
   const activeUsers = db.prepare("SELECT id, name FROM users WHERE active = 1").all();
   const policyGaps = policies.map((p) => {
     const acked = new Set(
@@ -146,7 +146,7 @@ router.get("/my-summary", requireAuth, (req, res) => {
     .prepare("SELECT 1 FROM attendance WHERE user_id = ? AND type = 'check_in' AND date(recorded_at) = date('now')")
     .get(userId);
 
-  const policies = db.prepare("SELECT id, version FROM policies").all();
+  const policies = db.prepare("SELECT id, version FROM policies WHERE lower(category || ' ' || title) NOT LIKE '%sop%' AND lower(category || ' ' || title) NOT LIKE '%procedure%'").all();
   const acked = new Set(
     db
       .prepare("SELECT policy_id, policy_version FROM policy_acknowledgments WHERE user_id = ?")
