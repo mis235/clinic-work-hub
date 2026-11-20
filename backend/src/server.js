@@ -31,6 +31,7 @@ import attendanceRoutes from "./routes/attendance.js";
 import templateRoutes from "./routes/templates.js";
 import advisorRoutes from "./routes/advisors.js";
 import policyRoutes from "./routes/policies.js";
+import libraryRoutes from "./routes/library.js";
 import reportRoutes from "./routes/reports.js";
 import hrRoutes from "./routes/hr.js";
 import companyRoutes from "./routes/companies.js";
@@ -152,6 +153,7 @@ app.use("/api/attendance", attendanceRoutes);
 app.use("/api/templates", templateRoutes);
 app.use("/api/advisors", requireAuth, requireLeadership, advisorRoutes);
 app.use("/api/policies", policyRoutes);
+app.use("/api/library", libraryRoutes);
 app.use("/api/reports", requireAuth, (req, res, next) => (req.path === "/my-summary" ? next() : requireLeadership(req, res, next)), reportRoutes);   // /my-summary is each person's own numbers
 app.use("/api/hr", hrRoutes);
 app.use("/api/companies", companyRoutes);

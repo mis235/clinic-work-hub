@@ -405,6 +405,23 @@ CREATE TABLE IF NOT EXISTS documents (
   uploaded_by TEXT REFERENCES users(id),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS library_folders (
+  id TEXT PRIMARY KEY,
+  parent_id TEXT REFERENCES library_folders(id),
+  name TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS library_files (
+  id TEXT PRIMARY KEY,
+  folder_id TEXT REFERENCES library_folders(id),
+  name TEXT NOT NULL,
+  file_path TEXT NOT NULL,
+  mime TEXT,
+  size INTEGER,
+  created_by TEXT REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 CREATE TABLE IF NOT EXISTS doc_templates (
   id TEXT PRIMARY KEY,
   kind TEXT NOT NULL,                          -- 'offer_letter' | 'payslip'

@@ -269,6 +269,22 @@ export const api = {
   listAdvisors: () => req("/api/advisors"),
   chatWithAdvisor: (id, messages) => req(`/api/advisors/${id}/chat`, { method: "POST", body: { messages } }),
   listPolicies: () => req("/api/policies"),
+  libraryList: (folder) => req(`/api/library${folder ? `?folder=${folder}` : ""}`),
+  libraryNewFolder: (parentId, name) => req("/api/library/folders", { method: "POST", body: { parentId, name } }),
+  libraryRenameFolder: (id, name) => req(`/api/library/folders/${id}`, { method: "PATCH", body: { name } }),
+  libraryDeleteFolder: (id) => req(`/api/library/folders/${id}`, { method: "DELETE" }),
+  libraryUpload: (fd) => reqForm("/api/library/files", fd),
+  libraryImport: (fd) => reqForm("/api/library/import", fd),
+  libraryRenameFile: (id, body) => req(`/api/library/files/${id}`, { method: "PATCH", body }),
+  libraryReplaceFile: (id, fd) => reqForm(`/api/library/files/${id}/replace`, fd),
+  libraryDeleteFile: (id) => req(`/api/library/files/${id}`, { method: "DELETE" }),
+  libraryPreview: (id) => req(`/api/library/files/${id}/preview`),
+  downloadLibraryFile: (id, name) => downloadFile(`/api/library/files/${id}/download`, name),
+  async libraryBlobUrl(id) {
+    const res = await fetch(`${BASE}/api/library/files/${id}/download?inline=1`, { headers: authHeaders() });
+    if (!res.ok) throw new Error("Could not open the file");
+    return URL.createObjectURL(await res.blob());
+  },
   downloadPolicyFile: (id, name) => downloadFile(`/api/policies/${id}/file`, name),
   async openPolicyFile(id) {
     const w = window.open("", "_blank");

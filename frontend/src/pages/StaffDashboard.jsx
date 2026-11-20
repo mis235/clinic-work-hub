@@ -17,6 +17,7 @@ import LearningPage from "./LearningPage.jsx";
 import ConnectedToolPage from "./ConnectedToolPage.jsx";
 import ClinicAIPage from "./ClinicAIPage.jsx";
 import PoliciesPage from "./PoliciesPage.jsx";
+import LibraryPage from "./LibraryPage.jsx";
 import TrackerPage from "./TrackerPage.jsx";
 import AssistantPage from "./AssistantPage.jsx";
 import RoomsPage from "./RoomsPage.jsx";
@@ -88,7 +89,7 @@ export default function StaffDashboard({ user, onLogout }) {
       <main className="main" style={{ maxWidth: view === "checklist" ? undefined : 860 }}>
         <MobileTopBar title={ACTIVE_LABEL[view]} onOpenMenu={() => setMobileOpen(true)} />
         {view === "sops" ? (
-          <PoliciesPage user={user} mode="sops" isStaffLayout />
+          <LibraryPage user={user} isStaffLayout />
         ) : view === "policies" ? (
           <PoliciesPage user={user} isStaffLayout />
         ) : view === "tracker" ? (
