@@ -60,9 +60,11 @@ function GeneratedList({ items, onChange, flash, kind }) {
     try { await api.replaceGenerated(replId, fd); flash("Letter replaced."); onChange(); } catch (e) { flash(e.message); }
     setReplId(null);
   }
-  const [sel, setSel] = useState(new Set());
+  const [sel, setSel] = useState(new Set()), [dept, setDept] = useState("");
+  const depts = [...new Set(items.map((i) => i.department || "No department"))].sort((a, b) => (a === "No department") - (b === "No department") || a.localeCompare(b));
+  const shown = dept ? items.filter((i) => (i.department || "No department") === dept) : items;
   const toggle = (id) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  const all = sel.size === items.length;
+  const all = shown.length > 0 && shown.every((i) => sel.has(i.id));
   async function emailSel(ids) {
     try { const r = await api.emailGenerated(ids); flash(`Emailed ${r.sent.length}${r.failed.length ? ` · not sent: ${r.failed.slice(0, 3).map((f) => `${f.name} (${f.reason})`).join(", ")}` : ""}`); onChange(); } catch (e) { flash(e.message); }
   }
@@ -72,12 +74,16 @@ function GeneratedList({ items, onChange, flash, kind }) {
         <h2 style={{ fontSize: 15 }}>{kind === "offer_letter" ? "Offer letters" : "Generated documents"} ({items.length})</h2>
         <input ref={replaceRef} type="file" hidden accept=".doc,.docx,.pdf,.png,.jpg,.jpeg" onChange={(e) => { replaceWith(e.target.files[0]); e.target.value = ""; }} />
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn btn-ghost btn-sm" onClick={() => setSel(all ? new Set() : new Set(items.map((i) => i.id)))}>{all ? "Clear" : "Select all"}</button>
+          <select className="field" style={{ maxWidth: 200 }} value={dept} onChange={(e) => { setDept(e.target.value); setSel(new Set()); }}><option value="">All departments</option>{depts.map((d) => <option key={d} value={d}>{d} ({items.filter((i) => (i.department || "No department") === d).length})</option>)}</select>
+          <button className="btn btn-ghost btn-sm" onClick={() => setSel(all ? new Set() : new Set(shown.map((i) => i.id)))}>{all ? "Clear" : "Select all"}</button>
           <button className="btn btn-outline btn-sm" disabled={!sel.size} onClick={() => emailSel([...sel])}>Email {sel.size || ""} to staff</button>
           <button className="btn btn-outline btn-sm" disabled={!sel.size} onClick={() => api.downloadGeneratedZip([...sel]).catch((e) => flash(e.message))}>Download {sel.size || ""} as ZIP</button>
         </div>
       </div>
-      {items.map((g) => (
+      {depts.filter((d) => !dept || d === dept).map((d) => (
+        <div key={d}>
+          <div className="meta" style={{ fontWeight: 700, margin: "14px 0 4px", textTransform: "uppercase", letterSpacing: ".04em" }}>{d} · {shown.filter((i) => (i.department || "No department") === d).length}</div>
+      {shown.filter((i) => (i.department || "No department") === d).map((g) => (
         <div key={g.id} className="task-row">
           <label style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer" }}>
             <input type="checkbox" checked={sel.has(g.id)} onChange={() => toggle(g.id)} />
@@ -89,6 +95,8 @@ function GeneratedList({ items, onChange, flash, kind }) {
             {kind === "offer_letter" && <button className="btn btn-ghost btn-sm" onClick={() => { setReplId(g.id); setTimeout(() => replaceRef.current?.click(), 0); }}>Replace</button>}
             <button className="btn btn-ghost btn-sm" onClick={async () => { await api.deleteGenerated(g.id); onChange(); }}>Remove</button>
           </div>
+        </div>
+      ))}
         </div>
       ))}
     </>

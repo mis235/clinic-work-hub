@@ -528,8 +528,8 @@ templatesRouter.get("/mine/:id/file", requireAuth, (req, res) => {
 templatesRouter.get("/generated", requireAuth, adminOnly, (req, res) => {
   const { kind } = req.query;
   res.json(db.prepare(
-    `SELECT g.id, g.kind, g.period, g.file_name, g.created_at, g.emailed_at, g.email_error, u.name AS user_name, c.name AS company
-     FROM generated_docs g LEFT JOIN users u ON u.id = g.user_id LEFT JOIN companies c ON c.id = g.company_id
+    `SELECT g.id, g.kind, g.period, g.file_name, g.created_at, g.emailed_at, g.email_error, u.name AS user_name, c.name AS company, COALESCE(d.name, 'No department') AS department
+     FROM generated_docs g LEFT JOIN users u ON u.id = g.user_id LEFT JOIN departments d ON d.id = u.department_id LEFT JOIN companies c ON c.id = g.company_id
      ${kind ? "WHERE g.kind = ?" : ""} ORDER BY g.created_at DESC LIMIT 300`).all(...(kind ? [kind] : [])));
 });
 

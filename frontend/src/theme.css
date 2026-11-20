@@ -1380,3 +1380,4 @@ html[data-theme="peach"] .cdx.cdx { --ink-1: #5A3A33; --ink-2: #8A5E54; --ink-3:
 
 /* The page title already sits in the top bar: never repeat it inside the page */
 .page-head > h1, .page-head > .eyebrow { display: none; }
+.section-head .btn-sm { white-space: nowrap; }
