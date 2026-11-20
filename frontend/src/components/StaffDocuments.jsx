@@ -29,6 +29,7 @@ export default function StaffDocuments({ staffId, onChanged }) {
 
   if (!data) return err ? <div className="login-error">{err}</div> : <div className="empty">Loading…</div>;
   const have = new Set(data.files.map((f) => f.doc_type));
+  if ((data.offerLetters || []).length) have.add("offer_signed"); // an offer letter kept in HR counts as the offer letter on file
   const done = data.types.filter((t) => have.has(t.key)).length;
 
   return (
@@ -43,13 +44,13 @@ export default function StaffDocuments({ staffId, onChanged }) {
       {err && <div className="login-error" style={{ marginBottom: 10 }}>{err}</div>}
       <div className="grid-2">
         {data.types.map((t) => {
-          const files = data.files.filter((f) => f.doc_type === t.key);
+          const files = data.files.filter((f) => f.doc_type === t.key), viaHr = t.key === "offer_signed" && !files.length && (data.offerLetters || []).length > 0;
           return (
             <div key={t.key} className="card" style={{ marginBottom: 0, padding: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
                 <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                  <div className={`kpi-ico ${files.length ? "green" : "amber"}`} style={{ width: 34, height: 34 }}><Icon name={files.length ? "check" : "file"} size={16} /></div>
-                  <div><div style={{ fontWeight: 700, fontSize: 13.5 }}>{t.label}</div><div className="meta">{files.length ? "On file" : "Missing"}</div></div>
+                  <div className={`kpi-ico ${files.length || viaHr ? "green" : "amber"}`} style={{ width: 34, height: 34 }}><Icon name={files.length || viaHr ? "check" : "file"} size={16} /></div>
+                  <div><div style={{ fontWeight: 700, fontSize: 13.5 }}>{t.label}</div><div className="meta">{files.length ? "On file" : viaHr ? "On file · see Letters & records below" : "Missing"}</div></div>
                 </div>
                 {data.canManage && <button className="btn btn-outline btn-sm" disabled={busy === t.key} onClick={() => choose(t.key)}>{busy === t.key ? "Uploading…" : files.length ? "Add another" : "Upload"}</button>}
               </div>

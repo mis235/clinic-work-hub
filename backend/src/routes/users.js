@@ -67,7 +67,7 @@ export const DOC_CHECKLIST = [
   { key: "education", label: "Education certificates" },
   { key: "experience", label: "Previous experience letters" },
   { key: "bank", label: "Bank account details" },
-  { key: "offer_signed", label: "Signed offer / appointment letter" },
+  { key: "offer_signed", label: "Offer letter" },
   { key: "policies_signed", label: "Clinic policies & confidentiality signed" },
 ];
 
