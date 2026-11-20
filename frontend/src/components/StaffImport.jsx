@@ -22,7 +22,8 @@ export default function StaffImport({ onClose, onDone }) {
   }
 
   const typeOf = (i) => kind[i.i] || i.type;
-  const shown = (i) => !i.skip && (!f.offer || typeOf(i) === "offer_letter") && (!f.pdf || /\.pdf$/i.test(i.file));
+  const hasPdf = (i) => pv.items.some((x) => !x.skip && x.person === i.person && typeOf(x) === typeOf(i) && /\.pdf$/i.test(x.file));
+  const shown = (i) => !i.skip && (!f.offer || typeOf(i) === "offer_letter") && (!f.pdf || /\.pdf$/i.test(i.file) || !hasPdf(i)); // PDF preferred: a Word file is kept only when that person has no PDF
   const isCurrent = (person) => { const u = pv?.users.find((x) => x.id === who[person]); return !!u && !!u.active; };
   const groups = useMemo(() => {
     if (!pv) return [];
@@ -56,7 +57,7 @@ export default function StaffImport({ onClose, onDone }) {
         <>
           <div className="meta" style={{ marginBottom: 10 }}>{chosen.length} files will be imported for {new Set(chosen.map((i) => who[i.person])).size} people · {unmatched.length} names not matched · {skipped.length} skipped</div>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 10 }}>
-            {[["offer", "Offer letters only"], ["pdf", "PDF files only"], ["current", "Current staff only (not former)"]].map(([k, l]) => (
+            {[["offer", "Offer letters only"], ["pdf", "PDF preferred (Word only if no PDF)"], ["current", "Current staff only (not former)"]].map(([k, l]) => (
               <label key={k} style={{ display: "flex", gap: 6, alignItems: "center" }}><input type="checkbox" checked={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.checked })} />{l}</label>))}
           </div>
           {groups.map((g) => (
