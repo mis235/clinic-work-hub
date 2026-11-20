@@ -6,7 +6,7 @@ const fmt = (n) => (!n ? "" : n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `
 // Upload the clinic's "Staff data" zip. Every file is sorted onto a person and a document type; the admin checks it and imports.
 export default function StaffImport({ onClose, onDone }) {
   const [step, setStep] = useState("pick"), [busy, setBusy] = useState(false), [err, setErr] = useState(""), [pv, setPv] = useState(null);
-  const [who, setWho] = useState({}), [kind, setKind] = useState({}), [off, setOff] = useState({}), [result, setResult] = useState(null), [open, setOpen] = useState({});
+  const [who, setWho] = useState({}), [kind, setKind] = useState({}), [off, setOff] = useState({}), [result, setResult] = useState(null), [open, setOpen] = useState({}), [f, setF] = useState({ offer: true, pdf: true, current: true });
   const input = useRef(null);
 
   async function preview(file) {
@@ -21,16 +21,18 @@ export default function StaffImport({ onClose, onDone }) {
     setBusy(false);
   }
 
+  const typeOf = (i) => kind[i.i] || i.type;
+  const shown = (i) => !i.skip && (!f.offer || typeOf(i) === "offer_letter") && (!f.pdf || /\.pdf$/i.test(i.file));
+  const isCurrent = (person) => { const u = pv?.users.find((x) => x.id === who[person]); return !!u && !!u.active; };
   const groups = useMemo(() => {
     if (!pv) return [];
     const m = new Map();
-    pv.items.filter((i) => !i.skip).forEach((i) => { if (!m.has(i.person)) m.set(i.person, []); m.get(i.person).push(i); });
+    pv.items.filter(shown).forEach((i) => { if (!m.has(i.person)) m.set(i.person, []); m.get(i.person).push(i); });
     return [...m.entries()].map(([person, items]) => ({ person, items })).sort((a, b) => (!!who[a.person] - !!who[b.person]) || a.person.localeCompare(b.person));
-  }, [pv, who]);
+  }, [pv, who, f, kind]);
   const skipped = pv ? pv.items.filter((i) => i.skip) : [];
-  const chosen = pv ? pv.items.filter((i) => !i.skip && who[i.person] && !off[i.i]) : [];
+  const chosen = pv ? pv.items.filter((i) => shown(i) && who[i.person] && !off[i.i] && (!f.current || isCurrent(i.person))) : [];
   const unmatched = groups.filter((g) => !who[g.person]);
-  const typeOf = (i) => kind[i.i] || i.type;
 
   async function run() {
     setBusy(true); setErr("");
@@ -53,6 +55,10 @@ export default function StaffImport({ onClose, onDone }) {
       {step === "review" && pv && (
         <>
           <div className="meta" style={{ marginBottom: 10 }}>{chosen.length} files will be imported for {new Set(chosen.map((i) => who[i.person])).size} people · {unmatched.length} names not matched · {skipped.length} skipped</div>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 10 }}>
+            {[["offer", "Offer letters only"], ["pdf", "PDF files only"], ["current", "Current staff only (not former)"]].map(([k, l]) => (
+              <label key={k} style={{ display: "flex", gap: 6, alignItems: "center" }}><input type="checkbox" checked={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.checked })} />{l}</label>))}
+          </div>
           {groups.map((g) => (
             <div key={g.person || "none"} style={{ borderTop: "1px solid var(--line, #eee)", padding: "10px 0" }}>
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -61,7 +67,7 @@ export default function StaffImport({ onClose, onDone }) {
                   <option value="">Do not import</option>
                   {(() => { const cand = new Set(g.items[0].candidates || []); const list = pv.users; return [...list.filter((u) => cand.has(u.id)), ...list.filter((u) => !cand.has(u.id))].map((u) => <option key={u.id} value={u.id}>{u.name}{u.department ? ` · ${u.department}` : ""}{u.active ? "" : " (former)"}</option>); })()}
                 </select>
-                <span className="meta">{g.items.length} file{g.items.length > 1 ? "s" : ""}</span>
+                <span className="meta">{g.items.length} file{g.items.length > 1 ? "s" : ""}{who[g.person] && f.current && !isCurrent(g.person) ? " · former staff, will not be uploaded" : ""}</span>
                 <button className="btn btn-ghost btn-sm" onClick={() => setOpen({ ...open, [g.person]: !open[g.person] })}>{open[g.person] ? "Hide files" : "Show files"}</button>
               </div>
               {open[g.person] && g.items.map((i) => (
