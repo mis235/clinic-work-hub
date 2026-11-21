@@ -1,3 +1,4 @@
+import Buddy from "../components/Buddy.jsx";
 import { useEffect, useState } from "react";
 import { api, videoStreamUrl } from "../api.js";
 import PageShell from "../components/PageShell.jsx";
@@ -98,7 +99,7 @@ export default function LearningPage({ user, isStaffLayout, onLogout, onBack }) 
       })()}
 
       {videos === null && <div className="empty">Loading…</div>}
-      {videos?.length === 0 && <div className="empty">Nothing in the library yet.{canManage ? " Click “Add video” to start." : ""}</div>}
+      {videos?.length === 0 && <div className="empty"><Buddy mood="thinking" size={84} style={{ margin: "0 auto 10px" }} />Nothing in the library yet.{canManage ? " Click “Add video” to start." : ""}</div>}
 
       {Object.entries(grouped).map(([dept, vids]) => (
         <div key={dept} className="card">

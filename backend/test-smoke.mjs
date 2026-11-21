@@ -959,6 +959,12 @@ try {
     ok("admin removes the file", (await call("DELETE", `/api/policies/${sopRow.id}/file`, null, admin)).status === 200 && (await raw(`/api/policies/${sopRow.id}/file`, stoken)).status === 404);
     // Library (folders and files like a shared drive)
     const lib0 = await call("GET", "/api/library", null, stoken);
+    const adminLib0 = await call("GET", "/api/library", null, admin);
+    const therF = adminLib0.body.folders.find((f) => f.name === "Therapist");
+    const pi = therF ? (await call("GET", `/api/library?folder=${therF.id}`, null, admin)).body.folders : [];
+    const pres = pi.find((f) => f.name === "Patient Information Presentations");
+    ok("Patient Information presentations are listed under Therapist", !!pres && pres.items > 20, JSON.stringify(pres));
+    ok("Patient Information links open from the library", !!pres && (await call("GET", `/api/library?folder=${pres.id}`, null, admin)).body.files.every((f) => /^https:\/\/drive\.google\.com/.test(f.url)));
     ok("library starts with the clinic's folders", lib0.status === 200 && ["Staff SOP", "Staff Checklist", "SOP New"].every((n) => lib0.body.folders.some((f) => f.name === n)) && lib0.body.canManage === false);
     ok("staff cannot create a library folder", (await call("POST", "/api/library/folders", { name: "Nope" }, stoken)).status === 403);
     const sopNew = lib0.body.folders.find((f) => f.name === "SOP New"), orgF = lib0.body.folders.find((f) => f.name === "Organisation Structure");
@@ -987,7 +993,7 @@ try {
     ok("admin deletes a folder with its contents", (await call("DELETE", `/api/library/folders/${ssop.id}`, null, admin)).status === 200 && (await call("GET", `/api/library?folder=${ssop.id}`, null, admin)).status === 404);
     // Folder access, links, recommended layout
     const setup = await call("POST", "/api/library/setup", {}, admin);
-    ok("admin adds the recommended folders", setup.status === 200 && setup.body.created > 10, JSON.stringify(setup.body));
+    ok("admin adds the recommended folders", setup.status === 200 && typeof setup.body.created === "number", JSON.stringify(setup.body));
     ok("recommended folders are only added once", (await call("POST", "/api/library/setup", {}, admin)).body.created === 0);
     ok("staff cannot add the recommended folders", (await call("POST", "/api/library/setup", {}, stoken)).status === 403);
     const rootA = (await call("GET", "/api/library", null, admin)).body;

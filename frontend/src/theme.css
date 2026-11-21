@@ -1442,3 +1442,6 @@ html[data-theme="peach"] .cdx.cdx { --ink-1: #5A3A33; --ink-2: #8A5E54; --ink-3:
 .lib-doc img { max-width: 100%; }
 @media (max-width: 700px) { .lib-row { grid-template-columns: minmax(0, 1fr) auto; } .lib-row .c-date, .lib-row .c-size { display: none; } .lib-head { display: none; } .lib-act .btn-ghost:not([aria-label]) { display: none; } .lib-doc { padding: 18px; margin: 10px; } .lib-modal { padding: 0; } .lib-sheet { height: 100vh; border-radius: 0; } }
 .lib-lock { font-size: 10.5px; font-weight: 800; color: #8a4fb3; background: rgba(155,120,220,.16); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+.lib-guide { display: flex; align-items: center; gap: 14px; padding: 10px 16px; margin-bottom: 12px; border-radius: 18px; background: linear-gradient(120deg, rgba(255,255,255,.85), rgba(235,225,255,.7)); border: 1px solid var(--line); }
+.lib-guide b { display: block; font-size: 14.5px; }
+.lib-guide span { font-size: 12.5px; color: var(--ink-soft); }

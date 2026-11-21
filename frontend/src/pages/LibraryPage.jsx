@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import Buddy from "../components/Buddy.jsx";
 import { navItemsFor } from "../navItems.js";
 import { api } from "../api.js";
 import Sidebar from "../components/Sidebar.jsx";
@@ -54,6 +55,13 @@ export default function LibraryPage({ user, isStaffLayout, onLogout, onBack }) {
       <input ref={zipIn} type="file" accept=".zip" hidden onChange={(e) => { importZip(e.target.files[0]); e.target.value = ""; }} />
       <input ref={replaceIn} type="file" hidden onChange={(e) => { replaceFile(e.target.files[0]); e.target.value = ""; }} />
 
+      <div className="lib-guide">
+        <Buddy mood={err ? "confused" : busy ? "working" : note ? "success" : data && items === 0 ? "thinking" : "welcome"} size={60} />
+        <div>
+          <b>{err ? "That did not work" : busy ? "Working on it…" : note ? "Done" : !folder ? "Welcome to the Library" : data?.path.at(-1)?.name}</b>
+          <span>{err ? "Read the message below and try again." : busy ? "Please keep this page open." : note || (data?.canManage ? "Open a folder, or upload files and folders here." : "Open a folder to read or download. Everything here is for your work.")}</span>
+        </div>
+      </div>
       <div className="lib-bar">
         <nav className="lib-crumbs">
           <button onClick={() => setFolder(null)} className={!folder ? "cur" : ""}>Library</button>
@@ -69,12 +77,11 @@ export default function LibraryPage({ user, isStaffLayout, onLogout, onBack }) {
           </div>)}
       </div>
       {err && <div className="login-error" style={{ marginBottom: 10 }}>{err}</div>}
-      {note && <div className="meta" style={{ marginBottom: 10 }}>{note}</div>}
 
       <div className="lib-table">
         <div className="lib-row lib-head"><span>Name</span><span className="c-date">Modified</span><span className="c-size">Size</span><span /></div>
         {!data && !err && <div className="lib-empty">Loading…</div>}
-        {data && items === 0 && <div className="lib-empty">This folder is empty.{data.canManage && " Drop files here, or use Upload files."}</div>}
+        {data && items === 0 && <div className="lib-empty"><Buddy mood="thinking" size={84} style={{ margin: "0 auto 10px" }} />This folder is empty.{data.canManage && " Drop files here, or use Upload files."}</div>}
         {data?.folders.map((f) => (
           <div key={f.id} className="lib-row" onClick={() => setFolder(f.id)}>
             <span className="lib-name"><FolderIcon /><b>{f.name}</b><em>{f.items} item{f.items === 1 ? "" : "s"}</em>{(f.admin_only || f.dept_name) && <span className="lib-lock">{f.admin_only ? "Admin only" : f.dept_name + " only"}</span>}</span>

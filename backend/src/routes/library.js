@@ -68,6 +68,7 @@ try {
 } catch (e) { /* seeding is best effort */ }
 
 router.get("/", requireAuth, (req, res) => {
+  try { if (db.prepare("SELECT 1 FROM departments LIMIT 1").get()) importPatientInfoToLibrary(); } catch (e) { console.warn("Patient Information not added to the library:", e.message); }
   const fid = req.query.folder || null;
   if (fid && !folderRow(fid)) return res.status(404).json({ error: "Folder not found" });
   if (fid && !canSee(req, fid)) return res.status(403).json({ error: "You do not have access to this folder." });
@@ -182,7 +183,7 @@ const LAYOUT = [
   ["Admin & Management", { admin: true, kids: ["Governance", "Accounts"] }],
   ["Clinic Documentation", { admin: true, kids: ["Awards & Recognitions", "Publications & Articles"] }],
 ];
-router.post("/setup", requireAuth, adminOnly, (req, res) => {
+function applyLayout() {
   let made = 0;
   db.transaction(() => {
     for (const [name, o] of LAYOUT) {
@@ -191,8 +192,45 @@ router.post("/setup", requireAuth, adminOnly, (req, res) => {
       for (const k of o.kids) if (!childFolder(f.id, k)) { makeFolder(f.id, k); made++; }
     }
   })();
-  res.json({ created: made });
-});
+  return made;
+}
+router.post("/setup", requireAuth, adminOnly, (req, res) => res.json({ created: applyLayout() }));
+
+// One-time: the clinic's "Patient Information" Drive material (presentations, checklists, flowcharts, SOPs, induction, cleaning videos)
+// is listed in the library as links, in the folders where it belongs. The files stay in Drive.
+const PATIENT_INFO_MAP = {
+  "Information Presentations": ["Therapist", "Patient Information Presentations"],
+  "Procedure Checklists": ["Therapist", "Procedure Checklists"],
+  "Procedure Checklists - Medifacials Checklist": ["Therapist", "Procedure Checklists", "Medifacials Checklist"],
+  "Procedure FlowCharts": ["Therapist", "Procedure Flowcharts"],
+  "SOPs & Protocols": ["Therapist", "Procedure SOPs & Protocols"],
+  "Cleaning Videos": ["Therapist", "Training Videos", "Cleaning Videos"],
+  "Induction": ["Organisation & Policies", "Induction"],
+  "General": ["Organisation & Policies", "Induction"],
+};
+const EXT = { "application/pdf": ".pdf", "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx", "application/vnd.ms-powerpoint": ".ppt", "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx", "image/png": ".png", "image/jpeg": ".jpg", "video/mp4": ".mp4" };
+export function importPatientInfoToLibrary() {
+  const FILE = path.join(HERE, "..", "..", "data", "library-patient-info.json");
+  if (db.prepare("SELECT 1 FROM app_settings WHERE key = 'lib_patient_info_to_library_v1'").get() || !fs.existsSync(FILE)) return 0;
+  const items = JSON.parse(fs.readFileSync(FILE, "utf8")).filter((i) => i.department === "Patient Information" && i.url && PATIENT_INFO_MAP[i.folder]);
+  let added = 0;
+  db.transaction(() => {
+    applyLayout();
+    const cache = new Map();
+    const dir = (parts) => { let parent = null, key = ""; for (const n of parts) { key += "/" + norm(n); if (!cache.has(key)) cache.set(key, (childFolder(parent, n) || makeFolder(parent, n)).id); parent = cache.get(key); } return parent; };
+    const has = db.prepare("SELECT 1 FROM library_files WHERE url = ? AND folder_id IS ?"), taken = db.prepare("SELECT 1 FROM library_files WHERE folder_id IS ? AND lower(name) = lower(?)");
+    const ins = db.prepare("INSERT INTO library_files (id, folder_id, name, file_path, mime, size, url) VALUES (?, ?, ?, '', 'link', NULL, ?)");
+    for (const it of items) {
+      const fid = dir(PATIENT_INFO_MAP[it.folder]); if (has.get(it.url, fid)) continue;
+      let base = String(it.title).replace(/[\\/]/g, "-").trim().slice(0, 190), ext = EXT[it.mime] || "", name = base.toLowerCase().endsWith(ext) ? base : base + ext, n = 2;
+      while (taken.get(fid, name)) name = `${base} (${n++})${ext}`;
+      ins.run(randomUUID(), fid, name, it.url); added++;
+    }
+    db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('lib_patient_info_to_library_v1', '1')").run();
+  })();
+  return added;
+}
+
 
 // Upload a whole folder as a .zip (for example a Google Drive folder downloaded to the computer); folders inside are kept.
 // The zip is read one file at a time from disk, so even a large zip uses very little memory.
