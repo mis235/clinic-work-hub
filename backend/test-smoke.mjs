@@ -985,6 +985,26 @@ try {
     ok("staff cannot delete a file", (await call("DELETE", `/api/library/files/${plan.id}`, null, stoken)).status === 403);
     ok("admin deletes a file", (await call("DELETE", `/api/library/files/${plan.id}`, null, admin)).status === 200 && (await raw(`/api/library/files/${plan.id}/download`, admin)).status === 404);
     ok("admin deletes a folder with its contents", (await call("DELETE", `/api/library/folders/${ssop.id}`, null, admin)).status === 200 && (await call("GET", `/api/library?folder=${ssop.id}`, null, admin)).status === 404);
+    // Folder access, links, recommended layout
+    const setup = await call("POST", "/api/library/setup", {}, admin);
+    ok("admin adds the recommended folders", setup.status === 200 && setup.body.created > 10, JSON.stringify(setup.body));
+    ok("recommended folders are only added once", (await call("POST", "/api/library/setup", {}, admin)).body.created === 0);
+    ok("staff cannot add the recommended folders", (await call("POST", "/api/library/setup", {}, stoken)).status === 403);
+    const rootA = (await call("GET", "/api/library", null, admin)).body;
+    const clinicDoc = rootA.folders.find((f) => f.name === "Clinic Documentation"), ther = rootA.folders.find((f) => f.name === "Therapist");
+    ok("Clinic Documentation is admin only", clinicDoc.admin_only === 1 && rootA.departments.length > 0);
+    const rootS = (await call("GET", "/api/library", null, stoken)).body;
+    ok("staff do not see the admin only folder", !rootS.folders.some((f) => f.name === "Clinic Documentation" || f.name === "Admin & Management"));
+    ok("staff cannot open an admin only folder directly", (await call("GET", `/api/library?folder=${clinicDoc.id}`, null, stoken)).status === 403);
+    ok("a Therapist-only folder is hidden from other departments", ther.dept_id && !rootS.folders.some((f) => f.name === "Therapist"));
+    const sKids = (await call("GET", `/api/library?folder=${ther.id}`, null, stoken)).status;
+    ok("and cannot be opened by them", sKids === 403);
+    ok("admin opens it freely", (await call("GET", `/api/library?folder=${ther.id}`, null, admin)).body.folders.length === 5);
+    ok("admin changes who can see a folder", (await call("PATCH", `/api/library/folders/${clinicDoc.id}`, { access: "all" }, admin)).status === 200 && (await call("GET", `/api/library?folder=${clinicDoc.id}`, null, stoken)).status === 200);
+    const lk = await call("POST", "/api/library/links", { folderId: clinicDoc.id, name: "Cleaning video", url: "https://youtu.be/abc" }, admin);
+    ok("admin adds a link", lk.status === 201);
+    ok("staff sees the link", (await call("GET", `/api/library?folder=${clinicDoc.id}`, null, stoken)).body.files.some((f) => f.name === "Cleaning video" && f.url === "https://youtu.be/abc"));
+    ok("a link must start with https", (await call("POST", "/api/library/links", { folderId: clinicDoc.id, name: "Bad", url: "javascript:alert(1)" }, admin)).status === 400);
     ok("complaints are hidden from the person", !mf.body.files.some((f) => f.doc_type === "complaint"));
     ok("person sees the imported offer letter", mf.body.offerLetters.some((o) => /Offer Letter/.test(o.file_name)));
     const af = await call("GET", `/api/documents/staff/${staff.id}`, null, admin);

@@ -510,5 +510,8 @@ ensureColumn("users", "late_fine_type", "late_fine_type TEXT");
 ensureColumn("users", "late_fine_value", "late_fine_value REAL");
 ensureColumn("policies", "file_name", "file_name TEXT");
 ensureColumn("policies", "file_path", "file_path TEXT");
+ensureColumn("library_folders", "admin_only", "admin_only INTEGER NOT NULL DEFAULT 0");
+ensureColumn("library_folders", "dept_id", "dept_id TEXT");
+ensureColumn("library_files", "url", "url TEXT");
 
 export default db;
