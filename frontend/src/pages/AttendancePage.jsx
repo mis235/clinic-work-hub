@@ -59,7 +59,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
 
       <div className="pill-row">
         <button className={`pill ${tab === "register" ? "active" : ""}`} onClick={() => setTab("register")}>Month register</button>
-        <button className={`pill ${tab === "late" ? "active" : ""}`} onClick={() => setTab("late")}>Late reasons</button>
+        <button className={`pill ${tab === "late" ? "active" : ""}`} onClick={() => setTab("late")}>Late &amp; checks</button>
         <button className={`pill ${tab === "face" ? "active" : ""}`} onClick={() => setTab("face")}>Face check-in</button>
         {user.role === "admin" && SETUP && <button className={`pill ${tab === "sheet" ? "active" : ""}`} onClick={() => setTab("sheet")}>Google Sheet</button>}
         {user.role === "admin" && <button className={`pill ${tab === "fines" ? "active" : ""}`} onClick={() => setTab("fines")}>Fines</button>}
@@ -132,20 +132,27 @@ export default function AttendancePage({ user, onLogout, onBack }) {
 }
 
 function LateReasonsPanel({ month }) {
-  const [d, setD] = useState(null);
+  const [d, setD] = useState(null), [f, setF] = useState("all");
   useEffect(() => { setD(null); const load = () => api.lateReasons(month).then(setD).catch(() => setD({ rows: [] })); load(); window.addEventListener("hub-refresh", load); return () => window.removeEventListener("hub-refresh", load); }, [month]);
   if (!d) return <div className="empty">Loading…</div>;
+  const TYPES = { late: ["Late", "#d97706"], noin: ["No check-in", "#dc2626"], noout: ["No check-out", "#dc2626"], early: ["Left early", "#0ea5e9"], half: ["Half day", "#7c3aed"] };
+  const rows = d.rows.filter((r) => f === "all" || r.type === f);
   const without = d.rows.filter((r) => !r.reason).length;
   return (
     <div className="card" style={{ overflowX: "auto" }}>
-      <div className="meta" style={{ marginBottom: 8 }}>{d.month} · {d.rows.length} late arrival{d.rows.length === 1 ? "" : "s"}{without ? ` · ${without} without a reason` : ""}</div>
-      {d.rows.length === 0 ? <div className="meta">Nobody was late this month.</div> : (
+      <div className="meta" style={{ marginBottom: 8 }}>{d.month} · {d.rows.length} to look at{without ? ` · ${without} without a reason` : ""}</div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+        <button className={`pill ${f === "all" ? "active" : ""}`} onClick={() => setF("all")}>All</button>
+        {Object.entries(TYPES).map(([k, [l]]) => <button key={k} className={`pill ${f === k ? "active" : ""}`} onClick={() => setF(k)}>{l} ({d.rows.filter((r) => r.type === k).length})</button>)}
+      </div>
+      {rows.length === 0 ? <div className="meta">Nothing here this month.</div> : (
         <table className="tbl" style={{ width: "100%" }}>
-          <thead><tr><th style={{ textAlign: "left" }}>Date</th><th style={{ textAlign: "left" }}>Name</th><th>In</th><th>Late</th><th style={{ textAlign: "left" }}>Reason</th></tr></thead>
-          <tbody>{d.rows.map((r) => (
-            <tr key={r.user_id + r.date}>
+          <thead><tr><th style={{ textAlign: "left" }}>Date</th><th style={{ textAlign: "left" }}>Name</th><th>In</th><th>Out</th><th style={{ textAlign: "left" }}>What</th><th style={{ textAlign: "left" }}>Reason</th></tr></thead>
+          <tbody>{rows.map((r, i) => (
+            <tr key={r.user_id + r.date + r.type + i}>
               <td>{new Date(r.date + "T00:00:00Z").toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" })}</td>
-              <td><b>{r.name}</b></td><td style={{ textAlign: "center" }}>{r.in_time}</td><td style={{ textAlign: "center" }}>{r.late ? r.late + " min" : "–"}</td>
+              <td><b>{r.name}</b></td><td style={{ textAlign: "center" }}>{r.in_time || "–"}</td><td style={{ textAlign: "center" }}>{r.out_time || "–"}</td>
+              <td><b style={{ color: TYPES[r.type][1] }}>{r.detail}</b></td>
               <td>{r.reason || <span className="meta">No reason yet</span>}</td>
             </tr>))}</tbody>
         </table>)}

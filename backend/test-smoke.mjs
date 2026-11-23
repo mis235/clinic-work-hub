@@ -810,6 +810,18 @@ try {
       ok("the register carries the reason", (await call("GET", "/api/attendance/register", null, admin)).body?.rows?.find((r) => r.id === staff.id)?.times?.some((t) => t?.r === "Bus broke down"));
       ok("no reason for a day that was not late", (await call("PUT", "/api/attendance/late-reason", { date: "2020-01-01", reason: "Traffic jam" }, stoken)).status === 400);
     }
+    { // every situation of the day
+      const pool = users.filter((u) => u.id !== staff.id && u.role !== "admin");
+      const [o2, o3, o4] = pool;
+      const hd = await call("PUT", "/api/attendance/time", { userId: o2.id, date: today, inTime: "10:05", outTime: "12:30" }, admin);
+      ok("leaving before half the shift makes a half day", hd.body?.status === "H", JSON.stringify(hd.body));
+      await call("PUT", "/api/attendance/time", { userId: o3.id, date: today, outTime: "19:00" }, admin);
+      await call("PUT", "/api/attendance/time", { userId: o4.id, date: today, inTime: "09:50", outTime: "17:00" }, admin);
+      const rows = (await call("GET", "/api/attendance/late", null, admin)).body?.rows || [];
+      ok("list shows the half day", rows.some((r) => r.user_id === o2.id && r.type === "half"));
+      ok("list shows a check-out with no morning check-in", rows.some((r) => r.user_id === o3.id && r.type === "noin"));
+      ok("list shows leaving early", rows.some((r) => r.user_id === o4.id && r.type === "early"));
+    }
     ok("staff cannot fix times", (await call("PUT", "/api/attendance/time", { userId: staff.id, date: today, inTime: "09:00" }, stoken)).status === 403);
     const sh0 = await call("GET", "/api/attendance/sheet", null, admin);
     const pd = await call("PUT", `/api/payroll/profile/${staff.id}/details`, { payType: "daily", payRate: 800, pan: "ABCDE1234F", bankName: "HDFC Bank", accountHolder: "Test", accountNumber: "123456789012", ifsc: "HDFC0001234", branch: "Madhapur" }, admin);

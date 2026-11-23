@@ -19,7 +19,7 @@ fs.mkdirSync(SNAP_DIR, { recursive: true });
 const MATCH_DISTANCE = Number(process.env.FACE_MATCH_DISTANCE || 0.5); // lower = stricter
 const UNIQUE_DISTANCE = Number(process.env.FACE_UNIQUE_DISTANCE || 0.45); // two people closer than this are treated as the same face
 const MIN_GAP_MIN = Number(process.env.MIN_STAY_MINUTES || 30);        // a second look within this many minutes is not a logout
-import { isLateArrival, syncLateFines, shiftWindow } from "./leave.js";
+import { isLateArrival, syncLateFines, shiftWindow, dayStatus } from "./leave.js";
 import { queueSheet } from "../attendanceSheet.js";
 import { engage } from "../engage.js";
 // Late = more than the grace minutes (HR rule, default 15) after the start of the person's shift.                   // IST, HH:MM — arrivals after this are marked Late
@@ -168,13 +168,18 @@ router.post("/checkin", requireKiosk, (req, res) => {
     mark = row?.status || "P";
   } else if (!row || !row.in_time) {
     kind = "in"; inTime = hhmm;
-    if (!row || !["P", "L", "H"].includes(row.status)) mark = isLateArrival(best.userId, date, hhmm) ? "L" : "P";
+    if (!row || !["P", "L", "H"].includes(row.status)) mark = dayStatus(best.userId, date, hhmm, null);
     db.prepare(`INSERT INTO attendance_marks (user_id, mark_date, status, in_time, note, marked_by) VALUES (?,?,?,?,?,NULL)
       ON CONFLICT(user_id, mark_date) DO UPDATE SET status = excluded.status, in_time = excluded.in_time, updated_at = datetime('now')`)
       .run(best.userId, date, mark, inTime, `Face check-in ${hhmm}`);
   } else if (!outTime && mins(hhmm) - mins(inTime) >= MIN_GAP_MIN) { // check-out is taken once; a later look never moves it (HR can correct the time)
     kind = "out"; outTime = hhmm;
     db.prepare("UPDATE attendance_marks SET out_time = ?, updated_at = datetime('now') WHERE user_id = ? AND mark_date = ?").run(outTime, best.userId, date);
+    // Left before half of the shift was worked: the day becomes a Half day (never touches Leave / Absent).
+    if (["P", "L"].includes(mark) && dayStatus(best.userId, date, inTime, outTime) === "H") {
+      mark = "H"; db.prepare("UPDATE attendance_marks SET status = 'H' WHERE user_id = ? AND mark_date = ?").run(best.userId, date);
+      try { syncLateFines(date.slice(0, 7)); } catch {}
+    }
   } else { kind = outTime ? "out" : "in"; already = true; }
   if (!already) queueSheet(date.slice(0, 7));
   if (kind === "in" && !already) { try { syncLateFines(date.slice(0, 7)); } catch (e) { console.error("late fines:", e.message); } }

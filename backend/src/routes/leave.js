@@ -49,7 +49,7 @@ export const REASONS = [
   { key: "sick", label: "Sick / medical" }, { key: "travel", label: "Travelling" }, { key: "family", label: "Family function / emergency" },
   { key: "personal", label: "Personal work" }, { key: "other", label: "Other" },
 ];
-const DEFAULTS = { casual_per_month: 1, late_grace_min: 15, late_limit: 3, late_fine: 100, salary_divisor: 30 };
+const DEFAULTS = { casual_per_month: 1, late_grace_min: 15, late_limit: 3, late_fine: 100, salary_divisor: 30, halfday_pct: 50 };
 export function settings() {
   const o = { ...DEFAULTS };
   for (const r of db.prepare("SELECT key, value FROM app_settings WHERE key LIKE 'hr_%'").all()) { const k = r.key.slice(3); if (k in o && Number.isFinite(Number(r.value))) o[k] = Number(r.value); }
@@ -124,6 +124,14 @@ export function shiftWindow(userId, date) {
 }
 export function isLateArrival(userId, date, hhmm) {
   return mins(hhmm) > mins(shiftWindow(userId, date).start) + settings().late_grace_min;
+}
+/** The day's status from the times: Present, Late, or Half day. Half day = arrived after the middle of the shift, or worked less than half of it
+ *  (halfday_pct, default 50). Never changes Leave / Absent / Week off. */
+export function dayStatus(userId, date, inT, outT) {
+  const w = shiftWindow(userId, date), half = ((mins(w.end) - mins(w.start)) * settings().halfday_pct) / 100;
+  if (inT && mins(inT) - mins(w.start) > half) return "H";
+  if (inT && outT && mins(outT) - mins(inT) < half) return "H";
+  return inT && isLateArrival(userId, date, inT) ? "L" : "P";
 }
 /** Rupees for one auto late fine for this person: the clinic default, a flat amount, or a % of one day's salary. */
 export function fineAmountFor(userId) {

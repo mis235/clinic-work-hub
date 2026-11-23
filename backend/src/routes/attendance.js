@@ -8,7 +8,7 @@ import {
 } from "@simplewebauthn/server";
 import db from "../db.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
-import { syncLateFines, shiftWindow, isLateArrival } from "./leave.js";
+import { syncLateFines, shiftWindow, isLateArrival, dayStatus } from "./leave.js";
 import { shiftOn, fmtRange, upcomingFor } from "./roster.js";
 import { notifyUser } from "../engage.js";
 import { queueSheet, pushAll, sheetState, saveSheetSettings, sheetScript } from "../attendanceSheet.js";
@@ -386,7 +386,7 @@ router.put("/time", requireAuth, (req, res) => {
   if (inTime && outTime && mm(outTime) <= mm(inTime)) return res.status(400).json({ error: "Check-out must be after check-in" });
   const cur = db.prepare("SELECT * FROM attendance_marks WHERE user_id = ? AND mark_date = ?").get(userId, date);
   const newIn = inTime || cur?.in_time || null, newOut = outTime || cur?.out_time || null;
-  const status = newIn ? (isLateArrival(userId, date, newIn) ? "L" : "P") : (cur?.status || "P");
+  const status = newIn ? dayStatus(userId, date, newIn, newOut) : (cur?.status || "P");
   const note = `Time fixed by ${db.prepare("SELECT name FROM users WHERE id = ?").get(req.user.userId)?.name || "admin"}`;
   db.prepare(`INSERT INTO attendance_marks (user_id, mark_date, status, in_time, out_time, note, marked_by) VALUES (?,?,?,?,?,?,?)
     ON CONFLICT(user_id, mark_date) DO UPDATE SET status = excluded.status, in_time = excluded.in_time, out_time = excluded.out_time, note = excluded.note, marked_by = excluded.marked_by, updated_at = datetime('now')`)
@@ -402,9 +402,10 @@ router.put("/time", requireAuth, (req, res) => {
 // and see every reason in the attendance page.
 const lateInfo = (userId, date) => {
   const m = db.prepare("SELECT status, in_time, late_reason FROM attendance_marks WHERE user_id = ? AND mark_date = ?").get(userId, date);
-  if (!m?.in_time) return null;
+  if (!m) return null;
+  if (!m.in_time) return m.out_time && ["P", "L", "H"].includes(m.status) ? { kind: "noin", in_time: "", late: 0, reason: m.late_reason || "" } : null; // only a check-out: forgot the morning scan
   const late = isLateArrival(userId, date, m.in_time) ? Math.max(0, mm(m.in_time) - mm(shiftWindow(userId, date).start)) : 0;
-  return late > 0 || m.status === "L" ? { in_time: m.in_time, late, reason: m.late_reason || "" } : null;
+  return late > 0 || m.status === "L" ? { kind: "late", in_time: m.in_time, late, reason: m.late_reason || "" } : null;
 };
 // Which of my recent days were late, and which still need a reason.
 router.get("/late/mine", requireAuth, (req, res) => {
@@ -423,21 +424,30 @@ router.put("/late-reason", requireAuth, (req, res) => {
   const days = (new Date(istToday()) - new Date(date)) / 86400000;
   if (days < 0 || days > 7) return res.status(400).json({ error: "A reason can be added for today or the last 7 days." });
   const l = lateInfo(req.user.userId, date);
-  if (!l) return res.status(400).json({ error: "You were not late on that day." });
+  if (!l) return res.status(400).json({ error: "There is nothing to explain on that day." });
   db.prepare("UPDATE attendance_marks SET late_reason = ?, late_reason_at = datetime('now') WHERE user_id = ? AND mark_date = ?").run(reason, req.user.userId, date);
   const me = db.prepare("SELECT name FROM users WHERE id = ?").get(req.user.userId);
   for (const a of db.prepare("SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id WHERE u.active = 1 AND r.name IN ('admin','manager')").all())
-    notifyUser(a.id, "late_" + req.user.userId, `${me?.name || "Someone"} was late${l.late ? ` by ${l.late} min` : ""}`, `${date}: ${reason}`);
+    notifyUser(a.id, "late_" + req.user.userId, l.kind === "noin" ? `${me?.name || "Someone"} has no morning check-in` : `${me?.name || "Someone"} was late${l.late ? ` by ${l.late} min` : ""}`, `${date}: ${reason}`);
   res.json({ ok: true, date, reason });
 });
-// Admin / manager: every late arrival of the month with the reason (or none yet).
+// Admin / manager: everything to look at for the month, one list: late arrivals, no morning check-in, no check-out,
+// left early, half days, each with the person's reason when they gave one.
 router.get("/late", requireAuth, requirePermission("attendance:view_all"), (req, res) => {
   const month = /^\d{4}-\d{2}$/.test(req.query.month || "") ? req.query.month : istToday().slice(0, 7);
-  const rows = db.prepare(`SELECT m.user_id, u.name, m.mark_date AS date, m.in_time, m.status, m.late_reason AS reason, m.late_reason_at
-      FROM attendance_marks m JOIN users u ON u.id = m.user_id WHERE u.active = 1 AND COALESCE(u.no_attendance,0) = 0 AND substr(m.mark_date,1,7) = ? AND m.in_time IS NOT NULL
-      ORDER BY m.mark_date DESC, u.name`).all(month)
-    .map((r) => ({ ...r, late: isLateArrival(r.user_id, r.date, r.in_time) ? Math.max(0, mm(r.in_time) - mm(shiftWindow(r.user_id, r.date).start)) : 0 }))
-    .filter((r) => r.late > 0 || r.status === "L");
+  const today = istToday(), rows = [];
+  const marks = db.prepare(`SELECT m.user_id, u.name, m.mark_date AS date, m.in_time, m.out_time, m.status, m.late_reason AS reason
+      FROM attendance_marks m JOIN users u ON u.id = m.user_id WHERE u.active = 1 AND COALESCE(u.no_attendance,0) = 0 AND substr(m.mark_date,1,7) = ?
+      AND m.status IN ('P','L','H') ORDER BY m.mark_date DESC, u.name`).all(month);
+  for (const r of marks) {
+    const w = shiftWindow(r.user_id, r.date), base = { user_id: r.user_id, name: r.name, date: r.date, in_time: r.in_time || "", out_time: r.out_time || "", reason: r.reason || "" };
+    const late = r.in_time && isLateArrival(r.user_id, r.date, r.in_time) ? Math.max(0, mm(r.in_time) - mm(w.start)) : 0;
+    if (r.status === "H") rows.push({ ...base, type: "half", late, detail: r.in_time && r.out_time ? `Half day · worked ${Math.floor((mm(r.out_time) - mm(r.in_time)) / 60)}h ${(mm(r.out_time) - mm(r.in_time)) % 60}m` : "Half day" });
+    else if (late > 0 || r.status === "L") rows.push({ ...base, type: "late", late, detail: `Late ${late} min` });
+    if (!r.in_time && r.out_time) rows.push({ ...base, type: "noin", late: 0, detail: "No morning check-in (only a check-out)" });
+    if (r.in_time && !r.out_time && r.date < today) rows.push({ ...base, type: "noout", late: 0, detail: "No check-out" });
+    if (r.in_time && r.out_time && r.status !== "H" && mm(r.out_time) < mm(w.end) - 15) rows.push({ ...base, type: "early", late: 0, detail: `Left ${mm(w.end) - mm(r.out_time)} min early` });
+  }
   res.json({ month, rows });
 });
 
