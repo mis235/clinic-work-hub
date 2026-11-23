@@ -368,6 +368,14 @@ try {
   ok("the same face cannot be registered to a second person", dupTry.status === 409 && /already registered/.test(dupTry.body?.error || ""), JSON.stringify(dupTry.body));
   ok("the duplicate check works before saving", (await call("POST", "/api/kiosk/check-duplicate", { descriptors: [fdesc(1)] }, admin)).body?.duplicate === true);
   ok("a different face can be registered to another person", (await call("POST", `/api/kiosk/enroll/${faceOther.id}`, { descriptors: [fdesc(70), fdesc(70), fdesc(70)] }, admin)).status === 200);
+  // A poor saved face (all samples bunched together) sitting close to a good one is caught from either side
+  const spare = allU.filter((u) => u.role === "staff" && ![mkd.body.id, faceOther.id].includes(u.id));
+  if (spare.length >= 2) {
+    ok("a bunched-together face can be registered", (await call("POST", `/api/kiosk/enroll/${spare[0].id}`, { descriptors: [300, 300, 300, 300, 300].map(fdesc) }, admin)).status === 200);
+    const back = await call("POST", `/api/kiosk/enroll/${spare[1].id}`, { descriptors: [300, 301, 302, 303, 304].map(fdesc) }, admin);
+    ok("a good face that matches a poor saved face from one side is refused with a clear fix", back.status === 409 && /Remove saved face/.test(back.body?.error || ""), JSON.stringify(back.body));
+    await call("DELETE", `/api/kiosk/enroll/${spare[0].id}`, null, admin);
+  }
   const kdev = await call("POST", "/api/kiosk/devices", { label: "Clinic phone" }, admin);
   ok("a clinic phone key can be created", kdev.status === 201 && !!kdev.body.key);
   ok("a person's login cannot be used as a clinic phone", (await call("POST", "/api/kiosk/checkin", { descriptor: fdesc(1) }, admin)).status === 401);

@@ -66,7 +66,7 @@ export default function KioskPage() {
           await sleep(700);
           try {
             await ensureCamera();
-            const f = await faceDescriptor(video.current).catch(() => null);
+            const f = await faceDescriptor(video.current, true).catch(() => null);
             if (!f) { setState((s) => (s.phase === "result" ? s : { phase: "look", text: "Look at the camera" })); continue; }
             if (Date.now() - last.at < 5000) continue; // keep showing the last result for a few seconds
             setState({ phase: "check", text: "Checking…" });

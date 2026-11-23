@@ -48,9 +48,11 @@ function requireKiosk(req, res, next) {
 function otherOwnerOfFace(list, exceptUserId) {
   for (const t of db.prepare("SELECT t.user_id, t.descriptors, u.name FROM face_templates t JOIN users u ON u.id = t.user_id WHERE u.active = 1 AND t.user_id != ?").all(exceptUserId || "")) {
     const theirs = JSON.parse(t.descriptors);
-    let hits = 0;
+    // Looked at from both sides: a poor saved face (all samples bunched together) can sit close to a good one even when the good one does not look close to it.
+    let hits = 0, back = 0;
     for (const d of list) if (theirs.some((x) => dist(d, x) <= UNIQUE_DISTANCE)) hits++;
-    if (hits >= Math.max(1, Math.ceil(list.length / 2))) return { userId: t.user_id, name: t.name };
+    for (const x of theirs) if (list.some((d) => dist(d, x) <= UNIQUE_DISTANCE)) back++;
+    if (hits >= Math.max(1, Math.ceil(list.length / 2)) || back >= Math.max(1, Math.ceil(theirs.length / 2))) return { userId: t.user_id, name: t.name };
   }
   return null;
 }
@@ -73,7 +75,7 @@ router.post("/enroll/:userId", requireAuth, requirePermission("staff:manage"), (
   if (list.length < 3) return res.status(400).json({ error: "Not enough clear face samples. Try again in good light, looking at the camera." });
   if (!db.prepare("SELECT 1 FROM users WHERE id = ? AND active = 1").get(req.params.userId)) return res.status(404).json({ error: "Staff member not found" });
   const dup = otherOwnerOfFace(list, req.params.userId);
-  if (dup) return res.status(409).json({ error: `This face is already registered to ${dup.name}. One face can belong to only one person.` });
+  if (dup) return res.status(409).json({ error: `This face is already registered to ${dup.name}, or looks the same as ${dup.name}'s saved face. If ${dup.name}'s face was taken in poor light, open ${dup.name}, press Remove saved face, register this person first, then register ${dup.name} again.` });
   db.prepare(`INSERT INTO face_templates (user_id, descriptors, enrolled_by) VALUES (?,?,?)
     ON CONFLICT(user_id) DO UPDATE SET descriptors = excluded.descriptors, enrolled_by = excluded.enrolled_by, enrolled_at = datetime('now')`)
     .run(req.params.userId, JSON.stringify(list), req.user.userId);

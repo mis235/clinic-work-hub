@@ -25,11 +25,12 @@ export function frameBrightness(video) {
 }
 const opts = (fa) => new fa.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.55 });
 /** 128-number face print for the single clear face in the picture, or null.
- *  First a quick strict scan; if no face is found, a second slower scan that accepts smaller or softer faces. */
-export async function faceDescriptor(input) {
+ *  Registration uses the strict scan only (a poor picture must never be saved as someone's face).
+ *  The check-in screen passes tolerant = true: if the quick scan finds nobody, a second scan accepts smaller or softer faces. */
+export async function faceDescriptor(input, tolerant = false) {
   const fa = await loadFace();
   let r = await fa.detectSingleFace(input, opts(fa)).withFaceLandmarks(true).withFaceDescriptor();
-  if (!r) r = await fa.detectSingleFace(input, new fa.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.4 })).withFaceLandmarks(true).withFaceDescriptor();
+  if (!r && tolerant) r = await fa.detectSingleFace(input, new fa.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.4 })).withFaceLandmarks(true).withFaceDescriptor();
   return r ? { descriptor: Array.from(r.descriptor), box: r.detection.box, score: r.detection.score } : null;
 }
 export async function startCamera(video) {

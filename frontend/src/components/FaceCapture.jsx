@@ -23,11 +23,18 @@ export default function FaceCapture({ who, need = 5, onCaptured, disabled }) {
   async function start() {
     setBusy(true); setErr(""); setN(0);
     const samples = []; let tries = 0, photo = null;
-    let crashes = 0, lastErr = null, dark = 0, bright = 0, noFace = 0;
+    let crashes = 0, lastErr = null, dark = 0, bright = 0, noFace = 0, weak = 0;
     while (samples.length < need && tries < 80) {
       tries++;
       let r = null;
       try { r = await faceDescriptor(video.current); crashes = 0; } catch (e) { lastErr = e; if (++crashes === 3) { setMsg("Switching to the slower scanner…"); await slowMode(); } }
+      const vw = video.current?.videoWidth || 640, br0 = r ? frameBrightness(video.current) : null;
+      // Only a clear, well-lit, close face is saved. A weak sample makes two different people look alike.
+      if (r && (r.score < 0.7 || r.box.width / vw < 0.2 || (br0 != null && (br0 < 70 || br0 > 205)))) {
+        weak++;
+        setMsg(br0 != null && br0 < 70 ? "Too dark. Turn towards a light or a window." : br0 != null && br0 > 205 ? "Too bright. Move away from the strong light." : r.box.width / vw < 0.2 ? "Come a little closer to the camera." : "Face not clear yet. Hold still and look straight at the camera.");
+        await new Promise((x) => setTimeout(x, 250)); continue;
+      }
       if (r) {
         samples.push(r.descriptor); setN(samples.length);
         if (!photo && samples.length === 2) photo = snapshotJpeg(video.current, 480); // a clean picture for the profile
@@ -43,7 +50,8 @@ export default function FaceCapture({ who, need = 5, onCaptured, disabled }) {
       }
     }
     if (samples.length < need) {
-      setErr(lastErr && !noFace && !dark && !bright
+      setErr(weak > 0 && weak >= noFace ? "The face was seen but not clear enough to save. Come closer (the face should fill a good part of the box), look straight at the camera in good light, and press Start again."
+        : lastErr && !noFace && !dark && !bright
         ? `The face scanner could not run on this phone (${lastErr.message || lastErr}). Try the Chrome browser on another phone or a computer.`
         : dark > noFace ? "Could not get enough clear samples: the picture is too dark. Try again in better light."
         : bright > noFace ? "Could not get enough clear samples: the picture is too bright. Try again away from strong light."
