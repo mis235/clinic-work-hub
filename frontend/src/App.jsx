@@ -31,6 +31,7 @@ import ClinicDashboardPage from "./pages/ClinicDashboardPage.jsx";
 import DepartmentsPage from "./pages/DepartmentsPage.jsx";
 import DocumentsPage from "./pages/DocumentsPage.jsx";
 import KioskPage from "./pages/KioskPage.jsx";
+import InstallPage from "./pages/InstallPage.jsx";
 import LumiFloat from "./components/LumiFloat.jsx";
 import { doll } from "./components/Doll.jsx";
 import HelpPage from "./pages/HelpPage.jsx";
@@ -44,7 +45,8 @@ const VIEW_KEY = {
 };
 
 export default function App() {
-  return window.location.pathname === "/kiosk" ? <KioskPage /> : <MainApp />;
+  const path = window.location.pathname.replace(/\/+$/, "");
+  return path === "/kiosk" ? <KioskPage /> : path === "/install" ? <InstallPage /> : <MainApp />;
 }
 
 function MainApp() {

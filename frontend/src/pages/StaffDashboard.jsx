@@ -11,7 +11,7 @@ import MyDayCard from "../components/MyDayCard.jsx";
 import MyFinesCard from "../components/MyFinesCard.jsx";
 import MyAttendanceCard from "../components/MyAttendanceCard.jsx";
 import MyPayslips from "../components/MyPayslips.jsx";
-import MyOfferLetters from "../components/MyOfferLetters.jsx";
+import MyDocumentsPage from "./MyDocumentsPage.jsx";
 import DocumentsPage from "./DocumentsPage.jsx";
 import LearningPage from "./LearningPage.jsx";
 import ConnectedToolPage from "./ConnectedToolPage.jsx";
@@ -72,8 +72,8 @@ export default function StaffDashboard({ user, onLogout }) {
   const NAV_ITEMS = navItemsFor(user);
   useEffect(() => { const f = (e) => { if (e.detail?.view === "Help") setView("help"); }; window.addEventListener("hub-goto", f); return () => window.removeEventListener("hub-goto", f); }, []);
   useEffect(() => { const f = (e) => setView(VIEW_FOR_LABEL[e.detail] || "checklist"); window.addEventListener("hub-nav", f); return () => window.removeEventListener("hub-nav", f); }, []);
-  const ACTIVE_LABEL = { checklist: "My checklist", shiftchecklist: "Shift Checklist", rooms: "Procedure Rooms", grooming: "Grooming", tracker: "Tracker", profile: "My Profile", leave: "Leave", workspace: "My Workspace", assistant: "Assistant", policies: "Policies", sops: "SOPs", documents: "Documents", learning: "Learning", clinicassistant: "Clinic Assistant", help: "Help" };
-  const VIEW_FOR_LABEL = { "My checklist": "checklist", "Shift Checklist": "shiftchecklist", "Procedure Rooms": "rooms", "Grooming": "grooming", "Tracker": "tracker", "My Profile": "profile", "Leave": "leave", "My Workspace": "workspace", "Assistant": "assistant", "Policies": "policies", "SOPs": "sops", "Documents": "documents", "Learning": "learning", "Clinic Assistant": "clinicassistant", "Help": "help" };
+  const ACTIVE_LABEL = { checklist: "My checklist", shiftchecklist: "Shift Checklist", rooms: "Procedure Rooms", grooming: "Grooming", tracker: "Tracker", profile: "My Profile", mydocs: "My Documents", leave: "Leave", workspace: "My Workspace", assistant: "Assistant", policies: "Policies", sops: "SOPs", documents: "Documents", learning: "Learning", clinicassistant: "Clinic Assistant", help: "Help" };
+  const VIEW_FOR_LABEL = { "My checklist": "checklist", "Shift Checklist": "shiftchecklist", "Procedure Rooms": "rooms", "Grooming": "grooming", "Tracker": "tracker", "My Profile": "profile", "My Documents": "mydocs", "Leave": "leave", "My Workspace": "workspace", "Assistant": "assistant", "Policies": "policies", "SOPs": "sops", "Documents": "documents", "Learning": "learning", "Clinic Assistant": "clinicassistant", "Help": "help" };
 
   return (
     <div className="app-shell">
@@ -98,6 +98,8 @@ export default function StaffDashboard({ user, onLogout }) {
           <LeavePage user={user} isStaffLayout />
         ) : view === "profile" ? (
           <StaffProfilePage user={user} staffId="me" isStaffLayout />
+        ) : view === "mydocs" ? (
+          <MyDocumentsPage />
         ) : view === "rooms" ? (
           <RoomsPage user={user} isStaffLayout />
         ) : view === "grooming" ? (
@@ -138,7 +140,7 @@ export default function StaffDashboard({ user, onLogout }) {
         <MyAttendanceCard />
         <MyFinesCard />
         <MyPayslips />
-        <MyOfferLetters />
+        <Strip title="My documents" sub="Offer letter, ID papers and more. Download any time." action="Open" onClick={() => setView("mydocs")} />
         <HrOverview user={user} onNavigate={(k) => setView(VIEW_FOR_LABEL[k] || "checklist")} />
 
         {loading && <div className="empty pose-empty"><Doll mood="working" size={200} follow={false} />Loading…</div>}

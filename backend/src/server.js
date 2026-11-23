@@ -212,6 +212,20 @@ app.post("/api/jobs/run-checklist-digest", requireAuth, requirePermission("repor
 const distDir = path.join(__dirname, "..", "..", "frontend", "dist");
 if (fs.existsSync(distDir)) {
   app.use(express.static(distDir));
+  // The Check-in page is its own installable app: its page head carries the Check-in name, icon and manifest from the first byte,
+  // so "Install" on that page never installs the Work Hub by mistake.
+  app.get(/^\/kiosk\/?$/, (req, res) => {
+    try {
+      const html = fs.readFileSync(path.join(distDir, "index.html"), "utf8")
+        .replace('href="/manifest.json"', 'href="/kiosk.webmanifest"')
+        .replace('<meta name="theme-color" content="#C42F8F"', '<meta name="theme-color" content="#2a1b3d"')
+        .replace('content="Work Hub" />', 'content="Check-in" />')
+        .replace('<link rel="apple-touch-icon" href="/icon-192.png" />', '<link rel="apple-touch-icon" href="/kiosk-192.png" />')
+        .replace('<link rel="icon" type="image/png" href="/icon-192.png" />', '<link rel="icon" type="image/png" href="/kiosk-192.png" />')
+        .replace(/<title>[^<]*<\/title>/, "<title>Clinic Check-in</title>");
+      res.set("Cache-Control", "no-cache").type("html").send(html);
+    } catch { res.sendFile(path.join(distDir, "index.html")); }
+  });
   app.get(/^\/(?!api|webhook|uploads|health).*/, (req, res) => res.sendFile(path.join(distDir, "index.html")));
 }
 

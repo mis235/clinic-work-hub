@@ -244,7 +244,11 @@ try {
   const otok = (await call("POST", "/api/auth/login", { userId: other.id, pin: "1234" })).body?.token;
   ok("other staff cannot see someone else's personal files", (await call("GET", `/api/documents/staff/${staff.id}`, null, otok)).status === 403);
   ok("personal files are not in the department hub", !(await call("GET", "/api/documents", null, admin)).body.documents.some((d) => d.id === sf.body.id));
-  ok("other staff cannot download it", (await raw(`/api/documents/${sf.body.id}/file`, otok)).status === 403);
+  const rawF = (url, token) => fetch(base + url, { headers: { Authorization: `Bearer ${token}` } });
+  const ownDl = await rawF(`/api/documents/${sf.body.id}/file`, stoken);
+  ok("the person can download their own paper", ownDl.status === 200 && (await ownDl.text()) === "aadhaar");
+  ok("another person cannot download it", (await rawF(`/api/documents/${sf.body.id}/file`, otok)).status === 403);
+  ok("other staff cannot download it", (await rawF(`/api/documents/${sf.body.id}/file`, otok)).status === 403);
   ok("admin can remove a personal file (and the tick clears)", (await call("DELETE", `/api/documents/${sf.body.id}`, null, admin)).status === 200 && (await call("GET", "/api/users/onboarding", null, admin)).body.people.find((x) => x.id === staff.id)?.docs?.id_proof === false);
 
   // Training videos: link + upload + edit + delete
@@ -1043,6 +1047,13 @@ try {
 } catch (e) {
   fail++; console.log("  FAIL  unexpected error:", e.message);
 } finally {
+  // The person downloads their own paper; the Check-in page is its own installable app
+  if (fs.existsSync(path.join(process.cwd(), "..", "frontend", "dist", "index.html"))) {
+    const kh = await (await fetch(base + "/kiosk")).text();
+    ok("Check-in page installs as its own app (own manifest, name and icon)", kh.includes('href="/kiosk.webmanifest"') && kh.includes("Clinic Check-in") && kh.includes("/kiosk-192.png") && !kh.includes('href="/manifest.json"'));
+    const hh = await (await fetch(base + "/install")).text();
+    ok("Install page opens without sign-in and keeps the Work Hub manifest", hh.includes('href="/manifest.json"'));
+  }
   server.kill("SIGTERM");
   await new Promise((r) => setTimeout(r, 500));
   fs.rmSync(dir, { recursive: true, force: true });

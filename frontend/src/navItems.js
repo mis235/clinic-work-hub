@@ -15,6 +15,7 @@ export const NAV = {
   "Exits":            { label: "Offboarding (Staff Exit)",  icon: "userplus" },
   "Staff":            { label: "Staff Profiles",      icon: "users" },
   "My Profile":       { label: "My Profile",          icon: "user" },
+  "My Documents":     { label: "My Documents",        icon: "file" },
   "Leave":            { label: "Leave & HR",          icon: "calendarCheck" },
   "Payroll":          { label: "Payroll",             icon: "wallet" },
   "HR":               { label: "Offer Letters",       icon: "file" },
@@ -37,7 +38,7 @@ export const NAV_GROUPS = [
   { title: "Home",            keys: ["Dashboard", "My checklist", "Help"] },
   { title: "Daily Work",      keys: ["Shift Checklist", "Tracker", "Attendance", "Roster", "Procedure Rooms", "Grooming"] },
   { title: "Workspaces",      keys: ["Departments", "My Workspace"] },
-  { title: "HR",              keys: ["Staff", "HR", "Leave", "Payroll", "Exits", "My Profile"] },
+  { title: "HR",              keys: ["Staff", "HR", "Leave", "Payroll", "Exits", "My Profile", "My Documents"] },
   { title: "Insights",        keys: ["Reports", "Dashboards"] },
   { title: "Knowledge",       keys: ["Documents", "Policies", "SOPs", "Learning", "Events", "Auto Messages"] },
   { title: "Assistants",      keys: ["Clinic Assistant", "Assistant"] },
@@ -49,5 +50,5 @@ export function navItemsFor(user) {
   const lead = user.role === "admin" || !!user.leadership;
   if (user.role === "admin") return ["Dashboard", "Help", "Attendance", "Roster", "Procedure Rooms", "Grooming", "Dashboards", "Departments", "Staff", "HR", "Leave", "Payroll", "Exits", "Documents", "Policies", "SOPs", "Learning", "Events", "Auto Messages", "Clinic Assistant", "Assistant", "System"];
   if (user.role === "manager") return ["Dashboard", "Help", "Shift Checklist", "Procedure Rooms", ...(user.isHr || user.groomingInspector ? ["Grooming"] : []), ...(user.isHr ? ["Attendance", "Roster", "Staff", "HR", "Payroll", "Exits", "Events", "Auto Messages"] : []), "Dashboards", "Departments", "Leave", ...(user.isHr ? [] : ["Events"]), ...(lead ? ["Reports", "Documents", "Policies", "SOPs", "Learning", "Clinic Assistant"] : []), "Assistant"];
-  return ["My checklist", "Help", "Shift Checklist", ...(user.roomsAccess ? ["Procedure Rooms"] : []), ...(user.groomingInspector ? ["Grooming"] : []), "Tracker", "My Workspace", "My Profile", "Leave", "Events", ...(lead ? ["Dashboards", "Reports", "Documents", "Policies", "SOPs", "Learning", "Clinic Assistant"] : []), "Assistant"];
+  return ["My checklist", "Help", "Shift Checklist", ...(user.roomsAccess ? ["Procedure Rooms"] : []), ...(user.groomingInspector ? ["Grooming"] : []), "Tracker", "My Workspace", "My Profile", "My Documents", "Leave", "Events", ...(lead ? ["Dashboards", "Reports", "Documents", "Policies", "SOPs", "Learning", "Clinic Assistant"] : []), "Assistant"];
 }

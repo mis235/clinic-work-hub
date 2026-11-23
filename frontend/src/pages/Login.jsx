@@ -132,6 +132,7 @@ export default function Login({ onLoggedIn }) {
           <button className="btn btn-primary btn-brass" style={{ width: "100%" }} disabled={busy} onClick={submit}>
             {busy ? "Signing in…" : "Sign in"}
           </button>
+          <div style={{ textAlign: "center", marginTop: 14 }}><a href="/install" className="meta" style={{ textDecoration: "underline" }}>Install the app on your phone</a></div>
         </div>
       </div>
     </div>
