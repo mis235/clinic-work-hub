@@ -2,6 +2,21 @@ import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import Doll from "../components/Doll.jsx";
 
+// Small "phone check" line: when something fails on a phone, a screenshot of this tells us exactly what.
+function PhoneCheck() {
+  const [st, setSt] = useState("checking…"), [err, setErr] = useState("");
+  useEffect(() => {
+    const f = (e) => setErr(String(e.message || e.reason?.message || e.reason || "error").slice(0, 120));
+    window.addEventListener("error", f); window.addEventListener("unhandledrejection", f);
+    const t = setTimeout(() => setSt("no answer"), 8000);
+    fetch("/health", { cache: "no-store" }).then((r) => { clearTimeout(t); setSt(r.ok ? "server OK" : "server " + r.status); }).catch((e) => { clearTimeout(t); setSt("cannot reach server (" + (e.message || "network") + ")"); });
+    return () => { window.removeEventListener("error", f); window.removeEventListener("unhandledrejection", f); clearTimeout(t); };
+  }, []);
+  const ver = (navigator.userAgent.match(/OS (\d+[_\d]*)/) || [])[1];
+  const id = typeof __BUILD_ID__ === "string" ? __BUILD_ID__ : "";
+  return <div style={{ textAlign: "center", marginTop: 10, fontSize: 11, color: "#8a7ca0", lineHeight: 1.5 }}>Phone check: {st}{ver ? " · iOS " + ver.replace(/_/g, ".") : ""} · v{id.slice(-6)}{err && <div style={{ color: "#b3261e" }}>Error: {err}</div>}</div>;
+}
+
 function detectDeviceLabel() {
   const ua = navigator.userAgent;
   const platform = /iPhone|iPad/.test(ua) ? "iOS" : /Android/.test(ua) ? "Android" : /Mac/.test(ua) ? "Mac" : /Win/.test(ua) ? "Windows" : "Unknown";
@@ -133,6 +148,7 @@ export default function Login({ onLoggedIn }) {
             {busy ? "Signing in…" : "Sign in"}
           </button>
           <div style={{ textAlign: "center", marginTop: 14 }}><a href="/install" className="meta" style={{ textDecoration: "underline" }}>Install the app on your phone</a></div>
+          <PhoneCheck />
         </div>
       </div>
     </div>
