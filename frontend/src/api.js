@@ -32,7 +32,7 @@ async function req(path, { method = "GET", body } = {}) {
       const restarting = data === null && [404, 502, 503, 504].includes(res.status);
       if (restarting && i < tries - 1) { await wait(1500 * (i + 1)); continue; }
       if (!res.ok && method !== "GET" && res.status !== 401 && !path.startsWith("/api/auth/")) { try { window.dispatchEvent(new CustomEvent("doll", { detail: { state: "error", ms: 2600 } })); } catch {} }
-      if (!res.ok) throw new Error(restarting ? "The app is updating. Please wait a minute and refresh." : (data?.error || `Request failed (${res.status})`));
+      if (!res.ok) throw Object.assign(new Error(restarting ? "The app is updating. Please wait a minute and refresh." : (data?.error || `Request failed (${res.status})`)), { similar: data?.similar });
       return data ?? {};
     } catch (e) {
       lastErr = e;
@@ -228,7 +228,7 @@ export const api = {
   downloadAttendanceXlsx: (from, to) => downloadFile(`/api/attendance/export?from=${from}&to=${to || from}`, `attendance-${from === (to || from) ? from : from + "_to_" + to}.xlsx`),
   downloadChecklistXlsx: (from, to) => downloadFile(`/api/shift-checklist/export?from=${from}&to=${to}`, `checklists-${from}_to_${to}.xlsx`),
   enrolledFaces: () => req("/api/kiosk/enrolled"),
-  enrollFace: (id, descriptors) => req(`/api/kiosk/enroll/${id}`, { method: "POST", body: { descriptors } }),
+  enrollFace: (id, descriptors, force = false) => req(`/api/kiosk/enroll/${id}`, { method: "POST", body: { descriptors, force } }),
   removeFace: (id) => req(`/api/kiosk/enroll/${id}`, { method: "DELETE" }),
   kioskDevices: () => req("/api/kiosk/devices"),
   createKioskDevice: (label) => req("/api/kiosk/devices", { method: "POST", body: { label } }),

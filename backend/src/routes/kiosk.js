@@ -52,10 +52,16 @@ function otherOwnerOfFace(list, exceptUserId) {
     let hits = 0, back = 0;
     for (const d of list) if (theirs.some((x) => dist(d, x) <= UNIQUE_DISTANCE)) hits++;
     for (const x of theirs) if (list.some((d) => dist(d, x) <= UNIQUE_DISTANCE)) back++;
-    if (hits >= Math.max(1, Math.ceil(list.length / 2)) || back >= Math.max(1, Math.ceil(theirs.length / 2))) return { userId: t.user_id, name: t.name };
+    if (hits >= Math.max(1, Math.ceil(list.length / 2)) || back >= Math.max(1, Math.ceil(theirs.length / 2))) {
+      // How close, in the scanner's own measure: the median of each sample's nearest saved sample, taken from the side that matched.
+      const side = hits >= back ? list.map((d) => Math.min(...theirs.map((x) => dist(d, x)))) : theirs.map((x) => Math.min(...list.map((d) => dist(d, x))));
+      const near = side.sort((x, y) => x - y);
+      return { userId: t.user_id, name: t.name, distance: Math.round(near[Math.floor(near.length / 2)] * 100) / 100 };
+    }
   }
   return null;
 }
+const SAME_PERSON = Number(process.env.FACE_SAME_PERSON || 0.3); // closer than this: never allowed to save as two people
 router.get("/enrolled", requireAuth, requirePermission("staff:manage"), (req, res) => {
   const rows = db.prepare("SELECT t.user_id, t.enrolled_at, t.descriptors FROM face_templates t JOIN users u ON u.id = t.user_id WHERE u.active = 1").all();
   res.json(rows.map((r) => {
@@ -74,8 +80,17 @@ router.post("/enroll/:userId", requireAuth, requirePermission("staff:manage"), (
   const list = (req.body?.descriptors || []).filter(okDesc).slice(0, 8);
   if (list.length < 3) return res.status(400).json({ error: "Not enough clear face samples. Try again in good light, looking at the camera." });
   if (!db.prepare("SELECT 1 FROM users WHERE id = ? AND active = 1").get(req.params.userId)) return res.status(404).json({ error: "Staff member not found" });
+  // All samples must be the same face: a wide spread means two people, or junk pictures, were mixed in.
+  let spread = 0; for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) spread = Math.max(spread, dist(list[i], list[j]));
+  if (spread > 0.7) return res.status(400).json({ error: "The pictures were not all of the same face. Only the person being registered should be in front of the camera. Please try again." });
   const dup = otherOwnerOfFace(list, req.params.userId);
-  if (dup) return res.status(409).json({ error: `This face is already registered to ${dup.name}, or looks the same as ${dup.name}'s saved face. If ${dup.name}'s face was taken in poor light, open ${dup.name}, press Remove saved face, register this person first, then register ${dup.name} again.` });
+  // The admin may confirm "these are two different people" (force), unless the faces are so close they are surely the same person.
+  if (dup && !(req.body?.force === true && dup.distance >= SAME_PERSON)) {
+    return res.status(409).json({
+      error: `This face looks the same as ${dup.name}'s saved face (closeness ${dup.distance}; the same person is usually 0.40 or less).`,
+      similar: { userId: dup.userId, name: dup.name, distance: dup.distance, canForce: dup.distance >= SAME_PERSON },
+    });
+  }
   db.prepare(`INSERT INTO face_templates (user_id, descriptors, enrolled_by) VALUES (?,?,?)
     ON CONFLICT(user_id) DO UPDATE SET descriptors = excluded.descriptors, enrolled_by = excluded.enrolled_by, enrolled_at = datetime('now')`)
     .run(req.params.userId, JSON.stringify(list), req.user.userId);

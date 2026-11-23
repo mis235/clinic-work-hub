@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { faceDescriptor, startCamera, cameraHelp, loadFace, snapshotJpeg, frameBrightness, slowMode } from "../face.js";
+import { scanFace, startCamera, cameraHelp, loadFace, snapshotJpeg, frameBrightness, slowMode, faceDist } from "../face.js";
+
+const WHY = {
+  none: "No face in view. Point the front camera at the face, about an arm's length away.",
+  soft: "Face not clear yet. Hold still and look straight at the camera.",
+  far: "Come a little closer to the camera.",
+  off: "Move the face to the middle of the box.",
+  shape: "Look straight at the camera and keep the head upright.",
+};
 
 // Camera box that collects a few face samples plus one profile picture. Used when registering a face and when adding staff.
+// Only a real, centred, clear face is saved. Before pressing Start the box shows live whether a face is seen.
 export default function FaceCapture({ who, need = 5, onCaptured, disabled }) {
   const video = useRef(null);
   const stopRef = useRef(null);
@@ -10,6 +19,8 @@ export default function FaceCapture({ who, need = 5, onCaptured, disabled }) {
   const [n, setN] = useState(0);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
+  const [live, setLive] = useState(null); // { ok, text } while waiting for Start
+  const busyRef = useRef(false);
 
   useEffect(() => {
     let dead = false;
@@ -20,53 +31,60 @@ export default function FaceCapture({ who, need = 5, onCaptured, disabled }) {
     return () => { dead = true; stopRef.current?.(); };
   }, []);
 
+  // Live check before Start, so the admin sees at once whether the camera really has a face.
+  useEffect(() => {
+    if (!ready) return;
+    let dead = false;
+    (async () => {
+      while (!dead) {
+        await new Promise((x) => setTimeout(x, 800));
+        if (busyRef.current || dead) continue;
+        try { const r = await scanFace(video.current, "enroll"); if (!dead && !busyRef.current) setLive(r.ok ? { ok: true, text: "Face found. Press Start." } : { ok: false, text: reasonText(r.why) }); } catch {}
+      }
+    })();
+    return () => { dead = true; };
+  }, [ready]);
+
+  function reasonText(why) {
+    const br = frameBrightness(video.current);
+    if (why === "none" && br != null && br < 70) return "Too dark. Turn towards a light or a window.";
+    if (why === "none" && br != null && br > 205) return "Too bright. Move away from the strong light.";
+    return WHY[why] || WHY.none;
+  }
+
   async function start() {
-    setBusy(true); setErr(""); setN(0);
-    const samples = []; let tries = 0, photo = null;
-    let crashes = 0, lastErr = null, dark = 0, bright = 0, noFace = 0, weak = 0;
-    while (samples.length < need && tries < 80) {
+    busyRef.current = true; setBusy(true); setErr(""); setN(0); setLive(null);
+    const samples = []; let tries = 0, photo = null, crashes = 0, lastErr = null, rejected = 0;
+    while (samples.length < need && tries < 90) {
       tries++;
       let r = null;
-      try { r = await faceDescriptor(video.current); crashes = 0; } catch (e) { lastErr = e; if (++crashes === 3) { setMsg("Switching to the slower scanner…"); await slowMode(); } }
-      const vw = video.current?.videoWidth || 640, br0 = r ? frameBrightness(video.current) : null;
-      // Only a clear, well-lit, close face is saved. A weak sample makes two different people look alike.
-      if (r && (r.score < 0.7 || r.box.width / vw < 0.2 || (br0 != null && (br0 < 70 || br0 > 205)))) {
-        weak++;
-        setMsg(br0 != null && br0 < 70 ? "Too dark. Turn towards a light or a window." : br0 != null && br0 > 205 ? "Too bright. Move away from the strong light." : r.box.width / vw < 0.2 ? "Come a little closer to the camera." : "Face not clear yet. Hold still and look straight at the camera.");
-        await new Promise((x) => setTimeout(x, 250)); continue;
-      }
-      if (r) {
+      try { r = await scanFace(video.current, "enroll"); crashes = 0; } catch (e) { lastErr = e; if (++crashes === 3) { setMsg("Switching to the slower scanner…"); await slowMode(); } }
+      if (r?.ok) {
+        // Every new sample must be the same face as the ones already taken.
+        if (samples.length && samples.some((d) => faceDist(d, r.descriptor) > 0.6)) { rejected++; setMsg("Only one person in front of the camera, please."); await new Promise((x) => setTimeout(x, 300)); continue; }
         samples.push(r.descriptor); setN(samples.length);
         if (!photo && samples.length === 2) photo = snapshotJpeg(video.current, 480); // a clean picture for the profile
-        setMsg("Good — keep still, turn your head very slightly…"); await new Promise((x) => setTimeout(x, 500));
+        setMsg("Good. Keep still and turn your head very slightly…"); await new Promise((x) => setTimeout(x, 500));
       } else {
-        // Say what is really wrong, not always "light".
-        const br = frameBrightness(video.current);
-        if (lastErr && crashes > 0) setMsg("The face scanner is still starting. Please wait…");
-        else if (br != null && br < 70) { dark++; setMsg("Too dark. Turn towards a light or a window."); }
-        else if (br != null && br > 205) { bright++; setMsg("Too bright. Move away from the strong light behind or in front."); }
-        else { noFace++; setMsg("The light is fine. Hold the phone at arm's length, face the camera straight, and keep the whole face inside the box. Take off cap, mask or sunglasses."); }
+        setMsg(lastErr && crashes > 0 ? "The face scanner is still starting. Please wait…" : reasonText(r?.why || "none"));
         await new Promise((x) => setTimeout(x, 250));
       }
     }
     if (samples.length < need) {
-      setErr(weak > 0 && weak >= noFace ? "The face was seen but not clear enough to save. Come closer (the face should fill a good part of the box), look straight at the camera in good light, and press Start again."
-        : lastErr && !noFace && !dark && !bright
-        ? `The face scanner could not run on this phone (${lastErr.message || lastErr}). Try the Chrome browser on another phone or a computer.`
-        : dark > noFace ? "Could not get enough clear samples: the picture is too dark. Try again in better light."
-        : bright > noFace ? "Could not get enough clear samples: the picture is too bright. Try again away from strong light."
-        : "Could not get enough clear samples. Hold still, face the camera straight and keep the whole face in the box, then press Start again.");
-      setBusy(false); return;
+      setErr(lastErr && !samples.length && !rejected ? `The face scanner could not run on this phone (${lastErr.message || lastErr}). Try Chrome on another phone or a computer.`
+        : rejected > 3 ? "More than one face was seen. Only the person being registered should be in front of the camera. Press Start again."
+        : "A clear face was not found for long enough. Point the front camera at the face in good light, fill about a third of the box, look straight, and press Start again.");
+      busyRef.current = false; setBusy(false); return;
     }
     const blob = photo ? await (await fetch(photo)).blob() : null;
-    setBusy(false);
+    busyRef.current = false; setBusy(false);
     try { await onCaptured({ descriptors: samples, photo: blob }); } catch (e) { setErr(e.message); }
   }
 
   return (
     <div>
-      <video ref={video} playsInline muted style={{ width: "100%", borderRadius: 16, background: "#000", transform: "scaleX(-1)" }} />
-      <div className="meta" style={{ marginTop: 8 }}>{msg} {n > 0 && `(${n}/${need})`}</div>
+      <video ref={video} playsInline muted style={{ width: "100%", borderRadius: 16, background: "#000", transform: "scaleX(-1)", border: `3px solid ${live?.ok ? "#4cc38a" : "transparent"}` }} />
+      <div className="meta" style={{ marginTop: 8, color: live && !busy ? (live.ok ? "#176b34" : "#8a5a00") : undefined, fontWeight: live && !busy ? 700 : undefined }}>{busy ? msg : live ? live.text : msg} {n > 0 && `(${n}/${need})`}</div>
       {err && <div className="login-error" style={{ marginTop: 10 }}>{err}</div>}
       <button className="btn btn-primary" style={{ marginTop: 10 }} disabled={busy || !ready || disabled} onClick={start}>{busy ? "Scanning…" : "Start"}</button>
     </div>

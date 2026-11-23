@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import Doll from "../components/Doll.jsx";
 import { kioskApi } from "../api.js";
-import { faceDescriptor, startCamera, cameraHelp, loadFace, snapshotJpeg } from "../face.js";
+import { scanFace, startCamera, cameraHelp, loadFace, snapshotJpeg } from "../face.js";
 
 // Clinic-phone screen: staff look at the camera and are marked present. No login, no buttons for staff.
 export default function KioskPage() {
@@ -66,8 +66,8 @@ export default function KioskPage() {
           await sleep(700);
           try {
             await ensureCamera();
-            const f = await faceDescriptor(video.current, true).catch(() => null);
-            if (!f) { setState((s) => (s.phase === "result" ? s : { phase: "look", text: "Look at the camera" })); continue; }
+            const f = await scanFace(video.current, "kiosk").catch(() => null);
+            if (!f || !f.ok) { setState((s) => (s.phase === "result" ? s : { phase: "look", text: "Look at the camera" })); continue; }
             if (Date.now() - last.at < 5000) continue; // keep showing the last result for a few seconds
             setState({ phase: "check", text: "Checking…" });
             const r = await kioskApi.call("checkin", { descriptor: f.descriptor, snapshot: snapshotJpeg(video.current) });

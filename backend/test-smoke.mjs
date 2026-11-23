@@ -365,16 +365,25 @@ try {
   // one face = one person
   const faceOther = allU.find((u) => u.role === "staff" && u.id !== mkd.body.id);
   const dupTry = await call("POST", `/api/kiosk/enroll/${faceOther.id}`, { descriptors: [fdesc(1), fdesc(1), fdesc(1)] }, admin);
-  ok("the same face cannot be registered to a second person", dupTry.status === 409 && /already registered/.test(dupTry.body?.error || ""), JSON.stringify(dupTry.body));
+  ok("the same face cannot be registered to a second person", dupTry.status === 409 && /looks the same as/.test(dupTry.body?.error || ""), JSON.stringify(dupTry.body));
+  ok("the clash says who and how close, and an exact copy cannot be forced", dupTry.body?.similar?.name && dupTry.body.similar.canForce === false && (await call("POST", `/api/kiosk/enroll/${faceOther.id}`, { descriptors: [fdesc(1), fdesc(1), fdesc(1)], force: true }, admin)).status === 409);
   ok("the duplicate check works before saving", (await call("POST", "/api/kiosk/check-duplicate", { descriptors: [fdesc(1)] }, admin)).body?.duplicate === true);
   ok("a different face can be registered to another person", (await call("POST", `/api/kiosk/enroll/${faceOther.id}`, { descriptors: [fdesc(70), fdesc(70), fdesc(70)] }, admin)).status === 200);
   // A poor saved face (all samples bunched together) sitting close to a good one is caught from either side
   const spare = allU.filter((u) => u.role === "staff" && ![mkd.body.id, faceOther.id].includes(u.id));
   if (spare.length >= 2) {
     ok("a bunched-together face can be registered", (await call("POST", `/api/kiosk/enroll/${spare[0].id}`, { descriptors: [300, 300, 300, 300, 300].map(fdesc) }, admin)).status === 200);
-    const back = await call("POST", `/api/kiosk/enroll/${spare[1].id}`, { descriptors: [300, 301, 302, 303, 304].map(fdesc) }, admin);
-    ok("a good face that matches a poor saved face from one side is refused with a clear fix", back.status === 409 && /Remove saved face/.test(back.body?.error || ""), JSON.stringify(back.body));
+    const back = await call("POST", `/api/kiosk/enroll/${spare[1].id}`, { descriptors: [0, 1, 1, 1, 1].map((k) => fdesc(300).map((v) => v + k * 0.55 / Math.sqrt(128))) }, admin);
+    ok("a good face that matches a poor saved face from one side is refused with a clear fix", back.status === 409 && /looks the same as/.test(back.body?.error || "") && back.body?.similar?.name, JSON.stringify(back.body));
     await call("DELETE", `/api/kiosk/enroll/${spare[0].id}`, null, admin);
+    const near = (k) => Array.from({ length: 5 }, () => fdesc(300).map((v) => v + k / Math.sqrt(128)));
+    await call("POST", `/api/kiosk/enroll/${spare[0].id}`, { descriptors: near(0) }, admin);
+    const close = await call("POST", `/api/kiosk/enroll/${spare[1].id}`, { descriptors: near(0.38) }, admin);
+    ok("a close but not identical face is refused, with the closeness shown and a way to confirm", close.status === 409 && close.body?.similar?.canForce === true && close.body.similar.distance > 0.3 && close.body.similar.distance < 0.45, JSON.stringify(close.body));
+    ok("the admin can confirm they are two different people", (await call("POST", `/api/kiosk/enroll/${spare[1].id}`, { descriptors: near(0.38), force: true }, admin)).status === 200);
+    await call("DELETE", `/api/kiosk/enroll/${spare[1].id}`, null, admin);
+    await call("DELETE", `/api/kiosk/enroll/${spare[0].id}`, null, admin);
+    ok("mixed pictures (not one face) are refused", (await call("POST", `/api/kiosk/enroll/${spare[1].id}`, { descriptors: [300, 301, 302, 303, 304].map(fdesc) }, admin)).status === 400);
   }
   const kdev = await call("POST", "/api/kiosk/devices", { label: "Clinic phone" }, admin);
   ok("a clinic phone key can be created", kdev.status === 201 && !!kdev.body.key);

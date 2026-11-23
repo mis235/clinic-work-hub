@@ -24,15 +24,36 @@ export function frameBrightness(video) {
   } catch { return null; }
 }
 const opts = (fa) => new fa.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.55 });
-/** 128-number face print for the single clear face in the picture, or null.
- *  Registration uses the strict scan only (a poor picture must never be saved as someone's face).
- *  The check-in screen passes tolerant = true: if the quick scan finds nobody, a second scan accepts smaller or softer faces. */
-export async function faceDescriptor(input, tolerant = false) {
+const mid = (pts) => ({ x: pts.reduce((t, q) => t + q.x, 0) / pts.length, y: pts.reduce((t, q) => t + q.y, 0) / pts.length });
+/** Look at the camera picture and say whether there is one real, usable face in it.
+ *  mode "enroll" (registering a face) is strict; mode "kiosk" (daily check-in) is a little more forgiving.
+ *  Result: { ok, why, descriptor, box, score }.  why = none | soft | far | off | shape.
+ *  A ceiling, a door or a wall must never pass as a face, because a saved "face" of junk makes everyone look the same. */
+export async function scanFace(video, mode = "enroll") {
+  const fa = await loadFace(), enroll = mode === "enroll";
+  const run = (size, th) => fa.detectSingleFace(video, new fa.TinyFaceDetectorOptions({ inputSize: size, scoreThreshold: th })).withFaceLandmarks(true).withFaceDescriptor();
+  let r = await run(320, 0.5);
+  if (!r && !enroll) r = await run(416, 0.5);
+  if (!r) return { ok: false, why: "none" };
+  const vw = video.videoWidth || 640, vh = video.videoHeight || 480, b = r.detection.box, score = r.detection.score;
+  const cx = (b.x + b.width / 2) / vw, cy = (b.y + b.height / 2) / vh;
+  const L = mid(r.landmarks.getLeftEye()), R = mid(r.landmarks.getRightEye());
+  const roll = Math.abs(Math.atan2(R.y - L.y, Math.abs(R.x - L.x)) * 180 / Math.PI);
+  const eyeRatio = Math.hypot(R.x - L.x, R.y - L.y) / b.width, aspect = b.width / b.height;
+  let why = "";
+  if (score < (enroll ? 0.8 : 0.65)) why = "soft";
+  else if (b.width / vw < (enroll ? 0.2 : 0.12)) why = "far";
+  else if (cx < 0.2 || cx > 0.8 || cy < 0.15 || cy > 0.85) why = "off";
+  else if (aspect < 0.55 || aspect > 1.3 || eyeRatio < 0.25 || eyeRatio > 0.65 || roll > 35) why = "shape";
+  return { ok: !why, why, descriptor: Array.from(r.descriptor), box: b, score };
+}
+/** Older helper kept for other pages: descriptor of the single clear face, or null. */
+export async function faceDescriptor(input) {
   const fa = await loadFace();
-  let r = await fa.detectSingleFace(input, opts(fa)).withFaceLandmarks(true).withFaceDescriptor();
-  if (!r && tolerant) r = await fa.detectSingleFace(input, new fa.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.4 })).withFaceLandmarks(true).withFaceDescriptor();
+  const r = await fa.detectSingleFace(input, opts(fa)).withFaceLandmarks(true).withFaceDescriptor();
   return r ? { descriptor: Array.from(r.descriptor), box: r.detection.box, score: r.detection.score } : null;
 }
+export const faceDist = (a, b) => Math.sqrt(a.reduce((t, v, i) => t + (v - b[i]) ** 2, 0));
 export async function startCamera(video) {
   if (!navigator.mediaDevices?.getUserMedia) throw new Error("INSECURE");
   const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
