@@ -32,8 +32,13 @@ const mid = (pts) => ({ x: pts.reduce((t, q) => t + q.x, 0) / pts.length, y: pts
 export async function scanFace(video, mode = "enroll") {
   const fa = await loadFace(), enroll = mode === "enroll";
   const run = (size, th) => fa.detectSingleFace(video, new fa.TinyFaceDetectorOptions({ inputSize: size, scoreThreshold: th })).withFaceLandmarks(true).withFaceDescriptor();
-  let r = await run(320, 0.5);
-  if (!r && !enroll) r = await run(416, 0.5);
+  // A face held close to the camera is only found at a smaller scan size, a far one at a bigger size: try several, keep the best.
+  let r = null;
+  for (const size of enroll ? [320, 224, 160] : [320, 224, 416, 160]) {
+    const x = await run(size, 0.5);
+    if (x && (!r || x.detection.score > r.detection.score)) r = x;
+    if (r && r.detection.score >= (enroll ? 0.8 : 0.65)) break;
+  }
   if (!r) return { ok: false, why: "none" };
   const vw = video.videoWidth || 640, vh = video.videoHeight || 480, b = r.detection.box, score = r.detection.score;
   const cx = (b.x + b.width / 2) / vw, cy = (b.y + b.height / 2) / vh;

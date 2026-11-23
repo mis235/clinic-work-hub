@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import db from "../db.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
 import { sendTaskMessage } from "../whatsapp.js";
+import { sendViaTelecrm } from "../telecrm.js";
+import { sendEmail, isEmailConfigured } from "../email.js";
 import multer from "multer";
 import fs from "node:fs";
 import path from "node:path";
@@ -87,6 +89,7 @@ router.post("/", requireAuth, requirePermission("task:assign"), async (req, res)
   logEvent(id, "created", `Assigned to ${assignee.name}`);
 
   let task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
+  tellAssignee(task, assignee);
 
   if (sendNow) {
     try {
@@ -99,6 +102,19 @@ router.post("/", requireAuth, requirePermission("task:assign"), async (req, res)
 
   res.status(201).json(withEvents(task));
 });
+
+// The person is told as soon as a task is given: WhatsApp (when TeleCRM is connected) and email (when Gmail is set up).
+// Each one is skipped quietly if it is not set up yet; the task itself is always saved and shown in the app.
+function tellAssignee(task, u) {
+  try {
+    const first = String(u.name || "").trim().split(/\s+/)[0] || "there";
+    const due = task.due_date ? new Date(task.due_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" }) : "";
+    const title = "New task for you";
+    const body = `Hi ${first}, a new task has been given to you: ${task.title}.${task.notes ? " " + String(task.notes).slice(0, 200) + "." : ""}${due ? " Please finish it by " + due + "." : ""} Open Clinic Work Hub to see it and mark it done.`;
+    sendViaTelecrm({ name: u.name, phone: u.phone, message: `${title}: ${body}`, event: "task" });
+    if (u.email && isEmailConfigured()) sendEmail({ to: u.email, subject: title, html: `<p>${body}</p><p style="color:#666">Dr. Nishita's Clinic</p>` }).catch(() => {});
+  } catch (e) { console.error("task notice:", e.message); }
+}
 
 // POST /api/tasks/:id/send — requires task:assign
 router.post("/:id/send", requireAuth, requirePermission("task:assign"), async (req, res) => {
