@@ -79,7 +79,7 @@ export default function KioskPage() {
               setLastIn({ name: r.name, time: r.time, out });
               setState({ phase: "result", ok: true,
                 text: r.already ? `Already ${out ? "logged out" : "logged in"}, ${r.name}` : out ? `Goodbye, ${r.name}` : `Welcome, ${r.name}`,
-                sub: r.already ? `${out ? "Out" : "In"} at ${r.time}` : out ? `Logged out ${r.time}${r.workedMinutes ? ` · worked ${hm(r.workedMinutes)}` : ""}${r.message ? ` · ${r.message}` : ""}` : `Logged in ${r.time} · ${r.label}` });
+                sub: r.already ? `${out ? "Out" : "In"} at ${r.time}${out ? " · already recorded" : ""}` : out ? `Logged out ${r.time}${r.workedMinutes ? ` · worked ${hm(r.workedMinutes)}` : ""}${r.message ? ` · ${r.message}` : ""}` : `Logged in ${r.time} · ${r.label}${r.late ? ` · ${r.late} min late. Add the reason in the Work Hub app.` : ""}` });
             } else setState({ phase: "result", ok: false, text: r.ambiguous ? "Please try again" : "Face not recognised", sub: r.ambiguous ? "Stand alone in front of the camera." : "Face the light and look straight at the camera. Ask the admin if it keeps happening." });
             setTimeout(() => setState((s) => (s.phase === "result" ? { phase: "look", text: "Look at the camera" } : s)), 4000);
           } catch (e) {

@@ -10,6 +10,7 @@ import db from "../db.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
 import { syncLateFines, shiftWindow, isLateArrival } from "./leave.js";
 import { shiftOn, fmtRange, upcomingFor } from "./roster.js";
+import { notifyUser } from "../engage.js";
 import { queueSheet, pushAll, sheetState, saveSheetSettings, sheetScript } from "../attendanceSheet.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -248,7 +249,7 @@ db.exec(`CREATE TABLE IF NOT EXISTS attendance_marks (
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (user_id, mark_date)
 );`);
-for (const col of ["in_time", "out_time"]) { try { db.exec(`ALTER TABLE attendance_marks ADD COLUMN ${col} TEXT`); } catch {} } // "HH:MM" India time, set by the face check-in
+for (const col of ["in_time", "out_time", "late_reason", "late_reason_at"]) { try { db.exec(`ALTER TABLE attendance_marks ADD COLUMN ${col} TEXT`); } catch {} } // "HH:MM" India time, set by the face check-in
 export const MARKS = { P: "Present", L: "Late", H: "Half day", LV: "Leave", A: "Absent", W: "Week off / holiday" };
 const isLead = (u) => u?.roleName === "admin" || u?.roleName === "manager";
 const istToday = () => new Date(Date.now() + 19800000).toISOString().slice(0, 10);
@@ -396,6 +397,50 @@ router.put("/time", requireAuth, (req, res) => {
 });
 
 // The month register: one row per person, one column per day, with totals and fines.
+// ---- Late reasons -----------------------------------------------------------------------------------------------
+// A person who arrived late can say why (their own days only, today or the last 7 days). The admin and managers are told at once
+// and see every reason in the attendance page.
+const lateInfo = (userId, date) => {
+  const m = db.prepare("SELECT status, in_time, late_reason FROM attendance_marks WHERE user_id = ? AND mark_date = ?").get(userId, date);
+  if (!m?.in_time) return null;
+  const late = isLateArrival(userId, date, m.in_time) ? Math.max(0, mm(m.in_time) - mm(shiftWindow(userId, date).start)) : 0;
+  return late > 0 || m.status === "L" ? { in_time: m.in_time, late, reason: m.late_reason || "" } : null;
+};
+// Which of my recent days were late, and which still need a reason.
+router.get("/late/mine", requireAuth, (req, res) => {
+  const out = [];
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(Date.now() + 19800000 - i * 86400000).toISOString().slice(0, 10);
+    const l = lateInfo(req.user.userId, date);
+    if (l) out.push({ date, ...l });
+  }
+  res.json(out);
+});
+router.put("/late-reason", requireAuth, (req, res) => {
+  const date = DATE_RE.test(req.body?.date || "") ? req.body.date : istToday();
+  const reason = String(req.body?.reason || "").trim().replace(/\s+/g, " ").slice(0, 200);
+  if (reason.length < 3) return res.status(400).json({ error: "Please write the reason (a few words)." });
+  const days = (new Date(istToday()) - new Date(date)) / 86400000;
+  if (days < 0 || days > 7) return res.status(400).json({ error: "A reason can be added for today or the last 7 days." });
+  const l = lateInfo(req.user.userId, date);
+  if (!l) return res.status(400).json({ error: "You were not late on that day." });
+  db.prepare("UPDATE attendance_marks SET late_reason = ?, late_reason_at = datetime('now') WHERE user_id = ? AND mark_date = ?").run(reason, req.user.userId, date);
+  const me = db.prepare("SELECT name FROM users WHERE id = ?").get(req.user.userId);
+  for (const a of db.prepare("SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id WHERE u.active = 1 AND r.name IN ('admin','manager')").all())
+    notifyUser(a.id, "late_" + req.user.userId, `${me?.name || "Someone"} was late${l.late ? ` by ${l.late} min` : ""}`, `${date}: ${reason}`);
+  res.json({ ok: true, date, reason });
+});
+// Admin / manager: every late arrival of the month with the reason (or none yet).
+router.get("/late", requireAuth, requirePermission("attendance:view_all"), (req, res) => {
+  const month = /^\d{4}-\d{2}$/.test(req.query.month || "") ? req.query.month : istToday().slice(0, 7);
+  const rows = db.prepare(`SELECT m.user_id, u.name, m.mark_date AS date, m.in_time, m.status, m.late_reason AS reason, m.late_reason_at
+      FROM attendance_marks m JOIN users u ON u.id = m.user_id WHERE u.active = 1 AND COALESCE(u.no_attendance,0) = 0 AND substr(m.mark_date,1,7) = ? AND m.in_time IS NOT NULL
+      ORDER BY m.mark_date DESC, u.name`).all(month)
+    .map((r) => ({ ...r, late: isLateArrival(r.user_id, r.date, r.in_time) ? Math.max(0, mm(r.in_time) - mm(shiftWindow(r.user_id, r.date).start)) : 0 }))
+    .filter((r) => r.late > 0 || r.status === "L");
+  res.json({ month, rows });
+});
+
 router.get("/register", requireAuth, requirePermission("attendance:view_all"), (req, res) => registerFor(req, res, null));
 // Every person can see their own month: login/logout times, late minutes, fines.
 router.get("/mine", requireAuth, (req, res) => registerFor(req, res, req.user.userId));
@@ -407,7 +452,7 @@ function registerFor(req, res, onlyUser) {
   const staff = db.prepare(
     `SELECT u.id, u.name, u.designation, d.name AS department FROM users u LEFT JOIN departments d ON d.id = u.department_id
      WHERE u.active = 1 AND COALESCE(u.no_attendance,0) = 0 ORDER BY d.name, u.name`).all().filter((u) => !onlyUser || u.id === onlyUser);
-  const marks = db.prepare("SELECT user_id, mark_date, status, in_time, out_time FROM attendance_marks WHERE substr(mark_date,1,7) = ?").all(month);
+  const marks = db.prepare("SELECT user_id, mark_date, status, in_time, out_time, late_reason FROM attendance_marks WHERE substr(mark_date,1,7) = ?").all(month);
   const by = new Map(marks.map((r) => [r.user_id + "|" + r.mark_date, r.status]));
   const tby = new Map(marks.map((r) => [r.user_id + "|" + r.mark_date, r]));
   const fines = db.prepare("SELECT user_id, COALESCE(SUM(amount),0) AS total, COUNT(*) AS n FROM fines WHERE substr(fine_date,1,7) = ? GROUP BY user_id").all(month);
@@ -423,7 +468,7 @@ function registerFor(req, res, onlyUser) {
       const t = tby.get(u.id + "|" + date);
       let late = 0;
       if (t?.in_time) { late = Math.max(0, mm(t.in_time) - mm(shiftWindow(u.id, date).start)); if (!isLateArrival(u.id, date, t.in_time)) late = 0; lateMinutes += late; }
-      times.push(t && (t.in_time || t.out_time) ? { i: t.in_time || "", o: t.out_time || "", l: late } : null);
+      times.push(t && (t.in_time || t.out_time) ? { i: t.in_time || "", o: t.out_time || "", l: late, r: t.late_reason || "" } : null);
     }
     const f = fineBy.get(u.id);
     return { ...u, shift: fmtRange(shiftOn(u.id, now)), days, times, lateMinutes, present: c.P + c.L + c.H * 0.5, late: c.L, absent: c.A, leave: c.LV, fine_count: f?.n || 0, fine_total: f?.total || 0 };

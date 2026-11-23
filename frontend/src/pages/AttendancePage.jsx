@@ -59,6 +59,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
 
       <div className="pill-row">
         <button className={`pill ${tab === "register" ? "active" : ""}`} onClick={() => setTab("register")}>Month register</button>
+        <button className={`pill ${tab === "late" ? "active" : ""}`} onClick={() => setTab("late")}>Late reasons</button>
         <button className={`pill ${tab === "face" ? "active" : ""}`} onClick={() => setTab("face")}>Face check-in</button>
         {user.role === "admin" && SETUP && <button className={`pill ${tab === "sheet" ? "active" : ""}`} onClick={() => setTab("sheet")}>Google Sheet</button>}
         {user.role === "admin" && <button className={`pill ${tab === "fines" ? "active" : ""}`} onClick={() => setTab("fines")}>Fines</button>}
@@ -108,7 +109,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
                     else mark(r.id, day, CYCLE[(CYCLE.indexOf(d) + 1) % CYCLE.length]);
                   };
                   return (
-                    <td key={i} className={`c-${d || "x"} ${future ? "" : "clk"}`} onClick={onClick} title={t ? `In ${t.i || "-"} · Out ${t.o || "-"}${t.l ? ` · Late ${t.l} min` : ""}` : ""}>
+                    <td key={i} className={`c-${d || "x"} ${future ? "" : "clk"}`} onClick={onClick} title={t ? `In ${t.i || "-"} · Out ${t.o || "-"}${t.l ? ` · Late ${t.l} min` : ""}${t.r ? ` · Reason: ${t.r}` : ""}` : ""}>
                       <div>{d === "LV" ? "Lv" : d}{t?.l ? <span className="reg-late"> +{t.l}m</span> : null}</div>
                       {t && <div className="reg-time">{t.i ? short(t.i) : "–"}</div>}
                       {t && <div className="reg-time out">{t.o ? short(t.o) : "–"}</div>}
@@ -120,12 +121,35 @@ export default function AttendancePage({ user, onLogout, onBack }) {
         </div>
       ))}
 
+      {tab === "late" && <LateReasonsPanel month={month} />}
       {tab === "face" && <FacePanel date={date} people={board?.rows || []} isAdmin={user.role === "admin"} flash={flash} />}
       {tab === "sheet" && SETUP && <SheetPanel flash={flash} onChanged={load} />}
       {tab === "notes" && <MessagesPanel flash={flash} />}
       {tab === "fines" && <FinesPanel month={month} isAdmin={user.role === "admin"} preset={preset} onChanged={load} />}
       {toast && <div className="toast">{toast}</div>}
     </PageShell>
+  );
+}
+
+function LateReasonsPanel({ month }) {
+  const [d, setD] = useState(null);
+  useEffect(() => { setD(null); const load = () => api.lateReasons(month).then(setD).catch(() => setD({ rows: [] })); load(); window.addEventListener("hub-refresh", load); return () => window.removeEventListener("hub-refresh", load); }, [month]);
+  if (!d) return <div className="empty">Loading…</div>;
+  const without = d.rows.filter((r) => !r.reason).length;
+  return (
+    <div className="card" style={{ overflowX: "auto" }}>
+      <div className="meta" style={{ marginBottom: 8 }}>{d.month} · {d.rows.length} late arrival{d.rows.length === 1 ? "" : "s"}{without ? ` · ${without} without a reason` : ""}</div>
+      {d.rows.length === 0 ? <div className="meta">Nobody was late this month.</div> : (
+        <table className="tbl" style={{ width: "100%" }}>
+          <thead><tr><th style={{ textAlign: "left" }}>Date</th><th style={{ textAlign: "left" }}>Name</th><th>In</th><th>Late</th><th style={{ textAlign: "left" }}>Reason</th></tr></thead>
+          <tbody>{d.rows.map((r) => (
+            <tr key={r.user_id + r.date}>
+              <td>{new Date(r.date + "T00:00:00Z").toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" })}</td>
+              <td><b>{r.name}</b></td><td style={{ textAlign: "center" }}>{r.in_time}</td><td style={{ textAlign: "center" }}>{r.late ? r.late + " min" : "–"}</td>
+              <td>{r.reason || <span className="meta">No reason yet</span>}</td>
+            </tr>))}</tbody>
+        </table>)}
+    </div>
   );
 }
 

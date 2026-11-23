@@ -172,7 +172,7 @@ router.post("/checkin", requireKiosk, (req, res) => {
     db.prepare(`INSERT INTO attendance_marks (user_id, mark_date, status, in_time, note, marked_by) VALUES (?,?,?,?,?,NULL)
       ON CONFLICT(user_id, mark_date) DO UPDATE SET status = excluded.status, in_time = excluded.in_time, updated_at = datetime('now')`)
       .run(best.userId, date, mark, inTime, `Face check-in ${hhmm}`);
-  } else if (mins(hhmm) - mins(outTime || inTime) >= MIN_GAP_MIN) {
+  } else if (!outTime && mins(hhmm) - mins(inTime) >= MIN_GAP_MIN) { // check-out is taken once; a later look never moves it (HR can correct the time)
     kind = "out"; outTime = hhmm;
     db.prepare("UPDATE attendance_marks SET out_time = ?, updated_at = datetime('now') WHERE user_id = ? AND mark_date = ?").run(outTime, best.userId, date);
   } else { kind = outTime ? "out" : "in"; already = true; }
@@ -193,7 +193,8 @@ router.post("/checkin", requireKiosk, (req, res) => {
     db.prepare("INSERT INTO face_checkins (id, user_id, device_id, distance, mark, kind, snapshot_path) VALUES (?,?,?,?,?,?,?)")
       .run(randomUUID(), best.userId, req.kiosk.id, best.distance, mark, kind, snapPath);
   }
-  res.json({ matched: true, name: best.name, kind, mark, label: MARKS[mark], time: kind === "out" ? outTime : inTime, inTime, outTime, workedMinutes: worked, already, noMorningCheckin: noIn, message: note ? note.body : null });
+  const lateMin = kind === "in" && mark === "L" && inTime ? Math.max(0, mins(inTime) - mins(win.start)) : 0;
+  res.json({ matched: true, name: best.name, kind, mark, late: lateMin, label: MARKS[mark], time: kind === "out" ? outTime : inTime, inTime, outTime, workedMinutes: worked, already, noMorningCheckin: noIn, message: note ? note.body : null });
 });
 
 export default router;

@@ -7,6 +7,40 @@ const COLOR = { P: "#16a34a", L: "#d97706", H: "#0ea5e9", LV: "#7c3aed", A: "#dc
 const NAME = { P: "Present", L: "Late", H: "Half day", LV: "Leave", A: "Absent", W: "Week off" };
 
 // A staff member's own attendance for the month: login and logout times, late count, fines.
+const QUICK = ["Traffic", "Rain", "Health problem", "Family reason", "Bus / transport delay"];
+// If I was late in the last 7 days, I can say why. The admin sees it at once.
+function LateAsk() {
+  const [days, setDays] = useState([]), [txt, setTxt] = useState({}), [busy, setBusy] = useState(""), [err, setErr] = useState("");
+  const load = () => api.myLateDays().then(setDays).catch(() => {});
+  useEffect(() => { load(); window.addEventListener("hub-refresh", load); return () => window.removeEventListener("hub-refresh", load); }, []);
+  async function save(date) {
+    setErr(""); setBusy(date);
+    try { await api.saveLateReason(date, txt[date] || ""); await load(); } catch (e) { setErr(e.message); }
+    setBusy("");
+  }
+  if (!days.length) return null;
+  return (
+    <div className="myatt-late" style={{ margin: "12px 0", padding: 12, borderRadius: 14, background: "#fff7ed", border: "1px solid #fed7aa" }}>
+      <b style={{ color: "#9a3412" }}>Late arrival</b>
+      {days.map((l) => (
+        <div key={l.date} style={{ marginTop: 8 }}>
+          <div className="meta">{new Date(l.date + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })} · in at {l.in_time}{l.late ? ` · ${l.late} min late` : ""}</div>
+          {l.reason ? <div style={{ marginTop: 4 }}>Your reason: <b>{l.reason}</b> <button className="btn btn-outline btn-sm" style={{ marginLeft: 6 }} onClick={() => setDays(days.map((x) => x.date === l.date ? { ...x, reason: "" } : x))}>Change</button></div> : (
+            <>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "6px 0" }}>
+                {QUICK.map((q) => <button key={q} type="button" className="pill" onClick={() => setTxt({ ...txt, [l.date]: q })}>{q}</button>)}
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <input className="field" style={{ flex: 1, fontSize: 16 }} value={txt[l.date] || ""} onChange={(e) => setTxt({ ...txt, [l.date]: e.target.value })} placeholder="Why were you late?" maxLength={200} />
+                <button className="btn btn-primary btn-sm" disabled={busy === l.date} onClick={() => save(l.date)}>{busy === l.date ? "…" : "Send"}</button>
+              </div>
+            </>)}
+        </div>))}
+      {err && <div className="login-error" style={{ marginTop: 8 }}>{err}</div>}
+    </div>
+  );
+}
+
 export default function MyAttendanceCard() {
   const [month, setMonth] = useState(istMonth()), [d, setD] = useState(null);
   useEffect(() => { setD(null); const load = () => api.myAttendanceMonth(month).then(setD).catch(() => {}); load(); window.addEventListener("hub-refresh", load); return () => window.removeEventListener("hub-refresh", load); }, [month]);
@@ -26,6 +60,7 @@ export default function MyAttendanceCard() {
         <div className="myatt-stats">
           {stat(me.present, "Days present", "#16a34a")}{stat(me.late, "Late", "#d97706")}{stat(me.absent, "Absent", "#dc2626")}{stat(me.leave, "Leave", "#7c3aed")}{stat(`₹${me.fine_total}`, "Fines", "#b91c1c")}
         </div>
+        <LateAsk />
         {me.shift && <div className="myatt-shift"><b>Today's shift</b><span>{me.shift}</span></div>}
         {d.upcoming?.some((u) => u.label) && <div className="myatt-up">{d.upcoming.map((u) => <div key={u.date} className={"myatt-upd" + (u.label ? "" : " off")}><b>{new Date(u.date + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", timeZone: "UTC" })}</b><span>{u.label ? u.label.replace(/ AM/g, "a").replace(/ PM/g, "p") : "Off"}</span></div>)}</div>}
         <div className="myatt-days">

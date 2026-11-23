@@ -1467,3 +1467,4 @@ button, a, input, select, textarea, label { touch-action: manipulation; -webkit-
   .login-card p.sub { margin-bottom: 14px; }
 }
 @media (max-width: 880px) { .login-card .roster-list { max-height: 132px !important; } }
+@media (max-width: 600px) { .bell-panel { left: 12px !important; right: 12px !important; width: auto !important; max-height: 78vh; overflow-y: auto; } }

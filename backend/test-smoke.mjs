@@ -800,6 +800,16 @@ try {
     const row = tt.body?.rows?.find((r) => r.id === staff.id);
     ok("time table shows check-in/out and minutes", row && row.inTime === "10:40" && row.outTime === "18:30" && row.workedMin === 470 && typeof row.lateMin === "number");
     ok("bad time rejected", (await call("PUT", "/api/attendance/time", { userId: staff.id, date: today, inTime: "25:99" }, admin)).status === 400);
+    { // late reason: the person says why, the admin sees it
+      const lm = await call("GET", "/api/attendance/late/mine", null, stoken);
+      ok("a late person sees the late day to explain", lm.body?.some((x) => x.date === today && !x.reason));
+      ok("a too short reason is refused", (await call("PUT", "/api/attendance/late-reason", { date: today, reason: "x" }, stoken)).status === 400);
+      const lr = await call("PUT", "/api/attendance/late-reason", { date: today, reason: "Bus broke down" }, stoken);
+      ok("the person can give the late reason", lr.status === 200, JSON.stringify(lr.body));
+      ok("the admin sees the reason", (await call("GET", "/api/attendance/late", null, admin)).body?.rows?.some((r) => r.user_id === staff.id && r.reason === "Bus broke down"));
+      ok("the register carries the reason", (await call("GET", "/api/attendance/register", null, admin)).body?.rows?.find((r) => r.id === staff.id)?.times?.some((t) => t?.r === "Bus broke down"));
+      ok("no reason for a day that was not late", (await call("PUT", "/api/attendance/late-reason", { date: "2020-01-01", reason: "Traffic jam" }, stoken)).status === 400);
+    }
     ok("staff cannot fix times", (await call("PUT", "/api/attendance/time", { userId: staff.id, date: today, inTime: "09:00" }, stoken)).status === 403);
     const sh0 = await call("GET", "/api/attendance/sheet", null, admin);
     const pd = await call("PUT", `/api/payroll/profile/${staff.id}/details`, { payType: "daily", payRate: 800, pan: "ABCDE1234F", bankName: "HDFC Bank", accountHolder: "Test", accountNumber: "123456789012", ifsc: "HDFC0001234", branch: "Madhapur" }, admin);
