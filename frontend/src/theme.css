@@ -1456,3 +1456,14 @@ html[data-theme="peach"] .cdx.cdx { --ink-1: #5A3A33; --ink-2: #8A5E54; --ink-3:
 button, a, input, select, textarea, label { touch-action: manipulation; -webkit-tap-highlight-color: rgba(124, 92, 214, .18); }
 .tab-switch { position: relative; z-index: 3; }
 .tab-switch button { min-height: 44px; }
+
+/* Phones: a short sign-in page with no big pictures, so the name list, PIN and Sign in all fit on the screen without scrolling or overlap */
+@media (max-width: 880px) {
+  .login-hero { padding: 14px 18px !important; min-height: 0 !important; }
+  .login-hero-mid, .login-hero-bottom, .login-portrait, .login-lean { display: none !important; }
+  .login-card { margin-top: 0 !important; padding-top: 18px !important; }
+  .login-panel { padding: 14px 16px 40px !important; align-items: flex-start !important; }
+  .login-card h1 { font-size: 24px; margin: 4px 0; }
+  .login-card p.sub { margin-bottom: 14px; }
+}
+@media (max-width: 880px) { .login-card .roster-list { max-height: 132px !important; } }

@@ -129,7 +129,7 @@ export default function Login({ onLoggedIn }) {
             <>
               <label className="field-label">Your Name</label>
               <input className="field" style={{ fontSize: 16 }} value={find} onChange={(e) => setFind(e.target.value)} placeholder="Type your name to search" autoComplete="off" autoCapitalize="off" />
-              <div style={{ maxHeight: 190, overflowY: "auto", margin: "8px 0", border: "1px solid var(--line, #eed)", borderRadius: 14 }}>
+              <div className="roster-list" style={{ maxHeight: 190, overflowY: "auto", WebkitOverflowScrolling: "touch", margin: "8px 0", border: "1px solid var(--line, #eed)", borderRadius: 14 }}>
                 {roster.filter((u) => !find.trim() || u.name.toLowerCase().includes(find.trim().toLowerCase())).map((u) => (
                   <button type="button" key={u.id} onClick={() => { setUserId(u.id); setFind(""); }}
                     style={{ display: "block", width: "100%", textAlign: "left", padding: "12px 14px", fontSize: 16, border: 0, borderBottom: "1px solid rgba(0,0,0,.05)", cursor: "pointer",
