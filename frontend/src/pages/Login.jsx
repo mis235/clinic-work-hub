@@ -10,7 +10,7 @@ function detectDeviceLabel() {
 }
 
 export default function Login({ onLoggedIn }) {
-  const [tab, setTab] = useState(() => { try { return localStorage.getItem("lastTab") || "password"; } catch { return "password"; } }); // 'password' (admin/manager) | 'pin' (staff, mobile-friendly)
+  const [tab, setTab] = useState(() => { try { return localStorage.getItem("lastTab") || "pin"; } catch { return "pin"; } }); // 'password' (admin/manager) | 'pin' (staff, mobile-friendly)
   const [roster, setRoster] = useState([]);
   const [userId, setUserId] = useState("");
   const [pin, setPin] = useState("");
@@ -97,8 +97,8 @@ export default function Login({ onLoggedIn }) {
           <p className="sub">Sign in to see your tasks, checklists and what's happening at the clinic today.</p>
 
           <div className="tab-switch">
-            <button className={tab === "password" ? "active" : ""} onClick={() => setTab("password")}>Email & password</button>
             <button className={tab === "pin" ? "active" : ""} onClick={() => setTab("pin")}>Name & PIN</button>
+            <button className={tab === "password" ? "active" : ""} onClick={() => setTab("password")}>Email & password</button>
           </div>
 
           {error && <div className="login-error">{error}</div>}
