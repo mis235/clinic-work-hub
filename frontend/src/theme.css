@@ -1450,3 +1450,9 @@ html[data-theme="peach"] .cdx.cdx { --ink-1: #5A3A33; --ink-2: #8A5E54; --ink-3:
 
 /* iPhone: keep inputs at 16px so Safari does not zoom in, and stop rubber-band scroll of the whole page */
 @supports (-webkit-touch-callout: none) { input, select, textarea { font-size: 16px; } html, body { overscroll-behavior-y: none; } }
+
+/* iPhone: the sign-in picture never catches taps; taps on buttons act at once (no double-tap zoom) */
+.login-lean, .login-lean * { pointer-events: none; }
+button, a, input, select, textarea, label { touch-action: manipulation; -webkit-tap-highlight-color: rgba(124, 92, 214, .18); }
+.tab-switch { position: relative; z-index: 3; }
+.tab-switch button { min-height: 44px; }

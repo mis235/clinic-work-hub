@@ -49,6 +49,7 @@ try {
   // PIN change
   const cp = await call("POST", "/api/users/me/pin", { currentPin: "1234", newPin: "7391" }, stoken);
   ok("staff can change PIN", cp.status === 200, JSON.stringify(cp.body));
+  ok("email sign-in ignores capital letters and spaces (iPhone)", (await call("POST", "/api/auth/login", { email: " ADMIN@TEST.LOCAL ", password: "testpass123" })).status === 200);
   ok("old PIN no longer works", (await call("POST", "/api/auth/login", { userId: staff.id, pin: "1234" })).status === 401);
   ok("new PIN works", (await call("POST", "/api/auth/login", { userId: staff.id, pin: "7391" })).status === 200);
 

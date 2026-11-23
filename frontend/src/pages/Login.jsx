@@ -34,7 +34,7 @@ export default function Login({ onLoggedIn }) {
     setBusy(true);
     try {
       const body = tab === "password"
-        ? { email, password, deviceLabel: detectDeviceLabel(), channel: "web" }
+        ? { email: email.trim(), password, deviceLabel: detectDeviceLabel(), channel: "web" }
         : { userId, pin, deviceLabel: detectDeviceLabel(), channel: "web" };
       const data = await api.login(body);
       try { localStorage.setItem("lastTab", tab); if (tab === "password") localStorage.setItem("lastEmail", email); else localStorage.setItem("lastUserId", userId); } catch {}
@@ -97,8 +97,8 @@ export default function Login({ onLoggedIn }) {
           <p className="sub">Sign in to see your tasks, checklists and what's happening at the clinic today.</p>
 
           <div className="tab-switch">
-            <button className={tab === "pin" ? "active" : ""} onClick={() => setTab("pin")}>Name & PIN</button>
-            <button className={tab === "password" ? "active" : ""} onClick={() => setTab("password")}>Email & password</button>
+            <button type="button" className={tab === "pin" ? "active" : ""} onClick={() => setTab("pin")} onTouchEnd={(e) => { e.preventDefault(); setTab("pin"); }}>Name & PIN</button>
+            <button type="button" className={tab === "password" ? "active" : ""} onClick={() => setTab("password")} onTouchEnd={(e) => { e.preventDefault(); setTab("password"); }}>Email & password</button>
           </div>
 
           {error && <div className="login-error">{error}</div>}
@@ -106,9 +106,9 @@ export default function Login({ onLoggedIn }) {
           {tab === "password" ? (
             <>
               <label className="field-label">Email</label>
-              <input className="field" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@drnishitaranka.com" autoComplete="username" />
+              <input className="field" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@drnishitaranka.com" type="email" inputMode="email" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} />
               <label className="field-label">Password</label>
-              <input className="field" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <input className="field" type="password" autoComplete="current-password" autoCapitalize="none" autoCorrect="off" value={password} onChange={(e) => setPassword(e.target.value)} />
             </>
           ) : (
             <>

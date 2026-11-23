@@ -53,7 +53,7 @@ router.post("/login", loginThrottle, (req, res) => {
 
   let row;
   if (email) {
-    row = db.prepare("SELECT * FROM users WHERE email = ? AND active = 1").get(email);
+    row = db.prepare("SELECT * FROM users WHERE lower(email) = lower(?) AND active = 1").get(String(email).trim()); // iPhone capitalises the first letter and may add a space
     if (!row || !row.password_hash || !bcrypt.compareSync(String(password || ""), row.password_hash)) {
       audit({ userName: String(email), action: "LOGIN_FAILED", ip: req.ip, status: 401 });
       return res.status(401).json({ error: "Invalid credentials" });
