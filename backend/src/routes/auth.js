@@ -20,6 +20,7 @@ function userWithRole(row) {
     role: role?.name,
     department: dept?.name || null,
     phone: row.phone,
+    gender: row.gender || null,
     mustChangePin: !!row.must_change_pin,
     ...accessFor(row.id, role?.name),
     designation: row.designation || null,

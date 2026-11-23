@@ -11,6 +11,7 @@ const TYPES = ["", "Full-time", "Part-time", "Contract", "Intern"];
 
 export default function StaffEditModal({ staff, shiftRoles, managers = [], departments = [], onClose, onSave, onPhoto, showAccess = false }) {
   const [isHr, setIsHr] = useState(!!staff.is_hr); const [leadership, setLeadership] = useState(!!staff.leadership);
+  const [noAtt, setNoAtt] = useState(!!staff.no_attendance);
   const [pv, setPv] = useState(0);
   const [hasPhoto, setHasPhoto] = useState(!!staff.has_photo);
   const [pErr, setPErr] = useState("");
@@ -40,6 +41,7 @@ export default function StaffEditModal({ staff, shiftRoles, managers = [], depar
       phone: f.phone || null, altPhone: f.altPhone || null, email: f.email || null, birthday: inputToMmdd(f.birthday), gender: f.gender || null,
       bloodGroup: f.bloodGroup || null, address: f.address || null,
       emergencyContactName: f.emergencyContactName || null, emergencyContactPhone: f.emergencyContactPhone || null,
+      noAttendance: noAtt ? 1 : 0,
       ...(showAccess ? { isHr, leadership } : {}),
     });
     onClose();
@@ -70,6 +72,8 @@ export default function StaffEditModal({ staff, shiftRoles, managers = [], depar
             <select className="field" value={f.roleName} onChange={set("roleName")}>
               <option value="staff">Staff</option><option value="manager">Manager (sees all, assigns tasks)</option>{(canAdmin || staff.role === "admin") && <option value="admin">Admin (full control)</option>}</select></div>
         </div>
+
+        <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 14 }}><input type="checkbox" checked={noAtt} onChange={(e) => setNoAtt(e.target.checked)} /><span><b>Attendance not required</b> — left out of the attendance register, late fines and reminders</span></label>
 
         {showAccess && (
           <div className="note" style={{ marginTop: 14 }}>

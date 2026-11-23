@@ -187,7 +187,7 @@ function reminderTargets(type, people, t) {
       const w = shiftOn(u.id, t.date); if (!w.start || w.start > t.hhmm) continue;
       const m = db.prepare("SELECT status, in_time FROM attendance_marks WHERE user_id = ? AND mark_date = ?").get(u.id, t.date);
       if (m && (m.in_time || ["LV", "W", "P", "L", "H"].includes(m.status))) continue;
-      if (db.prepare("SELECT 1 FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ? AND r.name = 'admin'").get(u.id)) continue;
+      if (db.prepare("SELECT 1 FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ? AND (r.name = 'admin' OR COALESCE(u.no_attendance,0) = 1)").get(u.id)) continue;
       out.push({ u, vars: {} });
     } else if (type === "task_pending") {
       const rows = db.prepare("SELECT title FROM tasks WHERE user_id = ? AND status <> 'done' AND due_date IS NOT NULL AND due_date <= ? ORDER BY due_date LIMIT 20").all(u.id, t.date);

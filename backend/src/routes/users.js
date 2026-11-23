@@ -35,7 +35,7 @@ router.get("/full", requireAuth, requirePermission("task:view_all"), (req, res) 
   backfillEmployeeCodes();
   const rows = db
     .prepare(
-      `SELECT u.id, u.name, u.phone, u.email, u.birthday, u.joined_at, u.designation, u.shift_role, u.active, u.employee_code, u.employment_type, u.reporting_to, u.emergency_contact_name, u.emergency_contact_phone, u.alt_phone, u.is_hr, u.leadership, u.shift_start, u.shift_end, u.late_fine_type, u.late_fine_value, (u.photo_path IS NOT NULL) AS has_photo, u.address, u.blood_group, u.gender, d.name AS department, r.name AS role
+      `SELECT u.id, u.name, u.phone, u.email, u.no_attendance, u.birthday, u.joined_at, u.designation, u.shift_role, u.active, u.employee_code, u.employment_type, u.reporting_to, u.emergency_contact_name, u.emergency_contact_phone, u.alt_phone, u.is_hr, u.leadership, u.shift_start, u.shift_end, u.late_fine_type, u.late_fine_value, (u.photo_path IS NOT NULL) AS has_photo, u.address, u.blood_group, u.gender, d.name AS department, r.name AS role
        FROM users u
        JOIN roles r ON r.id = u.role_id
        LEFT JOIN departments d ON d.id = u.department_id
@@ -336,6 +336,7 @@ router.patch("/:id", requireAuth, requirePermission("staff:manage"), (req, res) 
     db.prepare("UPDATE users SET shift_role = ? WHERE id = ?").run(shiftRole || null, req.params.id);
   }
   applyExtras(req.params.id, req.body || {});
+  if (req.body?.noAttendance !== undefined) db.prepare("UPDATE users SET no_attendance = ? WHERE id = ?").run(req.body.noAttendance ? 1 : 0, req.params.id);
   if (req.body?.isHr !== undefined || req.body?.leadership !== undefined) {
     if (req.user.roleName !== "admin") return res.status(403).json({ error: "Only the admin can give HR or leadership access" });
     if (req.body.isHr !== undefined) db.prepare("UPDATE users SET is_hr = ? WHERE id = ?").run(req.body.isHr ? 1 : 0, req.params.id);
@@ -364,7 +365,7 @@ router.get("/:id/profile", requireAuth, (req, res) => {
   }
 
   const u = db.prepare(
-    `SELECT u.id, u.name, u.phone, u.email, u.birthday, u.joined_at, u.designation, u.shift_role, u.active,
+    `SELECT u.id, u.name, u.phone, u.email, u.no_attendance, u.birthday, u.joined_at, u.designation, u.shift_role, u.active,
             u.employee_code, u.employment_type, u.reporting_to, u.gender, u.blood_group, u.address, u.emergency_contact_name, u.emergency_contact_phone, u.alt_phone, (u.photo_path IS NOT NULL) AS has_photo,
             d.name AS department, r.name AS role
      FROM users u JOIN roles r ON r.id = u.role_id LEFT JOIN departments d ON d.id = u.department_id

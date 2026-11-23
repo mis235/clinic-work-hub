@@ -244,6 +244,16 @@ try {
   const otok = (await call("POST", "/api/auth/login", { userId: other.id, pin: "1234" })).body?.token;
   ok("other staff cannot see someone else's personal files", (await call("GET", `/api/documents/staff/${staff.id}`, null, otok)).status === 403);
   ok("personal files are not in the department hub", !(await call("GET", "/api/documents", null, admin)).body.documents.some((d) => d.id === sf.body.id));
+  { // attendance is not required for some people
+    const inBoard = async () => (await call("GET", "/api/attendance/board", null, admin)).body?.rows?.some((r) => r.id === staff.id);
+    const before = await inBoard();
+    const pr = await call("PATCH", `/api/users/${staff.id}`, { noAttendance: 1 }, admin);
+    ok("attendance can be switched off for a person", pr.status === 200 && before === true && (await inBoard()) === false, JSON.stringify(pr.body));
+    ok("their flag shows in the staff list", (await call("GET", "/api/users/full", null, admin)).body.find((u) => u.id === staff.id)?.no_attendance === 1);
+    await call("PATCH", `/api/users/${staff.id}`, { noAttendance: 0 }, admin);
+    ok("and back on again", (await inBoard()) === true);
+  }
+  ok("sign-in tells the app the person's gender", "gender" in ((await call("POST", "/api/auth/refresh", {}, stoken)).body?.user || {}));
   const rawF = (url, token) => fetch(base + url, { headers: { Authorization: `Bearer ${token}` } });
   const ownDl = await rawF(`/api/documents/${sf.body.id}/file`, stoken);
   ok("the person can download their own paper", ownDl.status === 200 && (await ownDl.text()) === "aadhaar");

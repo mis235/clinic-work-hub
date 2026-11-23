@@ -1445,3 +1445,5 @@ html[data-theme="peach"] .cdx.cdx { --ink-1: #5A3A33; --ink-2: #8A5E54; --ink-3:
 .lib-guide { display: flex; align-items: center; gap: 14px; padding: 10px 16px; margin-bottom: 12px; border-radius: 18px; background: linear-gradient(120deg, rgba(255,255,255,.85), rgba(235,225,255,.7)); border: 1px solid var(--line); }
 .lib-guide b { display: block; font-size: 14.5px; }
 .lib-guide span { font-size: 12.5px; color: var(--ink-soft); }
+
+.doll img.boy { border-radius: 22px; filter: none; box-shadow: 0 10px 22px rgba(70, 45, 150, .18); background: #fff; }

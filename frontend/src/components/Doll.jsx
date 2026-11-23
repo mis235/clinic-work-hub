@@ -16,6 +16,10 @@ const IMG = {
   notify: D + "s-surprised.webp", error: D + "s-confused.webp", sleepy: D + "s-sleepy.webp",
   tired: D + "s-tired.webp", idea: D + "s-idea.webp", worried: D + "s-worried.webp", sick: D + "s-sick.webp", pet: D + "s-happy.webp", grumpy: D + "s-angry.webp", hungry: D + "s-hungry.webp", angry: D + "s-angry.webp",
 };
+// Male staff see the boy guide instead of her: same moods, taken from /buddy.
+const B = "/buddy/";
+const BOY = { idle: "standing", welcome: "welcome", happy: "happy", excited: "excited", thinking: "thinking", working: "working", music: "music", success: "success", closing: "goodbye", goodbye: "goodbye", hello: "welcome", wrong: "confused", celebrate: "celebrating", birthday: "celebrating", notify: "surprised", error: "confused", sleepy: "sleepy", tired: "tired", idea: "idea", worried: "worried", sick: "sick", pet: "happy", grumpy: "angry", hungry: "hungry", angry: "angry" };
+const isMale = () => { try { return /^male$/i.test(JSON.parse(localStorage.getItem("user") || "{}").gender || ""); } catch { return false; } };
 const TALL = new Set([D + "wave.webp", D + "think.webp", D + "laptop.webp", D + "music.webp", D + "wave.webp", D + "celebrate.webp"]); // full-body: show head and body
 const BUBBLE = { pet: "Hehe!", grumpy: "Hey!", hungry: "Lunch?", sleepy: "Zzz", hello: "Hello!", wrong: "?", welcome: "Hi!", goodbye: "Bye!", closing: "Done!" };
 const MOTIVE = { idle: "You've got this!", success: "Great work!", excited: "Let's go!", idea: "Keep going!", happy: "Smile, you're doing well!", music: "Stay in the flow!", pet: "Hehe!" }; // shown on the banner pet outside lunch time
@@ -27,7 +31,7 @@ const warm = () => { if (warmed) return; warmed = true; const go = () => Object.
 
 export default function Doll({ size = 210, mood = "idle", follow = true, className = "", userId, pet = false }) {
   const [temp, setTemp] = useState(null), [ok, setOk] = useState(true), wrap = useRef(null), tilt = useRef(null);
-  const state = temp || mood, src = IMG[state] || IMG.idle, tall = TALL.has(src);
+  const state = temp || mood, boy = isMale(), src = boy ? B + (BOY[state] || "standing") + ".webp" : IMG[state] || IMG.idle, tall = !boy && TALL.has(src);
   useEffect(warm, []);
   const taps = useRef({ n: 0, t: 0 }), tm = useRef(null);
   const react = (st, ms) => { setTemp(st); clearTimeout(tm.current); tm.current = setTimeout(() => setTemp(null), ms); };
@@ -65,7 +69,7 @@ export default function Doll({ size = 210, mood = "idle", follow = true, classNa
     <div ref={wrap} className={`doll s-${state} ${pet ? "pet" : ""} ${className}`} onClick={poke} style={{ width: size, height: Math.round(size * 0.92) }}>
       <div className="doll-tilt" ref={tilt}>
         <div className="doll-swap" key={src}>
-          <img src={src} alt="" decoding="async" draggable="false" className={tall ? "tall" : "fit"} onError={() => setOk(false)} />
+          <img src={src} alt="" decoding="async" draggable="false" className={boy ? "fit boy" : tall ? "tall" : "fit"} onError={() => setOk(false)} />
         </div>
       </div>
       {(BUBBLE[state] || (pet && MOTIVE[state])) && <span key={state} className={`doll-bubble b-${state}`}>{BUBBLE[state] || MOTIVE[state]}</span>}

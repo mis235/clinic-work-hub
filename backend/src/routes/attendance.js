@@ -283,12 +283,12 @@ export function autoMarkLeave(date, { allowToday = false, force = false } = {}) 
   const off = String(db.prepare("SELECT value FROM app_settings WHERE key = 'att_weekoff'").get()?.value ?? "0").split(",").map((x) => x.trim());
   if (off.includes(String(new Date(date + "T00:00:00Z").getUTCDay()))) return { marked: 0, skipped: "weekly off" };
   // A real working day has marks for a good part of the staff; a day with only a couple of marks means the clinic was closed or the app was off.
-  const total = db.prepare("SELECT COUNT(*) n FROM users WHERE active = 1").get().n;
+  const total = db.prepare("SELECT COUNT(*) n FROM users WHERE active = 1 AND COALESCE(no_attendance,0) = 0").get().n;
   const markedN = db.prepare("SELECT COUNT(DISTINCT user_id) n FROM attendance_marks WHERE mark_date = ? AND status IN ('P','L','H')").get(date).n;
   if (markedN < 3 || markedN < total * 0.3) return { marked: 0, skipped: "too few people were marked that day" };
   const users = db.prepare(
     `SELECT u.id FROM users u LEFT JOIN roles r ON r.id = u.role_id
-     WHERE u.active = 1 AND COALESCE(r.name, '') != 'admin' AND (COALESCE(u.joined_at, '') = '' OR u.joined_at <= ?)
+     WHERE u.active = 1 AND COALESCE(u.no_attendance,0) = 0 AND COALESCE(r.name, '') != 'admin' AND (COALESCE(u.joined_at, '') = '' OR u.joined_at <= ?)
      AND NOT EXISTS (SELECT 1 FROM attendance_marks m WHERE m.user_id = u.id AND m.mark_date = ?)`).all(date, date);
   const ins = db.prepare("INSERT OR IGNORE INTO attendance_marks (user_id, mark_date, status, note, marked_by) VALUES (?,?,'LV',?,NULL)");
   db.transaction(() => users.forEach((u) => ins.run(u.id, date, AUTO_NOTE)))();
@@ -307,7 +307,7 @@ router.get("/board", requireAuth, requirePermission("attendance:view_all"), (req
     `SELECT u.id, u.name, u.designation, d.name AS department, m.status AS mark, m.note, m.in_time, m.out_time
      FROM users u LEFT JOIN departments d ON d.id = u.department_id
      LEFT JOIN attendance_marks m ON m.user_id = u.id AND m.mark_date = ?
-     WHERE u.active = 1 ORDER BY d.name, u.name`).all(date);
+     WHERE u.active = 1 AND COALESCE(u.no_attendance,0) = 0 ORDER BY d.name, u.name`).all(date);
   const counts = { P: 0, L: 0, H: 0, LV: 0, A: 0, W: 0, unmarked: 0 };
   for (const r of rows) counts[r.mark || "unmarked"]++;
   res.json({ date, rows, counts, total: rows.length, present: counts.P + counts.L + counts.H, labels: MARKS });
@@ -339,7 +339,7 @@ router.post("/mark-day", requireAuth, (req, res) => {
   if (!MARKS[status]) return res.status(400).json({ error: "Unknown status" });
   if (["P", "L", "H"].includes(status) && date >= manualCutoff()) return res.status(400).json({ error: "From Wednesday 18 Nov, attendance comes only from check-in and check-out times." });
   const users = db.prepare(
-    `SELECT u.id FROM users u LEFT JOIN departments d ON d.id = u.department_id WHERE u.active = 1 ${department ? "AND d.name = ?" : ""}
+    `SELECT u.id FROM users u LEFT JOIN departments d ON d.id = u.department_id WHERE u.active = 1 AND COALESCE(u.no_attendance,0) = 0 ${department ? "AND d.name = ?" : ""}
      AND NOT EXISTS (SELECT 1 FROM attendance_marks m WHERE m.user_id = u.id AND m.mark_date = ?)`).all(...(department ? [department, date] : [date]));
   const ins = db.prepare("INSERT INTO attendance_marks (user_id, mark_date, status, marked_by) VALUES (?,?,?,?)");
   db.transaction(() => users.forEach((u) => ins.run(u.id, date, status, req.user.userId)))();
@@ -352,7 +352,7 @@ router.get("/timesheet", requireAuth, requirePermission("attendance:view_all"), 
   const date = DATE_RE.test(req.query.date || "") ? req.query.date : istToday();
   const month = date.slice(0, 7);
   const staff = db.prepare(`SELECT u.id, u.name, u.designation, d.name AS department FROM users u LEFT JOIN departments d ON d.id = u.department_id
-    WHERE u.active = 1 AND COALESCE((SELECT name FROM roles WHERE id = u.role_id), '') != 'admin' ORDER BY d.name, u.name`).all();
+    WHERE u.active = 1 AND COALESCE(u.no_attendance,0) = 0 AND COALESCE((SELECT name FROM roles WHERE id = u.role_id), '') != 'admin' ORDER BY d.name, u.name`).all();
   const day = new Map(db.prepare("SELECT user_id, status, in_time, out_time, note FROM attendance_marks WHERE mark_date = ?").all(date).map((r) => [r.user_id, r]));
   const monthRows = db.prepare("SELECT user_id, mark_date, in_time FROM attendance_marks WHERE substr(mark_date,1,7) = ? AND in_time IS NOT NULL AND mark_date <= ?").all(month, date);
   const lateSum = new Map();
@@ -406,7 +406,7 @@ function registerFor(req, res, onlyUser) {
   const daysInMonth = new Date(y, m, 0).getDate();
   const staff = db.prepare(
     `SELECT u.id, u.name, u.designation, d.name AS department FROM users u LEFT JOIN departments d ON d.id = u.department_id
-     WHERE u.active = 1 ORDER BY d.name, u.name`).all().filter((u) => !onlyUser || u.id === onlyUser);
+     WHERE u.active = 1 AND COALESCE(u.no_attendance,0) = 0 ORDER BY d.name, u.name`).all().filter((u) => !onlyUser || u.id === onlyUser);
   const marks = db.prepare("SELECT user_id, mark_date, status, in_time, out_time FROM attendance_marks WHERE substr(mark_date,1,7) = ?").all(month);
   const by = new Map(marks.map((r) => [r.user_id + "|" + r.mark_date, r.status]));
   const tby = new Map(marks.map((r) => [r.user_id + "|" + r.mark_date, r]));
@@ -441,7 +441,7 @@ router.get("/export", requireAuth, requirePermission("attendance:view_all"), asy
   let to = okMonth(req.query.to) ? req.query.to : okMonth(req.query.month) ? req.query.month : from;
   if (to < from) to = from;
   const months = []; for (let c = from; c <= to && months.length < 24; ) { months.push(c); const [yy, mm] = c.split("-").map(Number); c = mm === 12 ? `${yy + 1}-01` : `${yy}-${String(mm + 1).padStart(2, "0")}`; }
-  const staff = db.prepare(`SELECT u.id, u.name, u.employee_code, u.designation, d.name AS department FROM users u LEFT JOIN departments d ON d.id = u.department_id WHERE u.active = 1 ORDER BY d.name, u.name`).all();
+  const staff = db.prepare(`SELECT u.id, u.name, u.employee_code, u.designation, d.name AS department FROM users u LEFT JOIN departments d ON d.id = u.department_id WHERE u.active = 1 AND COALESCE(u.no_attendance,0) = 0 ORDER BY d.name, u.name`).all();
   const { default: ExcelJS } = await import("exceljs");
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Daily log");

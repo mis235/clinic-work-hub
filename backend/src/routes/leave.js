@@ -143,7 +143,7 @@ export function lateDays(userId, month) {
 /** Keeps the automatic late fines in step with the attendance marks (safe to run any time, any number of times). */
 export function syncLateFines(month) {
   const s = settings(), made = [];
-  for (const u of db.prepare("SELECT id, name FROM users WHERE active = 1").all()) {
+  for (const u of db.prepare("SELECT id, name FROM users WHERE active = 1 AND COALESCE(no_attendance,0) = 0").all()) {
     const late = lateDays(u.id, month), want = s.late_limit > 0 ? Math.floor(late.length / s.late_limit) : 0;
     const have = db.prepare("SELECT id, auto_key, locked FROM fines WHERE user_id = ? AND auto_key LIKE ?").all(u.id, `late:${month}:%`);
     for (let n = 1; n <= want; n++) {
@@ -509,7 +509,7 @@ router.get("/overview", requireAuth, (req, res) => {
     out.upcoming = db.prepare(withName + " WHERE l.status = 'approved' AND l.from_date > ? AND l.from_date <= ? ORDER BY l.from_date").all(t, addDays(t, 14));
     syncLateFines(month);
     const s = settings();
-    out.late = db.prepare("SELECT id, name FROM users WHERE active = 1").all().map((u) => ({ id: u.id, name: u.name, count: lateDays(u.id, month).length })).filter((x) => x.count > 0).sort((a, b) => b.count - a.count).slice(0, 8);
+    out.late = db.prepare("SELECT id, name FROM users WHERE active = 1 AND COALESCE(no_attendance,0) = 0").all().map((u) => ({ id: u.id, name: u.name, count: lateDays(u.id, month).length })).filter((x) => x.count > 0).sort((a, b) => b.count - a.count).slice(0, 8);
     out.lateRules = s;
   }
   res.json(out);

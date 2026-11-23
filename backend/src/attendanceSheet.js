@@ -18,7 +18,7 @@ const LABEL = { P: "Present", L: "Late", H: "Half day", LV: "Leave", A: "Absent"
 export function buildMonth(month) {
   const today = ist().slice(0, 10), [y, m] = month.split("-").map(Number);
   const last = month > today.slice(0, 7) ? 0 : month === today.slice(0, 7) ? Number(today.slice(8)) : new Date(y, m, 0).getDate();
-  const staff = db.prepare("SELECT u.id, u.name, u.employee_code code, u.designation, d.name dept FROM users u LEFT JOIN departments d ON d.id = u.department_id WHERE u.active = 1 ORDER BY d.name, u.name").all();
+  const staff = db.prepare("SELECT u.id, u.name, u.employee_code code, u.designation, d.name dept FROM users u LEFT JOIN departments d ON d.id = u.department_id WHERE u.active = 1 AND COALESCE(u.no_attendance,0) = 0 ORDER BY d.name, u.name").all();
   const marks = new Map(db.prepare("SELECT * FROM attendance_marks WHERE substr(mark_date,1,7) = ?").all(month).map((r) => [r.user_id + "|" + r.mark_date, r]));
   const fines = new Map(db.prepare("SELECT user_id, SUM(amount) t FROM fines WHERE substr(fine_date,1,7) = ? GROUP BY user_id").all(month).map((f) => [f.user_id, f.t]));
   const daily = [], summary = [];

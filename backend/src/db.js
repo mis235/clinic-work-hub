@@ -379,6 +379,13 @@ ensureColumn("users", "employment_type", "employment_type TEXT");          // Fu
 ensureColumn("users", "reporting_to", "reporting_to TEXT");                // name of the manager they report to
 ensureColumn("users", "gender", "gender TEXT");
 ensureColumn("users", "blood_group", "blood_group TEXT");
+ensureColumn("users", "no_attendance", "no_attendance INTEGER DEFAULT 0");   // 1 = attendance is not required for this person
+try { // one time: the director and the doctor-owner do not mark attendance
+  if (!db.prepare("SELECT 1 FROM app_settings WHERE key = 'noatt_seeded'").get()) {
+    db.prepare("UPDATE users SET no_attendance = 1 WHERE active = 1 AND (name LIKE 'Shreyas%' OR (name LIKE '%Nishita%' AND name LIKE '%Ranka%'))").run();
+    db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('noatt_seeded', '1')").run();
+  }
+} catch {}
 ensureColumn("users", "address", "address TEXT");
 ensureColumn("users", "emergency_contact_name", "emergency_contact_name TEXT");
 ensureColumn("users", "emergency_contact_phone", "emergency_contact_phone TEXT");
