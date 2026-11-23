@@ -220,7 +220,7 @@ if (fs.existsSync(distDir)) {
         .replace('href="/manifest.json"', 'href="/kiosk.webmanifest"')
         .replace('<meta name="theme-color" content="#C42F8F"', '<meta name="theme-color" content="#2a1b3d"')
         .replace('content="Work Hub" />', 'content="Check-in" />')
-        .replace('<link rel="apple-touch-icon" href="/icon-192.png" />', '<link rel="apple-touch-icon" href="/kiosk-192.png" />')
+        .replace('<link rel="apple-touch-icon" href="/apple-touch-icon.png" />', '<link rel="apple-touch-icon" href="/kiosk-apple-touch-icon.png" />')
         .replace('<link rel="icon" type="image/png" href="/icon-192.png" />', '<link rel="icon" type="image/png" href="/kiosk-192.png" />')
         .replace(/<title>[^<]*<\/title>/, "<title>Clinic Check-in</title>");
       res.set("Cache-Control", "no-cache").type("html").send(html);
