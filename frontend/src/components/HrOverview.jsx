@@ -68,13 +68,12 @@ export default function HrOverview({ user, onNavigate }) {
   );
 }
 function BirthdayCard({ d }) {
-  const today = new Date(Date.now() + 19800000).toISOString().slice(0, 10), list = d.birthdaysMonth || [], soon = d.birthdaysSoon || [];
+  const today = new Date(Date.now() + 19800000).toISOString().slice(0, 10), list = (d.birthdaysMonth || []).filter((b) => (b.thisYear || b.next) >= today);
   const row = (b, k) => { const t = b.thisYear || b.next, cls = t === today ? "today" : t < today ? "past" : ""; return (
     <div key={b.id + k} className={`bday-row ${cls}`}><Avatar id={b.id} name={b.name} hasPhoto={b.hasPhoto} size={34} /><div style={{ flex: 1 }}><div className="title" style={{ fontSize: 13 }}>{b.name} {t === today ? <Icon name="cake" size={14} className="bd-ic" /> : t > today ? <Icon name="gift" size={14} className="bd-ic" /> : null}</div><div className="meta">{b.designation || b.department || ""}</div></div><div className="meta">{t === today ? "Today" : dmy(t)}</div></div>); };
   return (<>
     <div className="card-head"><div className="name icon-h"><Icon name="cake" size={18} /> Birthdays</div></div>
-    <Section title={`This month (${list.length})`} empty="No birthdays this month.">{list.map((b) => row(b, "m"))}</Section>
-    {soon.length > 0 && <Section title="Next 30 days">{soon.map((b) => row(b, "s"))}</Section>}
+    <Section title={`Upcoming this month (${list.length})`} empty="No more birthdays this month.">{list.map((b) => row(b, "m"))}</Section>
   </>);
 }
 const Section = ({ title, empty, children }) => { const arr = [].concat(children).flat().filter(Boolean); return <div style={{ marginTop: 10 }}><div className="meta" style={{ fontWeight: 700, fontSize: 11, letterSpacing: ".04em" }}>{title}</div>{arr.length ? arr : empty && <div className="meta" style={{ padding: "6px 0" }}>{empty}</div>}</div>; };
