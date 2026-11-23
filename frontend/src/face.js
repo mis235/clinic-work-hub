@@ -6,13 +6,30 @@ export async function loadFace() {
   await fa.nets.tinyFaceDetector.loadFromUri("/models");
   await fa.nets.faceLandmark68TinyNet.loadFromUri("/models");
   await fa.nets.faceRecognitionNet.loadFromUri("/models");
-  lib = fa; return fa;
+  lib = fa;
+  // Some phones cannot run the fast (GPU) mode and the scanner then fails quietly. Test once; if it fails, use the slower mode that works everywhere.
+  try { const c = document.createElement("canvas"); c.width = c.height = 64; await fa.detectSingleFace(c, opts(fa)).withFaceLandmarks(true); }
+  catch { await slowMode(); }
+  return fa;
+}
+/** Switch to the slower scanner that works on every phone. */
+export async function slowMode() { try { await lib?.tf?.setBackend("cpu"); await lib?.tf?.ready(); } catch {} }
+/** Average brightness of the camera picture, 0 (black) to 255 (white). */
+export function frameBrightness(video) {
+  try {
+    const c = document.createElement("canvas"); c.width = 32; c.height = 24;
+    const x = c.getContext("2d", { willReadFrequently: true }); x.drawImage(video, 0, 0, 32, 24);
+    const d = x.getImageData(0, 0, 32, 24).data; let t = 0; for (let i = 0; i < d.length; i += 4) t += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    return Math.round(t / (d.length / 4));
+  } catch { return null; }
 }
 const opts = (fa) => new fa.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.55 });
-/** 128-number face print for the single clear face in the picture, or null. */
+/** 128-number face print for the single clear face in the picture, or null.
+ *  First a quick strict scan; if no face is found, a second slower scan that accepts smaller or softer faces. */
 export async function faceDescriptor(input) {
   const fa = await loadFace();
-  const r = await fa.detectSingleFace(input, opts(fa)).withFaceLandmarks(true).withFaceDescriptor();
+  let r = await fa.detectSingleFace(input, opts(fa)).withFaceLandmarks(true).withFaceDescriptor();
+  if (!r) r = await fa.detectSingleFace(input, new fa.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.4 })).withFaceLandmarks(true).withFaceDescriptor();
   return r ? { descriptor: Array.from(r.descriptor), box: r.detection.box, score: r.detection.score } : null;
 }
 export async function startCamera(video) {
