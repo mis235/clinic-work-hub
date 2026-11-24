@@ -446,7 +446,12 @@ export const snapUrl = (id) => `${BASE}/api/kiosk/snap/${id}?token=${encodeURICo
 
 // The clinic phone talks to the server with its own limited key (it never signs in as a person).
 export const kioskApi = {
-  key: () => { let k = ""; try { k = localStorage.getItem("kioskKey") || ""; } catch {} if (!k) { const m = /key=([^&]+)/.exec(window.location.hash); if (m) { k = decodeURIComponent(m[1]); try { localStorage.setItem("kioskKey", k); } catch {} } } return k; },
+  key: () => { // the key lives in localStorage, and also in the address (?key= or #key=) so an iPhone home-screen icon, which has separate storage, still has it
+    let k = ""; try { k = localStorage.getItem("kioskKey") || ""; } catch {}
+    const m = /[?#&]key=([^&#]+)/.exec(window.location.search + window.location.hash);
+    if (m) { try { const f = decodeURIComponent(m[1]).replace(/[^\w.-]/g, ""); if (f) { k = f; localStorage.setItem("kioskKey", f); } } catch {} }
+    return k;
+  },
   async call(path, body) {
     const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 15000); // a stuck weak connection must fail, not hang
     let res; try { res = await fetch(`${BASE}/api/kiosk/${path}`, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json", Authorization: `Bearer ${kioskApi.key()}` }, body: body ? JSON.stringify(body) : undefined, signal: ctl.signal }); } finally { clearTimeout(timer); }

@@ -216,7 +216,7 @@ if (fs.existsSync(distDir)) {
     try {
       const m = JSON.parse(fs.readFileSync(path.join(distDir, "kiosk.webmanifest"), "utf8"));
       const k = String(req.query.key || "");
-      if (/^[\w.-]{20,1000}$/.test(k)) m.start_url = "/kiosk#key=" + k;
+      if (/^[\w.-]{20,1000}$/.test(k)) m.start_url = "/kiosk?key=" + k;
       res.set("Cache-Control", "no-cache").type("application/manifest+json").send(JSON.stringify(m));
     } catch { res.sendFile(path.join(distDir, "kiosk.webmanifest")); }
   });
