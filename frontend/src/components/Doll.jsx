@@ -31,7 +31,7 @@ const warm = () => { if (warmed) return; warmed = true; const go = () => Object.
 
 export default function Doll({ size = 210, mood = "idle", follow = true, className = "", userId, pet = false }) {
   const [temp, setTemp] = useState(null), [ok, setOk] = useState(true), wrap = useRef(null), tilt = useRef(null);
-  const state = temp || mood, boy = isMale(), src = boy ? B + (BOY[state] || "standing") + ".webp" : IMG[state] || IMG.idle, tall = !boy && TALL.has(src);
+  const state = temp || mood, boy = isMale(), src = boy ? B + (BOY[state] || "standing") + ".webp" : IMG[state] || IMG.idle, tall = boy ? state === "idle" : TALL.has(src);
   useEffect(warm, []);
   const taps = useRef({ n: 0, t: 0 }), tm = useRef(null);
   const react = (st, ms) => { setTemp(st); clearTimeout(tm.current); tm.current = setTimeout(() => setTemp(null), ms); };
@@ -69,7 +69,7 @@ export default function Doll({ size = 210, mood = "idle", follow = true, classNa
     <div ref={wrap} className={`doll s-${state} ${pet ? "pet" : ""} ${className}`} onClick={poke} style={{ width: size, height: Math.round(size * 0.92) }}>
       <div className="doll-tilt" ref={tilt}>
         <div className="doll-swap" key={src}>
-          <img src={src} alt="" decoding="async" draggable="false" className={boy ? "fit boy" : tall ? "tall" : "fit"} onError={() => setOk(false)} />
+          <img src={src} alt="" decoding="async" draggable="false" className={tall ? "tall" : "fit"} onError={() => setOk(false)} />
         </div>
       </div>
       {(BUBBLE[state] || (pet && MOTIVE[state])) && <span key={state} className={`doll-bubble b-${state}`}>{BUBBLE[state] || MOTIVE[state]}</span>}
