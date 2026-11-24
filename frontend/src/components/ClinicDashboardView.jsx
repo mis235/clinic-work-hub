@@ -39,6 +39,17 @@ export default function ClinicDashboardView({ user }) {
   };
   useEffect(() => { const t = setInterval(() => window.dispatchEvent(new CustomEvent("hub-search-mode", { detail: "none" })), 400); setTimeout(() => clearInterval(t), 4000); load(); return () => clearInterval(t) || void 0; }, []);
   useEffect(() => { return () => window.dispatchEvent(new CustomEvent("hub-search-mode", { detail: "pages" })); }, []);
+  // A newer file on the server shows up here by itself within 5 minutes, no reload needed.
+  useEffect(() => {
+    const t = setInterval(async () => {
+      try { const i = await (await fetch(`${BASE}/api/clinic-dashboard/info`, { headers: head() })).json(); if (i.exists && info?.updatedAt && i.updatedAt !== info.updatedAt) { setHtml(""); load(); } } catch {}
+    }, 5 * 60 * 1000);
+    return () => clearInterval(t);
+  }, [info?.updatedAt]);
+  const updateNow = async () => {
+    setMsg("Updating…");
+    try { const r = await fetch(`${BASE}/api/clinic-dashboard/auto`, { method: "POST", headers: { ...head(), "Content-Type": "application/json" }, body: JSON.stringify({ pullNow: true }) }); const j = await r.json().catch(() => ({})); setMsg(r.ok ? "Updated just now." : j.error || "Could not update."); if (r.ok) { setHtml(""); load(); } } catch { setMsg("Could not update."); }
+  };
   const upload = async (f) => {
     if (!f) return; setBusy(true); setErr("");
     try {
@@ -65,7 +76,7 @@ export default function ClinicDashboardView({ user }) {
   );
   return (
     <div className="cdv">
-      <div className="cdv-bar"><span className="meta">Updated {new Date(info.updatedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span><a className="btn btn-ghost btn-sm" href={LIVE_URL} target="_blank" rel="noopener noreferrer">Open live dashboard</a>{isAdmin && <><button className="btn btn-ghost btn-sm" onClick={openAuto}>Auto-update</button><button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => file.current.click()}>{busy ? "Replacing…" : "Replace file"}</button>{picker}{err && <span className="note warn">{err}</span>}</>}</div>
+      <div className="cdv-bar"><span className="meta">Updated {new Date(info.updatedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span><a className="btn btn-ghost btn-sm" href={LIVE_URL} target="_blank" rel="noopener noreferrer">Open live dashboard</a>{isAdmin && <><button className="btn btn-primary btn-sm" onClick={updateNow}>Update now</button>{msg && <span className="meta">{msg}</span>}<button className="btn btn-ghost btn-sm" onClick={openAuto}>Auto-update</button><button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => file.current.click()}>{busy ? "Replacing…" : "Replace file"}</button>{picker}{err && <span className="note warn">{err}</span>}</>}</div>
       {autoCard}
       {html ? <iframe title="Clinic dashboard" className="cdv-frame" srcDoc={html} sandbox="allow-scripts allow-same-origin allow-modals allow-downloads allow-popups" /> : <div className="empty">Loading…</div>}
     </div>

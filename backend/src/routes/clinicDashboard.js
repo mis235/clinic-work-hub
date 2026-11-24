@@ -42,7 +42,7 @@ async function pull() {
   if (!valid(t)) { set("dash_gh_etag", ""); throw new Error("That did not give the dashboard file."); } // old file stays
   save(t); set("dash_pull_status", "ok " + new Date().toISOString()); return t.length;
 }
-if (!process.env.DISABLE_CRON) setInterval(() => { if (get("dash_source_url") || (get("dash_gh_repo") && get("dash_gh_token"))) pull().catch((e) => set("dash_pull_status", "failed: " + e.message)); }, 3600 * 1000).unref?.();
+if (!process.env.DISABLE_CRON) setInterval(() => { if (get("dash_source_url") || (get("dash_gh_repo") && get("dash_gh_token"))) pull().catch((e) => set("dash_pull_status", "failed: " + e.message)); }, 20 * 60 * 1000).unref?.(); // every 20 minutes (nothing is downloaded unless GitHub has a newer file)
 
 // The nightly job sends the new file here with the key (no sign-in needed). Keep the key private.
 router.post("/push", express.text({ type: "*/*", limit: "40mb" }), (req, res) => {
