@@ -17,7 +17,8 @@ export default function KioskPage() {
   useEffect(() => {
     const link = document.querySelector('link[rel="manifest"]');
     const old = link?.getAttribute("href");
-    link?.setAttribute("href", "/kiosk.webmanifest");
+    const hk = /key=([^&]+)/.exec(window.location.hash)?.[1] || (() => { try { return encodeURIComponent(localStorage.getItem("kioskKey") || ""); } catch { return ""; } })();
+    link?.setAttribute("href", "/kiosk.webmanifest" + (hk ? "?key=" + hk : ""));
     const onPrompt = (e) => { e.preventDefault(); setInstallEvt(e); };
     window.addEventListener("beforeinstallprompt", onPrompt);
     return () => { window.removeEventListener("beforeinstallprompt", onPrompt); if (old) link?.setAttribute("href", old); };
@@ -31,9 +32,9 @@ export default function KioskPage() {
   const [lastIn, setLastIn] = useState(null);
 
   useEffect(() => {
-    // The setup link carries the phone's key once (#key=...). Save it and remove it from the address bar.
+    // The setup link carries the phone's key (#key=...). Save it, and keep it in the address for iPhone home-screen icons.
     const m = /key=([^&]+)/.exec(window.location.hash);
-    if (m) { try { localStorage.setItem("kioskKey", decodeURIComponent(m[1])); } catch {} history.replaceState(null, "", "/kiosk"); }
+    if (m) { try { localStorage.setItem("kioskKey", decodeURIComponent(m[1])); } catch {} } // the key stays in the address so "Add to Home Screen" on an iPhone keeps it
     const demo = /demo=(\w+)/.exec(window.location.hash)?.[1]; // #demo=look|check|in|out|fail|error|offline shows a screen without the camera
     if (demo) { const D = { look: { phase: "look", text: "Look at the camera" }, check: { phase: "check", text: "Checking…" }, in: { phase: "result", ok: true, text: "Welcome, Monika", sub: "Logged in 09:42 AM" }, out: { phase: "result", ok: true, text: "Goodbye, Monika", sub: "Logged out 06:31 PM · worked 8h 49m" }, fail: { phase: "result", ok: false, text: "Face not recognised", sub: "Face the light and look straight at the camera." }, error: { phase: "error", text: "Camera is blocked. Allow the camera and try again." }, offline: { phase: "offline", text: "No internet right now", sub: "Hold still. Trying again…" } }; setState(D[demo] || D.look); if (demo === "offline") setOnline(false); return; }
     let dead = false, stop = null, last = { id: "", at: 0 }, lock = null;

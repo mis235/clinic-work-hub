@@ -446,7 +446,7 @@ export const snapUrl = (id) => `${BASE}/api/kiosk/snap/${id}?token=${encodeURICo
 
 // The clinic phone talks to the server with its own limited key (it never signs in as a person).
 export const kioskApi = {
-  key: () => { try { return localStorage.getItem("kioskKey") || ""; } catch { return ""; } },
+  key: () => { let k = ""; try { k = localStorage.getItem("kioskKey") || ""; } catch {} if (!k) { const m = /key=([^&]+)/.exec(window.location.hash); if (m) { k = decodeURIComponent(m[1]); try { localStorage.setItem("kioskKey", k); } catch {} } } return k; },
   async call(path, body) {
     const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 15000); // a stuck weak connection must fail, not hang
     let res; try { res = await fetch(`${BASE}/api/kiosk/${path}`, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json", Authorization: `Bearer ${kioskApi.key()}` }, body: body ? JSON.stringify(body) : undefined, signal: ctl.signal }); } finally { clearTimeout(timer); }

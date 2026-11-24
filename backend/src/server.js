@@ -211,6 +211,15 @@ app.post("/api/jobs/run-checklist-digest", requireAuth, requirePermission("repor
 // app lives at one https address (no CORS, nothing else to host).
 const distDir = path.join(__dirname, "..", "..", "frontend", "dist");
 if (fs.existsSync(distDir)) {
+  // The Check-in app's manifest carries the phone's key in its start address, so a home-screen icon (iPhone keeps separate storage) still opens already set up.
+  app.get("/kiosk.webmanifest", (req, res) => {
+    try {
+      const m = JSON.parse(fs.readFileSync(path.join(distDir, "kiosk.webmanifest"), "utf8"));
+      const k = String(req.query.key || "");
+      if (/^[\w.-]{20,1000}$/.test(k)) m.start_url = "/kiosk#key=" + k;
+      res.set("Cache-Control", "no-cache").type("application/manifest+json").send(JSON.stringify(m));
+    } catch { res.sendFile(path.join(distDir, "kiosk.webmanifest")); }
+  });
   app.use(express.static(distDir));
   // The Check-in page is its own installable app: its page head carries the Check-in name, icon and manifest from the first byte,
   // so "Install" on that page never installs the Work Hub by mistake.
