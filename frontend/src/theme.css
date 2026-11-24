@@ -1468,3 +1468,10 @@ button, a, input, select, textarea, label { touch-action: manipulation; -webkit-
 }
 @media (max-width: 880px) { .login-card .roster-list { max-height: 132px !important; } }
 @media (max-width: 600px) { .bell-panel { left: 12px !important; right: 12px !important; width: auto !important; max-height: 78vh; overflow-y: auto; } }
+
+/* Nothing may sit on top of a pop-up or hide behind the top bar: pop-ups above everything, chat panel stays below the top bar */
+.modal-backdrop, .lib-modal { z-index: 3000 !important; }
+.toast { z-index: 4000 !important; }
+.lumi-panel { z-index: 150; height: min(480px, calc(100vh - 210px)) !important; max-height: calc(100vh - 210px); }
+.lumi-fab { z-index: 150; }
+@media (max-height: 640px) { .lumi-panel { height: calc(100vh - 190px) !important; } }

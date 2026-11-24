@@ -21,13 +21,13 @@ export default function ChangePinModal({ forced, onDone, onClose }) {
     <div className="modal-backdrop" onClick={forced ? undefined : onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="kpi-ico teal" style={{ marginBottom: 12 }}><Icon name="key" size={20} /></div>
-        <h3>{forced ? "Set your own PIN" : "Change your PIN"}</h3>
-        <p className="lead">{forced ? "For security, please replace the temporary PIN you were given with a PIN only you know." : "Choose a new 4-digit PIN."}</p>
-        <label className="field-label">Current PIN</label>
+        <h3>{forced ? "Create your own PIN" : "Change your PIN"}</h3>
+        <p className="lead">{forced ? "The PIN you were given is temporary. Choose a new 4-digit PIN that only you know." : "Choose a new 4-digit PIN."}</p>
+        <label className="field-label">Temporary PIN (the one you just signed in with)</label>
         <input className="field" type="password" inputMode="numeric" value={cur} onChange={digits(setCur)} />
         <label className="field-label">New PIN (4 digits, not 1234)</label>
         <input className="field" type="password" inputMode="numeric" value={pin} onChange={digits(setPin)} />
-        <label className="field-label">Confirm New PIN</label>
+        <label className="field-label">Type the new PIN again</label>
         <input className="field" type="password" inputMode="numeric" value={again} onChange={digits(setAgain)} />
         {err && <div className="login-error">{err}</div>}
         <div className="actions">
