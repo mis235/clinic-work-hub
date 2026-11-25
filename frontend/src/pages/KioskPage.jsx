@@ -100,6 +100,13 @@ export default function KioskPage() {
     return () => { dead = true; clearInterval(beat); document.removeEventListener("visibilitychange", onVis); try { lock?.release(); } catch {} stop?.(); };
   }, []);
 
+  const [paste, setPaste] = useState("");
+  const saveSetup = () => { // fallback for an iPhone home-screen icon that lost the key: paste the setup link here once
+    const m = /(eyJ[\w-]+\.[\w-]+\.[\w-]+)/.exec(paste.replace(/\s/g, ""));
+    if (!m) { setState({ phase: "error", text: "That is not the setup link. Copy the whole link and paste it here." }); return; }
+    try { localStorage.setItem("kioskKey", m[1]); } catch {}
+    window.location.reload();
+  };
   const out = state.ok && /^Goodbye|logged out/i.test(state.text || "");
   const mood = state.phase === "result" ? (state.ok ? (out ? "closing" : "celebrate") : "error") : state.phase === "error" || state.phase === "offline" ? "worried" : state.phase === "check" ? "idea" : "hello";
   const tone = state.phase === "result" ? (state.ok ? "ok" : "bad") : state.phase === "error" ? "bad" : state.phase === "check" || state.phase === "offline" ? "wait" : "look";
@@ -118,6 +125,12 @@ export default function KioskPage() {
         </div>
         {state.phase === "result" && state.ok && <div className="lumi-confetti" aria-hidden>{Array.from({ length: 28 }, (_, i) => <i key={i} style={{ left: `${(i * 37) % 100}%`, background: ["#9472C8", "#FF9B7A", "#7DCB9F", "#F7C85C", "#FF6B8B"][i % 5], animationDelay: `${(i % 7) * 0.12}s` }} />)}</div>}
         <div className="kiosk-msg"><h2>{state.text}</h2>{state.sub && <p>{state.sub}</p>}</div>
+        {state.phase === "error" && !kioskApi.key() && (
+          <div className="kiosk-install">
+            <input value={paste} onChange={(e) => setPaste(e.target.value)} placeholder="Paste the setup link here" autoCapitalize="none" autoCorrect="off" spellCheck={false} style={{ width: "100%", padding: "10px 12px", borderRadius: 12, border: "1px solid #cdbbe6", fontSize: 16 }} />
+            <button onClick={saveSetup} style={{ marginTop: 8 }}>Save setup</button>
+          </div>
+        )}
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12.5, opacity: 0.85, margin: "6px 4px 0" }}>
           <span><i style={{ display: "inline-block", width: 9, height: 9, borderRadius: 99, marginRight: 6, background: online ? "#4cc38a" : "#f2a33a" }} />{online ? "Online" : "Weak internet"}</span>
           {lastIn && <span>Last: {lastIn.name} · {lastIn.out ? "out" : "in"} {lastIn.time}</span>}
