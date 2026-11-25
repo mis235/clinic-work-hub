@@ -217,6 +217,7 @@ if (fs.existsSync(distDir)) {
       const m = JSON.parse(fs.readFileSync(path.join(distDir, "kiosk.webmanifest"), "utf8"));
       const k = String(req.query.key || "");
       if (/^[\w.-]{20,1000}$/.test(k)) m.start_url = "/kiosk?key=" + k;
+      if (/iPhone|iPad|iPod/i.test(req.headers["user-agent"] || "")) m.display = "browser"; // iPhone: the icon opens in Safari, which keeps the setup (an iPhone app icon has its own empty storage)
       res.set("Cache-Control", "no-cache").type("application/manifest+json").send(JSON.stringify(m));
     } catch { res.sendFile(path.join(distDir, "kiosk.webmanifest")); }
   });
@@ -229,6 +230,7 @@ if (fs.existsSync(distDir)) {
         .replace('href="/manifest.json"', 'href="/kiosk.webmanifest"')
         .replace('<meta name="theme-color" content="#C42F8F"', '<meta name="theme-color" content="#2a1b3d"')
         .replace('content="Work Hub" />', 'content="Check-in" />')
+        .replace(/iPhone|iPad|iPod/i.test(req.headers["user-agent"] || "") ? '<meta name="apple-mobile-web-app-capable" content="yes" />' : "\u0000", '<meta name="apple-mobile-web-app-capable" content="no" />')
         .replace('<link rel="apple-touch-icon" href="/apple-touch-icon.png" />', '<link rel="apple-touch-icon" href="/kiosk-apple-touch-icon.png" />')
         .replace('<link rel="icon" type="image/png" href="/icon-192.png" />', '<link rel="icon" type="image/png" href="/kiosk-192.png" />')
         .replace(/<title>[^<]*<\/title>/, "<title>Clinic Check-in</title>");
