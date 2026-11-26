@@ -13,6 +13,7 @@ import db from "../db.js";
 import { withFines } from "./fines.js";
 import { inWords } from "../words.js";
 import { requireAuth } from "../middleware/auth.js";
+import { notifyUser } from "../engage.js";
 import { DOC_CHECKLIST } from "./users.js";
 import { RECORD_TYPES, ADMIN_ONLY_TYPES } from "../staffFiles.js";
 import { sendEmail, isEmailConfigured, friendlyMailError } from "../email.js";
@@ -93,7 +94,18 @@ documentsRouter.get("/staff/:userId", requireAuth, (req, res) => {
   res.json({ types: DOC_CHECKLIST, files: visible, recordTypes: RECORD_TYPES.filter((t) => t.key !== "offer_letter" && (isAdmin(req) || !ADMIN_ONLY_TYPES.includes(t.key))), offerLetters, canManage: isAdmin(req) });
 });
 
-documentsRouter.post("/staff/:userId", requireAuth, adminOnly, docUpload.single("file"), (req, res) => {
+// Admin can add to anyone's file. A person can add only the required papers (ID, address proof, photo, bank details) to their own file.
+const SELF_EXT = new Set([".pdf", ".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"]);
+documentsRouter.post("/staff/:userId", requireAuth, (req, res, next) => {
+  if (req.params.userId === "me") req.params.userId = req.user.userId;
+  if (isAdmin(req)) return next();
+  if (req.params.userId === req.user.userId) { req.selfUpload = true; return next(); }
+  res.status(403).json({ error: "Not allowed" });
+}, docUpload.single("file"), (req, res) => {
+  if (req.selfUpload) {
+    const bad = !req.file ? "Choose a file" : !DOC_CHECKLIST.find((t) => t.key === req.body?.docType) ? "Choose which paper this is" : !SELF_EXT.has(path.extname(req.file.originalname || "").toLowerCase()) ? "Use a photo (JPG, PNG) or a PDF" : req.file.size > 15 * 1024 * 1024 ? "The file is too big (15 MB limit)" : "";
+    if (bad) { if (req.file) fs.rm(req.file.path, { force: true }, () => {}); return res.status(400).json({ error: bad }); }
+  }
   const user = db.prepare("SELECT id, department_id, onboarding_docs FROM users WHERE id = ?").get(req.params.userId);
   if (!user) return res.status(404).json({ error: "Staff member not found" });
   if (!req.file) return res.status(400).json({ error: "Choose a file" });
@@ -107,6 +119,9 @@ documentsRouter.post("/staff/:userId", requireAuth, adminOnly, docUpload.single(
   if (type) { // uploading the paper marks it as collected in the onboarding checklist
     const merged = { ...(user.onboarding_docs ? JSON.parse(user.onboarding_docs) : {}), [type.key]: true };
     db.prepare("UPDATE users SET onboarding_docs = ? WHERE id = ?").run(JSON.stringify(merged), user.id);
+  }
+  if (req.selfUpload) { // tell the admin a person has handed in a paper
+    try { const who = db.prepare("SELECT name FROM users WHERE id = ?").get(user.id)?.name || "A staff member"; for (const a of db.prepare("SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id WHERE u.active = 1 AND r.name = 'admin'").all()) notifyUser(a.id, "doc_uploaded", `${who} uploaded: ${type?.label}`, `${who} added "${fixName(req.file.originalname)}" to their file. Please check it in Staff → their profile.`); } catch (e) { console.error("doc notify:", e.message); }
   }
   res.status(201).json({ id });
 });

@@ -223,6 +223,7 @@ router.put("/settings", requireAuth, (req, res) => {
     if (b[k] === undefined) continue;
     const v = Number(b[k]);
     if (!Number.isFinite(v) || v < 0 || v > 100000) return res.status(400).json({ error: `Check the number for ${k}` });
+    if (k === "halfday_pct" && (v < 10 || v > 100)) return res.status(400).json({ error: "Half-day percentage must be between 10 and 100" });
     db.prepare("INSERT INTO app_settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run("hr_" + k, String(v));
     cur[k] = v;
   }

@@ -228,7 +228,7 @@ function Birthdays() {
 function Rules({ cfg, onSaved }) {
   const [s, setS] = useState(cfg.settings); const [msg, setMsg] = useState(null);
   const F = [["casual_per_month", "Free casual leave days per month", "Beyond this, each day cuts one day's salary"], ["salary_divisor", "Days used for one day's salary", "Basic + allowances ÷ this number (30 = per calendar month)"],
-    ["late_grace_min", "Minutes allowed after shift start", "More than this = late"], ["late_limit", "Fine after every … late arrivals", "e.g. 3"], ["late_fine", "Fine amount (₹)", "Added to the payslip automatically"]];
+    ["late_grace_min", "Minutes allowed after shift start", "More than this = late"], ["late_limit", "Fine after every … late arrivals", "e.g. 3"], ["late_fine", "Fine amount (₹)", "Added to the payslip automatically"], ["halfday_pct", "Half day when worked less than … % of the shift", "50 = less than half of the shift hours becomes a Half day"]];
   async function save() { try { const r = await api.saveLeaveRules(s); onSaved(r); setMsg({ ok: true, t: "Saved." }); } catch (e) { setMsg({ ok: false, t: e.message }); } }
   return (
     <div className="card">

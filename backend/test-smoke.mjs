@@ -261,6 +261,19 @@ try {
   ok("another person cannot download it", (await rawF(`/api/documents/${sf.body.id}/file`, otok)).status === 403);
   ok("other staff cannot download it", (await rawF(`/api/documents/${sf.body.id}/file`, otok)).status === 403);
   ok("admin can remove a personal file (and the tick clears)", (await call("DELETE", `/api/documents/${sf.body.id}`, null, admin)).status === 200 && (await call("GET", "/api/users/onboarding", null, admin)).body.people.find((x) => x.id === staff.id)?.docs?.id_proof === false);
+  { // a person hands in their own papers
+    const mk = (type, name, body = "x") => { const f = new FormData(); if (type) f.append("docType", type); f.append("file", new Blob([body]), name); return f; };
+    const own = await form("POST", "/api/documents/staff/me", mk("id_proof", "aadhaar.pdf", "%PDF-1.4"), stoken);
+    ok("staff can upload their own required paper", own.status === 201, JSON.stringify(own.body));
+    ok("the uploaded paper shows on their My Documents", (await call("GET", "/api/documents/staff/me", null, stoken)).body?.files?.some((f) => f.doc_type === "id_proof"));
+    ok("staff must say which paper it is", (await form("POST", "/api/documents/staff/me", mk(null, "a.pdf"), stoken)).status === 400);
+    ok("staff cannot add letters or records to their own file", (await form("POST", "/api/documents/staff/me", mk("offer_letter", "a.pdf"), stoken)).status === 400);
+    ok("staff upload must be a photo or PDF", (await form("POST", "/api/documents/staff/me", mk("id_proof", "run.exe"), stoken)).status === 400);
+    const other = (await call("GET", "/api/users/full", null, admin)).body?.find?.((u) => u.id !== staff.id && u.role === "staff");
+    ok("staff upload test found another person", !!other);
+    if (other) ok("staff cannot upload to someone else's file", (await form("POST", `/api/documents/staff/${other.id}`, mk("id_proof", "a.pdf"), stoken)).status === 403);
+    await call("DELETE", `/api/documents/${own.body.id}`, null, stoken);
+  }
 
   // Training videos: link + upload + edit + delete
   const tv = await call("POST", "/api/hr/training-videos", { department: "Front Desk", title: "Welcome", url: "https://youtu.be/dQw4w9WgXcQ" }, admin);
@@ -614,6 +627,9 @@ try {
     }
     ok("rejecting later removes it from the register", (await call("GET", `/api/attendance/board?date=${dF}`, null, admin)).body.rows?.find((r) => r.id === lvTarget.id)?.mark == null);
     ok("HR can change the rules", (await call("PUT", "/api/leave/settings", { late_fine: 150 }, hrTok)).body?.late_fine === 150);
+    ok("HR can change the half-day percentage", (await call("PUT", "/api/leave/settings", { halfday_pct: 40 }, hrTok)).body?.halfday_pct === 40);
+    ok("a silly half-day percentage is refused", (await call("PUT", "/api/leave/settings", { halfday_pct: 5 }, hrTok)).status === 400);
+    await call("PUT", "/api/leave/settings", { halfday_pct: 50 }, hrTok);
     ok("staff cannot change the rules", (await call("PUT", "/api/leave/settings", { late_fine: 1 }, lvTok)).status === 403);
 
     // late arrivals -> automatic fine after 3

@@ -15,7 +15,10 @@ export default function MyPayslips() {
         <div key={s.id} className="task-row" style={{ alignItems: "center" }}>
           <div style={{ flex: 1 }}><div className="title">{new Date(s.pay_period + "-01T00:00:00Z").toLocaleDateString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" })}</div>
             <div className="meta">Net ₹{Math.round(s.net_payable).toLocaleString("en-IN")}</div></div>
-          <button className="btn btn-outline btn-sm" onClick={() => api.openPayslip(s.id)}>View PDF</button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn btn-outline btn-sm" onClick={() => api.openPayslip(s.id)}>View</button>
+            <button className="btn btn-primary btn-sm" onClick={() => api.downloadPayslip(s.id, `Payslip-${s.pay_period}.pdf`).catch((e) => alert(e.message))}>Download</button>
+          </div>
         </div>))}
     </div>
   );

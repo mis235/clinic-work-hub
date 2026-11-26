@@ -3,6 +3,7 @@ import { api } from "./api.js";
 import Login from "./pages/Login.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import StaffDashboard from "./pages/StaffDashboard.jsx";
+import MyDocumentsPage from "./pages/MyDocumentsPage.jsx";
 import PoliciesPage from "./pages/PoliciesPage.jsx";
 import LibraryPage from "./pages/LibraryPage.jsx";
 import ReportsPage from "./pages/ReportsPage.jsx";
@@ -41,7 +42,7 @@ import ChangePinModal from "./components/ChangePinModal.jsx";
 const VIEW_KEY = {
   "Dashboard": "dashboard", "AI Advisors": "assistant", "Policies": "policies", "SOPs": "sops", "Reports": "reports",
   "About": "about", "Learning": "learning", "Events": "events", "Auto Messages": "automessages", "HR": "hr", "Payroll": "payroll", "Staff": "staff",
-  "Assistant": "assistant", "Help": "help", "Tracker": "tracker", "Shift Checklist": "shiftchecklist", "Procedure Rooms": "rooms", "Grooming": "grooming", "Shift Logs": "dashboards", "Onboarding": "onboarding", "System": "system", "Attendance": "attendance", "Clinic Assistant": "clinicassistant", "Dashboards": "dashboards", "Documents": "documents", "Departments": "departments", "Roster": "roster", "Exits": "exits", "Leave": "leave", "My Profile": "myprofile",
+  "Assistant": "assistant", "Help": "help", "Tracker": "tracker", "Shift Checklist": "shiftchecklist", "Procedure Rooms": "rooms", "Grooming": "grooming", "Shift Logs": "dashboards", "Onboarding": "onboarding", "System": "system", "Attendance": "attendance", "Clinic Assistant": "clinicassistant", "My Documents": "mydocs", "Dashboards": "dashboards", "Documents": "documents", "Departments": "departments", "Roster": "roster", "Exits": "exits", "Leave": "leave", "My Profile": "myprofile",
 };
 
 export default function App() {
@@ -113,6 +114,7 @@ function MainApp() {
     if (view === "dashboards") return <ClinicDashboardPage user={user} onLogout={logout} onBack={navigate} onNavigate={navigate} />;
     if (view === "exits" && (user.role === "admin" || user.isHr)) return <ExitsPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "onboarding" && (user.role === "admin" || user.isHr)) return <OnboardingPage user={user} onLogout={logout} onBack={navigate} onOpenProfile={() => navigate("Staff")} />;
+    if (view === "mydocs" && user.role === "manager") return <MyDocumentsPage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "leave") return <LeavePage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "attendance") return <AttendancePage user={user} onLogout={logout} onBack={navigate} />;
     if (view === "departments") return <DepartmentsPage user={user} onLogout={logout} onBack={navigate} onOpenProfile={(id) => openProfile(id, "Departments")} />;

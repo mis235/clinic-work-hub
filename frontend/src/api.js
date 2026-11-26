@@ -374,6 +374,7 @@ export const api = {
   listPayslips: () => req("/api/payroll"),
   editPayslip: (id, body) => req(`/api/payroll/${id}`, { method: "PUT", body }),
   sendPayslip: (id) => req(`/api/payroll/${id}/send`, { method: "POST" }),
+  downloadPayslip: (id, name) => downloadFile(`/api/payroll/${id}/pdf`, name),
   async openPayslip(id) {
     const w = window.open("", "_blank");
     try {
