@@ -193,15 +193,6 @@ function FacePanel({ date, people, isAdmin, flash }) {
     api.kioskLog(date).then(setLog).catch(() => setLog([]));
   };
   useEffect(load, [date]);
-  async function newPhone() {
-    try { const d = await api.createKioskDevice("Clinic phone"); const host = window.location.hostname;
-      const phoneReachable = host !== "localhost" && host !== "127.0.0.1";
-      const ip = lan?.addresses?.[0];
-      let origin = window.location.origin;
-      if (!phoneReachable && lan?.tunnelUrl) origin = lan.tunnelUrl;
-      else if (!phoneReachable && ip) origin = lan.httpsPort ? `https://${ip}:${lan.httpsPort}` : `http://${ip}:${lan.httpPort}`;
-      setLink(`${origin}/kiosk?key=${encodeURIComponent(d.key)}`); load(); } catch (e) { flash(e.message); }
-  }
   const secure = window.isSecureContext;
   const [geo, setGeo] = useState(null), [geoBusy, setGeoBusy] = useState(false);
   useEffect(() => { if (isAdmin) api.kioskGeo().then(setGeo).catch(() => {}); }, [isAdmin]);
@@ -224,31 +215,14 @@ function FacePanel({ date, people, isAdmin, flash }) {
       {isAdmin && (
         <div className="card">
           <div className="title">Clinic Check-in Link</div>
-          <ol className="meta" style={{ lineHeight: 1.8, paddingLeft: 18 }}>
-            <li>This is the <b>one link</b> for every clinic phone. Send it on WhatsApp and open it on each phone.</li>
-            <li>Allow the <b>camera</b> and <b>location</b> when asked. Then add it to the home screen.</li>
-            <li>Keep the phone at the front desk with the screen on and plugged in.</li>
-          </ol>
-          {link && <div style={{ marginTop: 6 }}>
+          {link && <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
             <input className="field" readOnly value={link} onFocus={(e) => e.target.select()} />
-            <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-              <button className="btn btn-primary btn-sm" onClick={() => { try { navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 2500); } catch {} }}>{copied ? "Copied" : "Copy link"}</button>
-              <a className="btn btn-outline btn-sm" target="_blank" rel="noreferrer" href={`https://wa.me/?text=${encodeURIComponent("Clinic check-in link: " + link)}`}>Send on WhatsApp</a>
-            </div>
-            <div className="meta" style={{ marginTop: 6 }}>Keep it private — anyone with it can use the check-in screen. It does not change, so phones never need a new link.</div></div>}
-          <div className="title" style={{ marginTop: 16 }}>Phones using the link</div>
-          {phones.length === 0 && <div className="meta">No phone has opened the link yet.</div>}
+            <button className="btn btn-primary btn-sm" onClick={() => { try { navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 2500); } catch {} }}>{copied ? "Copied" : "Copy"}</button>
+          </div>}
           {phones.map((p) => (
-            <div key={p.id} className="task-row"><div><div className="title">{p.label}{p.blocked_at ? " · switched off" : ""}</div><div className="meta">First opened {p.first_seen?.slice(0, 10)} · last used {p.last_seen ? new Date(p.last_seen.replace(" ", "T") + "Z").toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "never"} · {p.today} check-in{p.today === 1 ? "" : "s"} today</div></div>
+            <div key={p.id} className="task-row"><div><div className="title">{p.label}{p.blocked_at ? " · off" : ""}</div><div className="meta">Last used {p.last_seen ? new Date(p.last_seen.replace(" ", "T") + "Z").toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "never"} · {p.today} today</div></div>
               <button className="btn btn-ghost btn-sm" onClick={async () => { await api.saveKioskPhone(p.id, { blocked: !p.blocked_at }); load(); }}>{p.blocked_at ? "Switch on" : "Switch off"}</button></div>
           ))}
-          {devices.filter((d) => !d.revoked_at && !/all phones/.test(d.label)).length > 0 && <>
-            <div className="title" style={{ marginTop: 16 }}>Older phone links (still working)</div>
-            <div className="meta">These keep working so no phone needs resetting. Switch off any you no longer use.</div>
-            {devices.filter((d) => !d.revoked_at && !/all phones/.test(d.label)).map((d) => (
-              <div key={d.id} className="task-row"><div><div className="title">{d.label}</div><div className="meta">Set up {d.created_at?.slice(0, 10)} · last used {d.last_seen ? d.last_seen.replace("T", " ").slice(0, 16) + " UTC" : "never"}</div></div>
-                <button className="btn btn-ghost btn-sm" onClick={async () => { await api.revokeKioskDevice(d.id); load(); }}>Switch off</button></div>
-            ))}</>}
         </div>
       )}
 
