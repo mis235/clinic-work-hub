@@ -509,6 +509,8 @@ CREATE TABLE IF NOT EXISTS face_checkins (
 ensureColumn("generated_docs", "emailed_at", "emailed_at TEXT");
 ensureColumn("generated_docs", "email_error", "email_error TEXT");
 ensureColumn("face_checkins", "kind", "kind TEXT");
+ensureColumn("face_checkins", "undone_at", "undone_at TEXT");
+ensureColumn("face_checkins", "prev", "prev TEXT");
 ensureColumn("attendance", "note", "note TEXT");
 ensureColumn("attendance", "selfie_path", "selfie_path TEXT");
 ensureColumn("users", "shift_start", "shift_start TEXT");

@@ -29,7 +29,7 @@ export default function KioskPage() {
     else setShowHow((v) => !v);
   };
 
-  const confirmRef = useRef(null);
+  const confirmRef = useRef(null), undoRef = useRef(null);
   const [online, setOnline] = useState(true);
   const [lastIn, setLastIn] = useState(null);
 
@@ -80,19 +80,28 @@ export default function KioskPage() {
           };
           setState({ phase: "confirm", text: `Leaving now, ${r.name}?`, sub: `You checked in at ${t12(r.inTime)}. Tap Yes only if you are going home.` });
         };
+        let lastOk = null; // the last recorded person, so the "Not me" button stays while they stand there
+        undoRef.current = async (id) => {
+          try { await kioskApi.call("undo", { id }); } catch (e) { setState({ phase: "result", ok: false, text: "Could not cancel", sub: e.message }); return; }
+          lastOk = null; last = { at: Date.now() + 1500 }; setLastIn(null);
+          setState({ phase: "result", ok: false, text: "Cancelled", sub: "Nothing was recorded. Please look at the camera again." });
+          setTimeout(() => setState((s) => (s.phase === "result" ? { phase: "look", text: "Look at the camera" } : s)), 3000);
+        };
         const showResult = (r, payload) => {
           if (r.confirmOut) { askOut(r, payload); return; }
+          if (r.matched && r.already && lastOk && lastOk.name === r.name && Date.now() - lastOk.at < 6500) return; // same person still in front of the camera: keep the first answer on screen
             if (r.matched) {
               const out = r.kind === "out";
               const hr = new Date().getHours(), greet = hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";
               setLastIn({ name: r.name, time: t12(r.time), out });
-              setState({ phase: "result", ok: true, out,
+              if (!r.already) lastOk = { name: r.name, at: Date.now() };
+              setState({ phase: "result", ok: true, out, undoId: r.undoId,
                 text: r.already ? r.name : out ? `Thank you, ${r.name}` : `${greet}, ${r.name}`,
                 sub: r.already ? `${out ? "Check-out" : "Check-in"} already recorded at ${t12(r.time)}` : out ? `Check-out recorded at ${t12(r.time)}${r.workedMinutes ? ` · Worked ${hm(r.workedMinutes)}` : ""}${r.message ? ` · ${r.message}` : ""}` : `Check-in recorded at ${t12(r.time)} · ${r.label}${r.late ? ` · ${r.late} min late. Please add the reason in the Work Hub app.` : ""}` });
             } else if (r.needLocation) setState({ phase: "result", ok: false, text: "Location is needed", sub: "Allow Location for this website and try again." });
             else if (r.outside) setState({ phase: "result", ok: false, text: "You are outside the clinic", sub: "Check-in works only at the clinic." });
             else setState({ phase: "result", ok: false, text: r.ambiguous ? "Please try again" : "Face not recognised", sub: r.ambiguous ? "Stand alone in front of the camera and look straight at it." : "Face the light and look straight at the camera. Ask the admin if it keeps happening." });
-          setTimeout(() => setState((s) => (s.phase === "result" ? { phase: "look", text: "Look at the camera" } : s)), 3000);
+          setTimeout(() => setState((s) => (s.phase === "result" ? { phase: "look", text: "Look at the camera" } : s)), r.matched && !r.already ? 6000 : 3000);
         };
         while (!dead) {
           await sleep(250);
@@ -103,12 +112,14 @@ export default function KioskPage() {
             if (Date.now() - last.at < 2800) continue; // keep showing the last result for a moment
             if (geoOn && (!pos || Date.now() - pos.at > 10 * 60000)) { setState({ phase: "error", text: posErr === 1 ? "Location is blocked" : "Getting the clinic location…", sub: posErr === 1 ? "Allow Location for this website (iPhone: Settings → Privacy → Location Services → Safari Websites), then try again." : "Please wait a moment." }); await sleep(1500); continue; }
             setState({ phase: "check", text: "Checking…" });
-            const body = { descriptor: f.descriptor, snapshot: snapshotJpeg(video.current, 200), pos: geoOn && pos ? { lat: pos.lat, lng: pos.lng, acc: pos.acc } : undefined };
+            await sleep(150); // a second look a moment later: both looks must agree before anyone is marked
+            const f2 = await scanFace(video.current, "kiosk").catch(() => null);
+            if (!f2 || !f2.ok) continue;
+            const body = { descriptor: f.descriptor, descriptors: [f.descriptor, f2.descriptor], snapshot: snapshotJpeg(video.current, 200), pos: geoOn && pos ? { lat: pos.lat, lng: pos.lng, acc: pos.acc } : undefined };
             const r = await kioskApi.call("checkin", body);
             setOnline(true);
             last = { at: Date.now() };
             showResult(r, body);
-            setTimeout(() => setState((s) => (s.phase === "result" ? { phase: "look", text: "Look at the camera" } : s)), 3000);
           } catch (e) {
             if (dead) return;
             if (!net(e)) throw e; // the server refused (phone switched off, bad key): stop and say so
@@ -151,6 +162,11 @@ export default function KioskPage() {
         </div>
         {state.phase === "result" && state.ok && <div className="lumi-confetti" aria-hidden>{Array.from({ length: 28 }, (_, i) => <i key={i} style={{ left: `${(i * 37) % 100}%`, background: ["#9472C8", "#FF9B7A", "#7DCB9F", "#F7C85C", "#FF6B8B"][i % 5], animationDelay: `${(i % 7) * 0.12}s` }} />)}</div>}
         <div className="kiosk-msg"><h2>{state.text}</h2>{state.sub && <p>{state.sub}</p>}</div>
+        {state.phase === "result" && state.ok && state.undoId && (
+          <div style={{ display: "flex", justifyContent: "center", margin: "8px 0 2px" }}>
+            <button className="btn btn-outline btn-sm" onClick={() => undoRef.current?.(state.undoId)}>Not me? Tap to cancel</button>
+          </div>
+        )}
         {state.phase === "confirm" && (
           <div style={{ display: "flex", gap: 10, margin: "10px 0 4px" }}>
             <button className="btn btn-primary" style={{ flex: 1, padding: "14px 8px", fontSize: 16 }} onClick={() => confirmRef.current?.yes()}>Yes, I am leaving</button>

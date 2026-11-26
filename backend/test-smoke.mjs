@@ -435,7 +435,7 @@ try {
   { // repeated and accidental looks (the clock is set by the test header)
     const sp = allU.filter((u) => u.role === "staff" && ![mkd.body.id, faceOther.id].includes(u.id));
     const today = new Date(Date.now() + 19800000).toISOString().slice(0, 10);
-    const scan = (seed, at, extra = {}) => fetch(base + "/api/kiosk/checkin", { method: "POST", headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X)", "x-test-now": `${today}T${at}`, Authorization: `Bearer ${kdev.body.key}` }, body: JSON.stringify({ descriptor: fdesc(seed), ...extra }) }).then((r) => r.json());
+    const scan = (seed, at, extra = {}, day = today) => fetch(base + "/api/kiosk/checkin", { method: "POST", headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X)", "x-test-now": `${day}T${at}`, Authorization: `Bearer ${kdev.body.key}` }, body: JSON.stringify({ descriptor: fdesc(seed), ...extra }) }).then((r) => r.json());
     if (sp.length >= 2) {
       await call("POST", `/api/kiosk/enroll/${sp[0].id}`, { descriptors: [120, 120, 120].map(fdesc) }, admin);
       await call("POST", `/api/kiosk/enroll/${sp[1].id}`, { descriptors: [150, 150, 150].map(fdesc) }, admin);
@@ -452,7 +452,23 @@ try {
       await scan(150, "10:00");
       const b2 = await scan(150, "19:00");
       ok("near the end of the shift a look is the check-out with no question", b2.kind === "out" && b2.outTime === "19:00" && !b2.confirmOut, JSON.stringify(b2));
+      // two looks must agree, and a wrong name can be cancelled
+      const dis = await scan(120, "09:20", { descriptors: [fdesc(120), fdesc(150)] });
+      ok("two looks that point to different people mark no one", dis.matched === false && dis.ambiguous === true, JSON.stringify(dis));
       await call("DELETE", `/api/kiosk/enroll/${sp[0].id}`, null, admin); await call("DELETE", `/api/kiosk/enroll/${sp[1].id}`, null, admin);
+      await call("POST", `/api/kiosk/enroll/${sp[0].id}`, { descriptors: [121, 121, 121].map(fdesc) }, admin);
+      const D0 = "2026-01-05", two = [fdesc(121), fdesc(121)];
+      const u1 = await scan(121, "09:25", { descriptors: two }, D0);
+      ok("two agreeing looks mark the person and offer a cancel", u1.matched && u1.kind === "in" && !!u1.undoId, JSON.stringify(u1));
+      const kcall = (path, body) => call("POST", path, body, kdev.body.key);
+      ok("'Not me' cancels the check-in", (await kcall("/api/kiosk/undo", { id: u1.undoId })).body?.ok === true);
+      const u2 = await scan(121, "09:26", { descriptors: two }, D0);
+      ok("after the cancel the day is back as it was (the next look is a fresh check-in)", u2.matched && u2.kind === "in" && u2.already === false && u2.inTime === "09:26", JSON.stringify(u2));
+      ok("cancelling twice is harmless", (await kcall("/api/kiosk/undo", { id: u1.undoId })).body?.already === true);
+      await scan(121, "12:30", { descriptors: two, confirmOut: true }, D0);
+      ok("an older check-in cannot be cancelled once a later one exists", (await kcall("/api/kiosk/undo", { id: u2.undoId })).status === 400);
+      ok("another phone's check-in cannot be cancelled", (await kcall("/api/kiosk/undo", { id: "nope" })).status === 404);
+      await call("DELETE", `/api/kiosk/enroll/${sp[0].id}`, null, admin);
     }
   }
   const brd2 = (await call("GET", "/api/attendance/board", null, admin)).body;

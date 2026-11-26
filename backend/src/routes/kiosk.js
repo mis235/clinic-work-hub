@@ -125,7 +125,7 @@ router.get("/log", requireAuth, requirePermission("attendance:view_all"), (req, 
   res.json(db.prepare(
     `SELECT f.id, u.name, f.mark, f.kind, f.distance, f.created_at, (f.snapshot_path IS NOT NULL) AS has_snap
      FROM face_checkins f JOIN users u ON u.id = f.user_id
-     WHERE date(f.created_at,'+5 hours','+30 minutes') = ? ORDER BY f.created_at DESC`).all(date));
+     WHERE date(f.created_at,'+5 hours','+30 minutes') = ? AND f.undone_at IS NULL ORDER BY f.created_at DESC`).all(date));
 });
 router.get("/snap/:id", (req, res, next) => { if (!req.headers.authorization && req.query.token) req.headers.authorization = `Bearer ${req.query.token}`; next(); },
   requireAuth, requirePermission("attendance:view_all"), (req, res) => {
@@ -176,21 +176,23 @@ router.post("/checkin", requireKiosk, (req, res) => {
     const away = Math.round(Math.min(...g.points.map((p) => metres(p.lat, p.lng, la, lo))));
     if (away - acc > g.radius) return res.json({ matched: false, outside: true, away });
   }
-  const per = new Map(); // best distance per person
-  for (const t of db.prepare("SELECT t.user_id, t.descriptors, u.name FROM face_templates t JOIN users u ON u.id = t.user_id WHERE u.active = 1").all()) {
-    let d = Infinity;
-    for (const x of JSON.parse(t.descriptors)) d = Math.min(d, dist(descriptor, x));
-    per.set(t.user_id, { userId: t.user_id, name: t.name, distance: d });
+  const tpls = db.prepare("SELECT t.user_id, t.descriptors, u.name FROM face_templates t JOIN users u ON u.id = t.user_id WHERE u.active = 1").all().map((t) => ({ ...t, list: JSON.parse(t.descriptors) }));
+  const rankFor = (desc) => tpls.map((t) => { let d = Infinity; for (const x of t.list) d = Math.min(d, dist(desc, x)); return { userId: t.user_id, name: t.name, distance: d }; }).sort((a, b) => a.distance - b.distance);
+  // The phone sends two looks taken a moment apart: both must point to the same person, each clearly (one blurry look can never mark someone).
+  const looks = Array.isArray(req.body?.descriptors) && req.body.descriptors.length === 2 && req.body.descriptors.every(okDesc) ? req.body.descriptors : [descriptor];
+  const ranks = looks.map(rankFor);
+  for (const ranked of ranks) {
+    if (!ranked[0] || ranked[0].distance > MATCH_DISTANCE) return res.json({ matched: false });
+    // Two different people both fit: refuse rather than mark the wrong person.
+    if (ranked[1] && ranked[1].distance - ranked[0].distance < MATCH_MARGIN) return res.json({ matched: false, ambiguous: true });
   }
-  const ranked = [...per.values()].sort((a, b) => a.distance - b.distance);
-  const best = ranked[0];
-  if (!best || best.distance > MATCH_DISTANCE) return res.json({ matched: false });
-  // Two different people both fit: refuse rather than mark the wrong person.
-  if (ranked[1] && ranked[1].distance - best.distance < MATCH_MARGIN) return res.json({ matched: false, ambiguous: true });
+  if (ranks.length === 2 && ranks[0][0].userId !== ranks[1][0].userId) return res.json({ matched: false, ambiguous: true });
+  const best = { ...ranks[0][0], distance: ranks.reduce((t, r) => t + r[0].distance, 0) / ranks.length };
 
   const now = process.env.NODE_ENV === "test" && req.headers["x-test-now"] ? new Date(String(req.headers["x-test-now"]) + "Z") : istNow(), date = now.toISOString().slice(0, 10), hhmm = now.toISOString().slice(11, 16);
   const mins = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
   const row = db.prepare("SELECT status, in_time, out_time FROM attendance_marks WHERE user_id = ? AND mark_date = ?").get(best.userId, date);
+  const prevJson = JSON.stringify({ date, had: !!row, status: row?.status ?? null, in_time: row?.in_time ?? null, out_time: row?.out_time ?? null }), ckId = randomUUID();
   let kind, mark = row?.status, inTime = row?.in_time || null, outTime = row?.out_time || null, already = false, noIn = false;
   const win = shiftWindow(best.userId, date);
   // First scan of the day happens near/after the end of the shift: the person is leaving, not arriving.
@@ -234,11 +236,27 @@ router.post("/checkin", requireKiosk, (req, res) => {
     let snapPath = null;
     const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(snapshot || "");
     if (m && m[1].length < 400000) { snapPath = path.join(SNAP_DIR, `${randomUUID()}.jpg`); fs.writeFileSync(snapPath, Buffer.from(m[1], "base64")); }
-    db.prepare("INSERT INTO face_checkins (id, user_id, device_id, distance, mark, kind, snapshot_path) VALUES (?,?,?,?,?,?,?)")
-      .run(randomUUID(), best.userId, req.kiosk.id, best.distance, mark, kind, snapPath);
+    db.prepare("INSERT INTO face_checkins (id, user_id, device_id, distance, mark, kind, snapshot_path, prev) VALUES (?,?,?,?,?,?,?,?)")
+      .run(ckId, best.userId, req.kiosk.id, best.distance, mark, kind, snapPath, prevJson);
   }
   const lateMin = kind === "in" && mark === "L" && inTime ? Math.max(0, mins(inTime) - mins(win.start)) : 0;
-  res.json({ matched: true, name: best.name, kind, mark, late: lateMin, label: MARKS[mark], time: kind === "out" ? outTime : inTime, inTime, outTime, workedMinutes: worked, already, noMorningCheckin: noIn, message: note ? note.body : null });
+  res.json({ matched: true, name: best.name, kind, mark, late: lateMin, label: MARKS[mark], time: kind === "out" ? outTime : inTime, inTime, outTime, workedMinutes: worked, already, noMorningCheckin: noIn, message: note ? note.body : null, undoId: already ? null : ckId });
+});
+
+// "Not me": the person on screen is not the person who looked. Cancels that one check-in (only the latest one, within 3 minutes) and puts the day back as it was.
+router.post("/undo", requireKiosk, (req, res) => {
+  const c = db.prepare("SELECT * FROM face_checkins WHERE id = ? AND device_id = ?").get(String(req.body?.id || ""), req.kiosk.id);
+  if (!c) return res.status(404).json({ error: "Nothing to cancel" });
+  if (c.undone_at) return res.json({ ok: true, already: true });
+  if (Date.now() - new Date(String(c.created_at).replace(" ", "T") + "Z").getTime() > 3 * 60000) return res.status(400).json({ error: "Too late to cancel here. Ask HR to correct it." });
+  if (db.prepare("SELECT 1 FROM face_checkins WHERE user_id = ? AND rowid > (SELECT rowid FROM face_checkins WHERE id = ?) AND undone_at IS NULL").get(c.user_id, c.id)) return res.status(400).json({ error: "Too late to cancel here. Ask HR to correct it." });
+  const prev = c.prev ? JSON.parse(c.prev) : null, date = prev?.date || new Date(new Date(String(c.created_at).replace(" ", "T") + "Z").getTime() + 19800000).toISOString().slice(0, 10);
+  if (!prev?.had) db.prepare("DELETE FROM attendance_marks WHERE user_id = ? AND mark_date = ?").run(c.user_id, date);
+  else db.prepare("UPDATE attendance_marks SET status = ?, in_time = ?, out_time = ?, updated_at = datetime('now') WHERE user_id = ? AND mark_date = ?").run(prev.status, prev.in_time, prev.out_time, c.user_id, date);
+  db.prepare("UPDATE face_checkins SET undone_at = datetime('now') WHERE id = ?").run(c.id);
+  try { syncLateFines(date.slice(0, 7)); } catch {}
+  queueSheet(date.slice(0, 7));
+  res.json({ ok: true });
 });
 
 export default router;
