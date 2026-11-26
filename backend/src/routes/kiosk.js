@@ -16,7 +16,7 @@ const router = Router();
 const DATA = process.env.DATA_DIR || path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const SNAP_DIR = path.join(DATA, "private", "checkin-snaps");
 fs.mkdirSync(SNAP_DIR, { recursive: true });
-const MATCH_DISTANCE = Number(process.env.FACE_MATCH_DISTANCE || 0.42); // lower = stricter (0.5 let look-alike colleagues through)
+const MATCH_DISTANCE = Number(process.env.FACE_MATCH_DISTANCE || 0.35); // 0.35 = a 65% match or better; lower = stricter (0.5 let look-alike colleagues through)
 const MATCH_MARGIN = Number(process.env.FACE_MATCH_MARGIN || 0.08); // the best person must beat the next person by at least this much
 const UNIQUE_DISTANCE = Number(process.env.FACE_UNIQUE_DISTANCE || 0.45); // two people closer than this are treated as the same face
 const MIN_GAP_MIN = Number(process.env.MIN_STAY_MINUTES || 60);        // a second look within this many minutes is not a logout
