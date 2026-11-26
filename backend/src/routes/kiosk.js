@@ -276,19 +276,30 @@ router.post("/checkin", requireKiosk, (req, res) => {
 });
 
 // "Not me": the person on screen is not the person who looked. Cancels that one check-in (only the latest one, within 3 minutes) and puts the day back as it was.
-router.post("/undo", requireKiosk, (req, res) => {
-  const c = db.prepare("SELECT * FROM face_checkins WHERE id = ? AND device_id = ?").get(String(req.body?.id || ""), req.kiosk.id);
-  if (!c) return res.status(404).json({ error: "Nothing to cancel" });
-  if (c.undone_at) return res.json({ ok: true, already: true });
-  if (Date.now() - new Date(String(c.created_at).replace(" ", "T") + "Z").getTime() > 3 * 60000) return res.status(400).json({ error: "Too late to cancel here. Ask HR to correct it." });
-  if (db.prepare("SELECT 1 FROM face_checkins WHERE user_id = ? AND rowid > (SELECT rowid FROM face_checkins WHERE id = ?) AND undone_at IS NULL").get(c.user_id, c.id)) return res.status(400).json({ error: "Too late to cancel here. Ask HR to correct it." });
+function undoCheckin(c) {
   const prev = c.prev ? JSON.parse(c.prev) : null, date = prev?.date || new Date(new Date(String(c.created_at).replace(" ", "T") + "Z").getTime() + 19800000).toISOString().slice(0, 10);
   if (!prev?.had) db.prepare("DELETE FROM attendance_marks WHERE user_id = ? AND mark_date = ?").run(c.user_id, date);
   else db.prepare("UPDATE attendance_marks SET status = ?, in_time = ?, out_time = ?, updated_at = datetime('now') WHERE user_id = ? AND mark_date = ?").run(prev.status, prev.in_time, prev.out_time, c.user_id, date);
   db.prepare("UPDATE face_checkins SET undone_at = datetime('now') WHERE id = ?").run(c.id);
   try { syncLateFines(date.slice(0, 7)); } catch {}
   queueSheet(date.slice(0, 7));
-  res.json({ ok: true });
+}
+const hasLater = (c) => !!db.prepare("SELECT 1 FROM face_checkins WHERE user_id = ? AND rowid > (SELECT rowid FROM face_checkins WHERE id = ?) AND undone_at IS NULL").get(c.user_id, c.id);
+router.post("/undo", requireKiosk, (req, res) => {
+  const c = db.prepare("SELECT * FROM face_checkins WHERE id = ? AND device_id = ?").get(String(req.body?.id || ""), req.kiosk.id);
+  if (!c) return res.status(404).json({ error: "Nothing to cancel" });
+  if (c.undone_at) return res.json({ ok: true, already: true });
+  if (Date.now() - new Date(String(c.created_at).replace(" ", "T") + "Z").getTime() > 3 * 60000 || hasLater(c)) return res.status(400).json({ error: "Too late to cancel here. Ask HR to correct it." });
+  undoCheckin(c); res.json({ ok: true });
 });
+// HR / admin: cancel a wrong face check-in from the log (puts that day back as it was).
+router.post("/log/:id/undo", requireAuth, requirePermission("staff:manage"), (req, res) => {
+  const c = db.prepare("SELECT * FROM face_checkins WHERE id = ?").get(req.params.id);
+  if (!c) return res.status(404).json({ error: "Not found" });
+  if (c.undone_at) return res.json({ ok: true, already: true });
+  if (hasLater(c)) return res.status(400).json({ error: "This person has a later check-in. Cancel the later one first." });
+  undoCheckin(c); res.json({ ok: true });
+});
+
 
 export default router;

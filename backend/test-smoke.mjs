@@ -467,6 +467,12 @@ try {
       ok("cancelling twice is harmless", (await kcall("/api/kiosk/undo", { id: u1.undoId })).body?.already === true);
       await scan(121, "12:30", { descriptors: two, confirmOut: true }, D0);
       ok("an older check-in cannot be cancelled once a later one exists", (await kcall("/api/kiosk/undo", { id: u2.undoId })).status === 400);
+      {
+        const lg = (await call("GET", `/api/kiosk/log?date=${D0}`, null, admin)).body || [];
+        const old = lg.find((x) => x.id === u2.undoId), last = lg[0];
+        ok("HR cannot cancel an older check-in while a later one stands", !old || (await call("POST", `/api/kiosk/log/${u2.undoId}/undo`, null, admin)).status === 400);
+        ok("HR can cancel the latest check-in from the log", !last || (await call("POST", `/api/kiosk/log/${last.id}/undo`, null, admin)).body?.ok === true);
+      }
       ok("another phone's check-in cannot be cancelled", (await kcall("/api/kiosk/undo", { id: "nope" })).status === 404);
       await call("DELETE", `/api/kiosk/enroll/${sp[0].id}`, null, admin);
     }

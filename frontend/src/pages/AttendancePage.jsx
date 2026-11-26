@@ -266,7 +266,10 @@ function FacePanel({ date, people, isAdmin, flash }) {
               {l.has_snap && <img alt="" src={snapUrl(l.id)} style={{ width: 44, height: 44, borderRadius: 10, objectFit: "cover" }} />}
               <div><div className="title">{l.name}</div><div className="meta">{new Date(l.created_at.replace(" ", "T") + "Z").toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })} · match {Math.round((1 - l.distance) * 100)}%</div></div>
             </div>
-            <span className={`badge ${l.kind === "out" ? "accepted" : l.mark === "P" ? "done" : "overdue"}`}>{l.kind === "out" ? "Logged out" : l.mark === "P" ? "Logged in" : "Logged in (late)"}</span>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span className={`badge ${l.kind === "out" ? "accepted" : l.mark === "P" ? "done" : "overdue"}`}>{l.kind === "out" ? "Logged out" : l.mark === "P" ? "Logged in" : "Logged in (late)"}</span>
+              <button className="btn btn-ghost btn-sm" onClick={async () => { if (!window.confirm(`Cancel this check-in for ${l.name}? Use it when the photo is a different person.`)) return; try { await api.undoKioskCheckin(l.id); flash("Cancelled — that day is back as it was"); load(); } catch (e) { flash(e.message); } }}>Wrong person</button>
+            </div>
           </div>
         ))}
       </div>

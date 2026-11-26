@@ -241,6 +241,7 @@ export const api = {
   revokeKioskDevice: (id) => req(`/api/kiosk/devices/${id}`, { method: "DELETE" }),
   kioskGeo: () => req("/api/kiosk/geo"),
   saveKioskGeo: (body) => req("/api/kiosk/geo", { method: "PUT", body }),
+  undoKioskCheckin: (id) => req(`/api/kiosk/log/${id}/undo`, { method: "POST" }),
   kioskLog: (date) => req(`/api/kiosk/log?date=${date}`),
   renameFolder: (body) => req("/api/hr/training-folders/rename", { method: "POST", body }),
   listRosterAll: () => req("/api/users/full?includeInactive=1"),
