@@ -230,8 +230,8 @@ function FacePanel({ date, people, isAdmin, flash }) {
             <li>Allow the <b>camera</b> when the phone asks. Then add it to the home screen (menu → Add to Home screen) so it opens in one tap.</li>
             <li>Keep the phone propped up at the front desk with the screen on and plugged in to charge.</li>
           </ol>
-          {lan && !lan.httpsPort && <div className="login-error" style={{ marginBottom: 10 }}>The secure address is not running, so the phone camera may be blocked. Restart the app once after updating.</div>}
-          {lan && lan.addresses.length === 0 && <div className="login-error" style={{ marginBottom: 10 }}>This computer is not connected to a network, so a phone cannot reach it.</div>}
+          {lan && !window.isSecureContext && !lan.httpsPort && <div className="login-error" style={{ marginBottom: 10 }}>The secure address is not running, so the phone camera may be blocked. Restart the app once after updating.</div>}
+          {lan && !window.isSecureContext && lan.addresses.length === 0 && <div className="login-error" style={{ marginBottom: 10 }}>This computer is not connected to a network, so a phone cannot reach it.</div>}
           <button className="btn btn-primary btn-sm" onClick={newPhone}>Create phone link</button>
           {!secure && <span className="meta" style={{ marginLeft: 10 }}>(This computer is on http — registering faces works here only at localhost.)</span>}
           {link && <div style={{ marginTop: 10 }}><input className="field" readOnly value={link} onFocus={(e) => e.target.select()} /><div className="meta">Open this link on the clinic phone. Keep it private — anyone with it can use the check-in screen.</div></div>}
