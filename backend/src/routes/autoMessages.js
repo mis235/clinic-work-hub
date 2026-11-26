@@ -11,7 +11,7 @@ import db from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { accessFor } from "../access.js";
 import { sendEmail, isEmailConfigured } from "../email.js";
-import { sendViaTelecrm, telecrmUrl } from "../telecrm.js";
+import { sendViaTelecrm, telecrmUrl, testTelecrm } from "../telecrm.js";
 
 db.exec(`CREATE TABLE IF NOT EXISTS auto_messages (
   id TEXT PRIMARY KEY, title TEXT NOT NULL, body TEXT NOT NULL, trigger_type TEXT NOT NULL, send_time TEXT NOT NULL DEFAULT '09:00',
@@ -66,6 +66,10 @@ router.put("/whatsapp-link", requireAuth, (req, res) => {
   if (url && !/^https:\/\//i.test(url)) return res.status(400).json({ error: "The link must start with https://" });
   db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('telecrm_webhook', ?)").run(url);
   res.json({ ok: true, connected: !!url });
+});
+router.post("/whatsapp-test", requireAuth, async (req, res) => {
+  if (req.user.roleName !== "admin") return res.status(403).json({ error: "Only the admin can test WhatsApp" });
+  res.json(await testTelecrm(req.body?.phone));
 });
 const inAudience = (m, u) => m.audience === "all" || (m.audience.startsWith("users:") ? m.audience.slice(6).split(",").includes(u.id) : u.department_id === m.audience);
 // Who got this message, who has read it, and why WhatsApp / email did or did not go.

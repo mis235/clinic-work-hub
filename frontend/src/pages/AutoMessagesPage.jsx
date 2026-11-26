@@ -29,7 +29,7 @@ export default function AutoMessagesPage({ user, onLogout, onBack }) {
   const [data, setData] = useState(null);
   const [form, setForm] = useState(null);
   const [err, setErr] = useState(""); const [ok, setOk] = useState("");
-  const [log, setLog] = useState(null), [waLink, setWaLink] = useState(""), [pick, setPick] = useState("");
+  const [log, setLog] = useState(null), [waLink, setWaLink] = useState(""), [testNo, setTestNo] = useState(""), [pick, setPick] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const load = () => api.listAutoMessages().then((d) => { setData(d); setErr(""); }).catch((e) => setErr(e.message));
   useEffect(() => { load(); }, []);
@@ -42,6 +42,7 @@ export default function AutoMessagesPage({ user, onLogout, onBack }) {
   async function remove(m) { if (window.confirm(`Delete "${m.title}"?`)) { try { await api.deleteAutoMessage(m.id); load(); } catch (e) { setErr(e.message); } } }
   async function sendNow(m) { if (!window.confirm(`Send "${m.title}" to ${aud(m)} now?`)) return; try { const r = await api.sendAutoMessageNow(m.id); flash(`Sent to ${r.sent} ${r.sent === 1 ? "person" : "people"}${r.skipped ? ` (${r.skipped} already had it today)` : ""}.`); load(); } catch (e) { setErr(e.message); } }
   async function showLog(m) { try { setLog(await api.autoMessageLog(m.id)); } catch (e) { setErr(e.message); } }
+  async function testWa() { try { const r = await api.testWhatsapp(testNo); if (r.ok) flash(`Test sent to ${r.sentTo}. Check WhatsApp on that phone.`); else setErr(r.error || "Test failed"); } catch (e) { setErr(e.message); } }
   async function saveWa() { try { const r = await api.setWhatsappLink(waLink.trim()); flash(r.connected ? "WhatsApp connected." : "WhatsApp link removed."); setWaLink(""); load(); } catch (e) { setErr(e.message); } }
   const aud = (m) => m.audience === "all" ? "All staff" : m.audience === "users" ? `${m.audienceUsers.length} chosen ${m.audienceUsers.length === 1 ? "person" : "people"}` : data?.departments.find((d) => d.id === m.audience)?.name || "Department";
   async function test(m) { try { const r = await api.testAutoMessage(m.id); flash("Sent to you only. Check your app banner" + (r.whatsapp ? " and WhatsApp." : ".")); } catch (e) { setErr(e.message); } }
@@ -72,6 +73,11 @@ export default function AutoMessagesPage({ user, onLogout, onBack }) {
               <span style={{ display: "flex", gap: 6, flex: 1, minWidth: 260 }}>
                 <input className="field" style={{ margin: 0 }} placeholder="Paste the TeleCRM link (https://…) to connect WhatsApp" value={waLink} onChange={(e) => setWaLink(e.target.value)} />
                 <button className="btn btn-primary btn-sm" disabled={!waLink.trim()} onClick={saveWa}>Connect</button>
+              </span>)}
+            {data.channels.whatsapp && user.role === "admin" && (
+              <span style={{ display: "flex", gap: 6, flex: 1, minWidth: 260 }}>
+                <input className="field" style={{ margin: 0 }} inputMode="numeric" placeholder="Your mobile number, to test WhatsApp" value={testNo} onChange={(e) => setTestNo(e.target.value)} />
+                <button className="btn btn-outline btn-sm" disabled={testNo.replace(/\D/g, "").length < 10} onClick={testWa}>Send test</button>
               </span>)}
           </div>)}
         {err && <div className="login-error" style={{ marginBottom: 10 }}>{err}</div>}

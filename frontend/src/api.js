@@ -349,6 +349,7 @@ export const api = {
   sendAutoMessageNow: (id) => req(`/api/auto-messages/${id}/send-now`, { method: "POST" }),
   setAutoMaster: (on) => req("/api/auto-messages/master", { method: "PUT", body: { on } }),
   setWhatsappLink: (url) => req("/api/auto-messages/whatsapp-link", { method: "PUT", body: { url } }),
+  testWhatsapp: (phone) => req("/api/auto-messages/whatsapp-test", { method: "POST", body: { phone } }),
   testAutoMessage: (id) => req(`/api/auto-messages/${id}/test`, { method: "POST" }),
   addEvent: (payload) => req("/api/hr/events", { method: "POST", body: payload }),
   getSystemStatus: () => req("/api/admin/status"),
