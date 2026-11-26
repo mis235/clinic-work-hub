@@ -410,6 +410,9 @@ try {
     const kc = (pos) => call("POST", "/api/kiosk/checkin", { descriptor: fdesc(1), pos }, kdev.body.key);
     ok("location limit needs the clinic location first", (await call("PUT", "/api/kiosk/geo", { on: true }, admin)).status === 400);
     ok("clinic location can be saved and switched on", (await call("PUT", "/api/kiosk/geo", { lat: 17.4, lng: 78.4, radius: 150, on: true }, admin)).body?.on === true);
+    ok("a second clinic place can be added", (await call("PUT", "/api/kiosk/geo", { name: "Road No. 3", lat: 17.42, lng: 78.44 }, admin)).body?.points?.length === 2);
+    ok("check-in at the second place is accepted", (await kc({ lat: 17.42, lng: 78.44, acc: 20 })).body?.matched === true);
+    ok("a place can be removed", (await call("PUT", "/api/kiosk/geo", { remove: 1 }, admin)).body?.points?.length === 1);
     ok("a staff login cannot change the clinic location", (await call("PUT", "/api/kiosk/geo", { on: false }, stoken)).status === 403);
     ok("check-in without the phone's location is refused", (await kc(undefined)).body?.needLocation === true);
     ok("check-in away from the clinic is refused", (await kc({ lat: 17.5, lng: 78.5, acc: 20 })).body?.outside === true);

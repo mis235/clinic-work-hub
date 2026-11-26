@@ -137,22 +137,31 @@ router.get("/snap/:id", (req, res, next) => { if (!req.headers.authorization && 
 // ---- clinic phone side -----------------------------------------------------
 // ---- clinic location: check-in works only at the clinic ---------------------
 const setting = (k) => db.prepare("SELECT value FROM app_settings WHERE key = ?").get(k)?.value;
-function geoCfg() {
+function geoCfg() { // one or more clinic places (e.g. two buildings), all sharing one allowed distance
+  let points = []; try { points = JSON.parse(setting("geo_points") || "[]"); } catch {}
+  points = Array.isArray(points) ? points.filter((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lng)) : [];
   const lat = parseFloat(setting("geo_lat")), lng = parseFloat(setting("geo_lng"));
-  return { on: setting("geo_on") === "1" && Number.isFinite(lat) && Number.isFinite(lng), lat, lng, radius: Math.min(2000, Math.max(30, parseInt(setting("geo_radius")) || 150)) };
+  if (!points.length && Number.isFinite(lat) && Number.isFinite(lng)) points = [{ name: "Clinic", lat, lng }];
+  return { on: setting("geo_on") === "1" && points.length > 0, points, radius: Math.min(2000, Math.max(30, parseInt(setting("geo_radius")) || 150)) };
 }
 const metres = (la1, lo1, la2, lo2) => { const R = 6371000, r = (x) => (x * Math.PI) / 180, a = Math.sin(r(la2 - la1) / 2) ** 2 + Math.cos(r(la1)) * Math.cos(r(la2)) * Math.sin(r(lo2 - lo1) / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(a)); };
-router.get("/geo", requireAuth, requirePermission("staff:manage"), (req, res) => { const g = geoCfg(); res.json({ on: g.on, lat: Number.isFinite(g.lat) ? g.lat : null, lng: Number.isFinite(g.lng) ? g.lng : null, radius: g.radius }); });
+const geoOut = (g) => ({ on: g.on, points: g.points, radius: g.radius });
+router.get("/geo", requireAuth, requirePermission("staff:manage"), (req, res) => res.json(geoOut(geoCfg())));
 router.put("/geo", requireAuth, requirePermission("staff:manage"), (req, res) => {
-  const { lat, lng, radius, on } = req.body || {};
+  const { lat, lng, name, remove, radius, on } = req.body || {};
   const set = db.prepare("INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value");
-  if (lat !== undefined || lng !== undefined) {
-    if (!(Math.abs(Number(lat)) <= 90 && Math.abs(Number(lng)) <= 180) || lat === null || lng === null || lat === "" || lng === "") return res.status(400).json({ error: "Clinic location is not valid" });
-    set.run("geo_lat", String(Number(lat))); set.run("geo_lng", String(Number(lng)));
+  let points = geoCfg().points;
+  if (lat !== undefined || lng !== undefined) { // add a place (same name = move it)
+    if (lat === null || lng === null || lat === "" || lng === "" || !(Math.abs(Number(lat)) <= 90 && Math.abs(Number(lng)) <= 180)) return res.status(400).json({ error: "Clinic location is not valid" });
+    const nm = String(name || "Clinic").trim().slice(0, 60) || "Clinic", pt = { name: nm, lat: Number(lat), lng: Number(lng) };
+    const i = points.findIndex((p) => p.name.toLowerCase() === nm.toLowerCase());
+    if (i >= 0) points[i] = pt; else if (points.length >= 6) return res.status(400).json({ error: "At most 6 places can be saved" }); else points.push(pt);
+    set.run("geo_points", JSON.stringify(points));
   }
+  if (remove !== undefined) { points = points.filter((_, i) => i !== Number(remove)); set.run("geo_points", JSON.stringify(points)); if (!points.length) set.run("geo_on", "0"); }
   if (radius !== undefined) { const r = Math.round(Number(radius)); if (!(r >= 30 && r <= 2000)) return res.status(400).json({ error: "Distance must be between 30 and 2000 metres" }); set.run("geo_radius", String(r)); }
-  if (on !== undefined) { if (on && !Number.isFinite(parseFloat(setting("geo_lat")))) return res.status(400).json({ error: "Set the clinic location first" }); set.run("geo_on", on ? "1" : "0"); }
-  const g = geoCfg(); res.json({ on: g.on, lat: g.lat, lng: g.lng, radius: g.radius });
+  if (on !== undefined) { if (on && !points.length) return res.status(400).json({ error: "Set the clinic location first" }); set.run("geo_on", on ? "1" : "0"); }
+  res.json(geoOut(geoCfg()));
 });
 
 router.get("/ping", requireKiosk, (req, res) => res.json({ ok: true, label: req.kiosk.label, enrolled: db.prepare("SELECT COUNT(*) n FROM face_templates").get().n, geo: geoCfg().on }));
@@ -164,7 +173,7 @@ router.post("/checkin", requireKiosk, (req, res) => {
   if (g.on) { // only at the clinic: no look, no mark, when the phone is away or does not share its location
     const la = Number(pos?.lat), lo = Number(pos?.lng), acc = Math.min(100, Math.max(0, Number(pos?.acc) || 0));
     if (!pos || !Number.isFinite(la) || !Number.isFinite(lo)) return res.json({ matched: false, needLocation: true });
-    const away = Math.round(metres(g.lat, g.lng, la, lo));
+    const away = Math.round(Math.min(...g.points.map((p) => metres(p.lat, p.lng, la, lo))));
     if (away - acc > g.radius) return res.json({ matched: false, outside: true, away });
   }
   const per = new Map(); // best distance per person

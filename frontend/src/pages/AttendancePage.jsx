@@ -185,10 +185,12 @@ function FacePanel({ date, people, isAdmin, flash }) {
   const [geo, setGeo] = useState(null), [geoBusy, setGeoBusy] = useState(false);
   useEffect(() => { if (isAdmin) api.kioskGeo().then(setGeo).catch(() => {}); }, [isAdmin]);
   const saveGeo = async (body) => { try { setGeo(await api.saveKioskGeo(body)); flash("Saved"); } catch (e) { flash(e.message); } };
+  const [placeName, setPlaceName] = useState("");
   const setHere = () => {
     if (!navigator.geolocation) { flash("This device cannot share its location"); return; }
+    if (!placeName.trim()) { flash("Type the place name first, for example Road No. 7"); return; }
     setGeoBusy(true);
-    navigator.geolocation.getCurrentPosition(async (p) => { setGeoBusy(false); await saveGeo({ lat: p.coords.latitude, lng: p.coords.longitude, on: true }); },
+    navigator.geolocation.getCurrentPosition(async (p) => { setGeoBusy(false); await saveGeo({ name: placeName.trim(), lat: p.coords.latitude, lng: p.coords.longitude, on: true }); setPlaceName(""); },
       () => { setGeoBusy(false); flash("Allow Location for this website, then try again"); }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
   };
   return (
@@ -221,14 +223,16 @@ function FacePanel({ date, people, isAdmin, flash }) {
 
       {isAdmin && geo && (
         <div className="card">
-          <div className="title">Check-in Location</div>
-          <p className="meta" style={{ margin: "6px 0 10px", lineHeight: 1.6 }}>Check-in is accepted only when the clinic phone is at the clinic. Stand inside the clinic with this phone or computer and press <b>Set clinic location here</b>.</p>
-          <div className="task-row"><div><div className="title">{geo.on ? "Location limit is ON" : "Location limit is OFF"}</div><div className="meta">{geo.lat !== null ? `Clinic location saved · within ${geo.radius} m` : "Clinic location is not set yet"}</div></div>
-            <div className="right" style={{ gap: 8 }}>
-              <button className="btn btn-primary btn-sm" disabled={geoBusy} onClick={setHere}>{geoBusy ? "Getting location…" : "Set clinic location here"}</button>
-              {geo.lat !== null && <button className="btn btn-outline btn-sm" onClick={() => saveGeo({ on: !geo.on })}>{geo.on ? "Turn off" : "Turn on"}</button>}
-            </div></div>
-          {geo.lat !== null && <div className="task-row"><div className="meta">Allowed distance from the clinic</div>
+          <div className="title">Check-in Locations</div>
+          <p className="meta" style={{ margin: "6px 0 10px", lineHeight: 1.6 }}>Check-in is accepted only at the clinic places saved here. Go to each place (Road No. 7, Road No. 3 …), type its name and press <b>Add this place</b> while you are standing inside it.</p>
+          <div className="task-row"><div><div className="title">{geo.on ? "Location limit is ON" : "Location limit is OFF"}</div><div className="meta">{geo.points.length ? `${geo.points.length} place${geo.points.length === 1 ? "" : "s"} saved · within ${geo.radius} m of each` : "No place saved yet"}</div></div>
+            {geo.points.length > 0 && <button className="btn btn-outline btn-sm" onClick={() => saveGeo({ on: !geo.on })}>{geo.on ? "Turn off" : "Turn on"}</button>}</div>
+          {geo.points.map((p, i) => <div key={i} className="task-row"><div className="title">{p.name}</div><button className="btn btn-ghost btn-sm" onClick={() => saveGeo({ remove: i })}>Remove</button></div>)}
+          <div className="task-row" style={{ gap: 8, flexWrap: "wrap" }}>
+            <input className="field" style={{ flex: 1, minWidth: 180 }} value={placeName} onChange={(e) => setPlaceName(e.target.value)} placeholder="Place name, e.g. Road No. 3 (Jains Shantkunj)" />
+            <button className="btn btn-primary btn-sm" disabled={geoBusy} onClick={setHere}>{geoBusy ? "Getting location…" : "Add this place"}</button>
+          </div>
+          {geo.points.length > 0 && <div className="task-row"><div className="meta">Allowed distance from each place</div>
             <select className="field" style={{ maxWidth: 140 }} value={geo.radius} onChange={(e) => saveGeo({ radius: Number(e.target.value) })}>{[50, 100, 150, 200, 300, 500].map((n) => <option key={n} value={n}>{n} metres</option>)}</select></div>}
         </div>
       )}
