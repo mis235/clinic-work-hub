@@ -46,8 +46,11 @@ export default function KioskPage() {
     const onVis = () => { if (document.visibilityState === "visible") { keepAwake(); ensureCamera().catch(() => {}); } };
     document.addEventListener("visibilitychange", onVis);
     keepAwake();
+    // Check-in works only at the clinic: when the admin switches the location limit on, this phone shares where it is.
+    let geoOn = false, pos = null, posErr = 0, watch = null;
+    const startGeo = () => { if (watch !== null || !navigator.geolocation) return; try { watch = navigator.geolocation.watchPosition((p) => { posErr = 0; pos = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy, at: Date.now() }; }, (e) => { posErr = e.code || 2; }, { enableHighAccuracy: true, maximumAge: 20000, timeout: 30000 }); } catch {} };
     // Every minute: tell the server this phone is alive, and show whether the internet is reachable.
-    const beat = setInterval(() => { kioskApi.call("ping").then(() => setOnline(true)).catch((e) => { if (net(e)) setOnline(false); }); }, 45000);
+    const beat = setInterval(() => { kioskApi.call("ping").then((r) => { setOnline(true); geoOn = !!r.geo; if (geoOn) startGeo(); }).catch((e) => { if (net(e)) setOnline(false); }); }, 45000);
     window.addEventListener("online", () => setOnline(true));
     window.addEventListener("offline", () => setOnline(false));
     (async () => {
@@ -59,30 +62,35 @@ export default function KioskPage() {
           catch (e) { if (!net(e)) throw e; if (dead) return; setOnline(false); setState({ phase: "offline", text: "Waiting for internet…", sub: "Check-in starts by itself when the signal is back." }); await sleep(4000); }
         }
         setOnline(true);
+        geoOn = !!info.geo; if (geoOn) startGeo();
         if (info.enrolled === 0) { setState({ phase: "error", text: "No faces are enrolled yet. Ask the admin to enroll staff faces first." }); return; }
         for (let i = 0; ; i++) { try { await loadFace(); break; } catch (e) { if (i >= 5 || dead) throw e; await sleep(3000); } }
         await ensureCamera();
         setState({ phase: "look", text: "Look at the camera" });
         while (!dead) {
-          await sleep(700);
+          await sleep(250);
           try {
             await ensureCamera();
             const f = await scanFace(video.current, "kiosk").catch(() => null);
             if (!f || !f.ok) { setState((s) => (s.phase === "result" ? s : { phase: "look", text: "Look at the camera" })); continue; }
-            if (Date.now() - last.at < 5000) continue; // keep showing the last result for a few seconds
+            if (Date.now() - last.at < 2800) continue; // keep showing the last result for a moment
+            if (geoOn && (!pos || Date.now() - pos.at > 10 * 60000)) { setState({ phase: "error", text: posErr === 1 ? "Location is blocked" : "Getting the clinic location…", sub: posErr === 1 ? "Allow Location for this website (iPhone: Settings → Privacy → Location Services → Safari Websites), then try again." : "Please wait a moment." }); await sleep(1500); continue; }
             setState({ phase: "check", text: "Checking…" });
-            const r = await kioskApi.call("checkin", { descriptor: f.descriptor, snapshot: snapshotJpeg(video.current) });
+            const r = await kioskApi.call("checkin", { descriptor: f.descriptor, snapshot: snapshotJpeg(video.current, 200), pos: geoOn && pos ? { lat: pos.lat, lng: pos.lng, acc: pos.acc } : undefined });
             setOnline(true);
             last = { at: Date.now() };
             const hm = (m) => `${Math.floor(m / 60)}h ${m % 60}m`;
             if (r.matched) {
               const out = r.kind === "out";
+              const hr = new Date().getHours(), greet = hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";
               setLastIn({ name: r.name, time: r.time, out });
-              setState({ phase: "result", ok: true,
-                text: r.already ? `Already ${out ? "logged out" : "logged in"}, ${r.name}` : out ? `Goodbye, ${r.name}` : `Welcome, ${r.name}`,
-                sub: r.already ? `${out ? "Out" : "In"} at ${r.time}${out ? " · already recorded" : ""}` : out ? `Logged out ${r.time}${r.workedMinutes ? ` · worked ${hm(r.workedMinutes)}` : ""}${r.message ? ` · ${r.message}` : ""}` : `Logged in ${r.time} · ${r.label}${r.late ? ` · ${r.late} min late. Add the reason in the Work Hub app.` : ""}` });
-            } else setState({ phase: "result", ok: false, text: r.ambiguous ? "Please try again" : "Face not recognised", sub: r.ambiguous ? "Stand alone in front of the camera." : "Face the light and look straight at the camera. Ask the admin if it keeps happening." });
-            setTimeout(() => setState((s) => (s.phase === "result" ? { phase: "look", text: "Look at the camera" } : s)), 4000);
+              setState({ phase: "result", ok: true, out,
+                text: r.already ? r.name : out ? `Thank you, ${r.name}` : `${greet}, ${r.name}`,
+                sub: r.already ? `${out ? "Check-out" : "Check-in"} already recorded at ${r.time}` : out ? `Check-out recorded at ${r.time}${r.workedMinutes ? ` · Worked ${hm(r.workedMinutes)}` : ""}${r.message ? ` · ${r.message}` : ""}` : `Check-in recorded at ${r.time} · ${r.label}${r.late ? ` · ${r.late} min late. Please add the reason in the Work Hub app.` : ""}` });
+            } else if (r.needLocation) setState({ phase: "result", ok: false, text: "Location is needed", sub: "Allow Location for this website and try again." });
+            else if (r.outside) setState({ phase: "result", ok: false, text: "You are outside the clinic", sub: "Check-in works only at the clinic." });
+            else setState({ phase: "result", ok: false, text: r.ambiguous ? "Please try again" : "Face not recognised", sub: r.ambiguous ? "Stand alone in front of the camera and look straight at it." : "Face the light and look straight at the camera. Ask the admin if it keeps happening." });
+            setTimeout(() => setState((s) => (s.phase === "result" ? { phase: "look", text: "Look at the camera" } : s)), 3000);
           } catch (e) {
             if (dead) return;
             if (!net(e)) throw e; // the server refused (phone switched off, bad key): stop and say so
@@ -107,7 +115,7 @@ export default function KioskPage() {
     try { localStorage.setItem("kioskKey", m[1]); } catch {}
     window.location.reload();
   };
-  const out = state.ok && /^Goodbye|logged out/i.test(state.text || "");
+  const out = !!(state.ok && state.out);
   const mood = state.phase === "result" ? (state.ok ? (out ? "closing" : "celebrate") : "error") : state.phase === "error" || state.phase === "offline" ? "worried" : state.phase === "check" ? "idea" : "hello";
   const tone = state.phase === "result" ? (state.ok ? "ok" : "bad") : state.phase === "error" ? "bad" : state.phase === "check" || state.phase === "offline" ? "wait" : "look";
   return (

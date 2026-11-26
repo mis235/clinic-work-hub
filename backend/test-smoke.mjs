@@ -406,6 +406,16 @@ try {
   { const ist = new Date(Date.now() + 19800000), late = ist.getUTCHours() * 60 + ist.getUTCMinutes() >= 17 * 60 + 30;   // from 17:30 a first scan means leaving
     ok(late ? "a first look late in the day is a check-out, not a login" : "the first look is the login", late ? cki.body?.kind === "out" && cki.body.noMorningCheckin === true : cki.body?.kind === "in" && /^\d\d:\d\d$/.test(cki.body.inTime)); }
   ok("a stranger is not recognised", (await call("POST", "/api/kiosk/checkin", { descriptor: fdesc(50) }, kdev.body.key)).body?.matched === false);
+  { // clinic location limit
+    const kc = (pos) => call("POST", "/api/kiosk/checkin", { descriptor: fdesc(1), pos }, kdev.body.key);
+    ok("location limit needs the clinic location first", (await call("PUT", "/api/kiosk/geo", { on: true }, admin)).status === 400);
+    ok("clinic location can be saved and switched on", (await call("PUT", "/api/kiosk/geo", { lat: 17.4, lng: 78.4, radius: 150, on: true }, admin)).body?.on === true);
+    ok("a staff login cannot change the clinic location", (await call("PUT", "/api/kiosk/geo", { on: false }, stoken)).status === 403);
+    ok("check-in without the phone's location is refused", (await kc(undefined)).body?.needLocation === true);
+    ok("check-in away from the clinic is refused", (await kc({ lat: 17.5, lng: 78.5, acc: 20 })).body?.outside === true);
+    ok("check-in at the clinic is accepted", (await kc({ lat: 17.4001, lng: 78.4001, acc: 20 })).body?.matched === true);
+    await call("PUT", "/api/kiosk/geo", { on: false }, admin);
+  }
   const brd2 = (await call("GET", "/api/attendance/board", null, admin)).body;
   ok("the face check-in shows on the attendance board", ["P", "L"].includes(brd2.rows.find((r) => r.id === mkd.body.id)?.mark));
   ok("face check-in is refused on a computer", (await fetch(base + "/api/kiosk/checkin", { method: "POST", headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120", Authorization: `Bearer ${kdev.body.key}` }, body: JSON.stringify({ descriptor: fdesc(1) }) })).status === 403);
@@ -676,6 +686,7 @@ try {
     await call("PATCH", `/api/users/${lvTarget.id}`, { isHr: false }, admin);
     ok("staff cannot see birthdays", (await call("GET", "/api/leave/birthdays", null, lvTok)).status === 403);
     const ask = async (q, tok) => (await call("POST", "/api/assistant/ask", { message: q }, tok)).body?.reply || "";
+    ok("assistant: 'who is on leave today' lists people with no attendance today", /no attendance taken|Everyone has taken attendance/.test(await ask("Who is on leave today?", admin)));
     ok("assistant: HR sees today's birthday", (await ask("upcoming birthdays", hrTok)).includes("Today"));
     ok("assistant: staff are told birthdays are HR-only", /HR/.test(await ask("any birthdays?", lvTok)));
     ok("assistant: my leave balance", /free casual leave/.test(await ask("how many leaves do I have left?", lvTok)));

@@ -37,7 +37,7 @@ export async function scanFace(video, mode = "enroll") {
   for (const size of enroll ? [320, 224, 160] : [320, 224, 416, 160]) {
     const x = await run(size, 0.5);
     if (x && (!r || x.detection.score > r.detection.score)) r = x;
-    if (r && r.detection.score >= (enroll ? 0.8 : 0.65)) break;
+    if (r && r.detection.score >= (enroll ? 0.8 : 0.6)) break;
   }
   if (!r) return { ok: false, why: "none" };
   const vw = video.videoWidth || 640, vh = video.videoHeight || 480, b = r.detection.box, score = r.detection.score;

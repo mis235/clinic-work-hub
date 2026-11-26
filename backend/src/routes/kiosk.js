@@ -16,7 +16,8 @@ const router = Router();
 const DATA = process.env.DATA_DIR || path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const SNAP_DIR = path.join(DATA, "private", "checkin-snaps");
 fs.mkdirSync(SNAP_DIR, { recursive: true });
-const MATCH_DISTANCE = Number(process.env.FACE_MATCH_DISTANCE || 0.5); // lower = stricter
+const MATCH_DISTANCE = Number(process.env.FACE_MATCH_DISTANCE || 0.42); // lower = stricter (0.5 let look-alike colleagues through)
+const MATCH_MARGIN = Number(process.env.FACE_MATCH_MARGIN || 0.08); // the best person must beat the next person by at least this much
 const UNIQUE_DISTANCE = Number(process.env.FACE_UNIQUE_DISTANCE || 0.45); // two people closer than this are treated as the same face
 const MIN_GAP_MIN = Number(process.env.MIN_STAY_MINUTES || 30);        // a second look within this many minutes is not a logout
 import { isLateArrival, syncLateFines, shiftWindow, dayStatus } from "./leave.js";
@@ -134,11 +135,38 @@ router.get("/snap/:id", (req, res, next) => { if (!req.headers.authorization && 
   });
 
 // ---- clinic phone side -----------------------------------------------------
-router.get("/ping", requireKiosk, (req, res) => res.json({ ok: true, label: req.kiosk.label, enrolled: db.prepare("SELECT COUNT(*) n FROM face_templates").get().n }));
+// ---- clinic location: check-in works only at the clinic ---------------------
+const setting = (k) => db.prepare("SELECT value FROM app_settings WHERE key = ?").get(k)?.value;
+function geoCfg() {
+  const lat = parseFloat(setting("geo_lat")), lng = parseFloat(setting("geo_lng"));
+  return { on: setting("geo_on") === "1" && Number.isFinite(lat) && Number.isFinite(lng), lat, lng, radius: Math.min(2000, Math.max(30, parseInt(setting("geo_radius")) || 150)) };
+}
+const metres = (la1, lo1, la2, lo2) => { const R = 6371000, r = (x) => (x * Math.PI) / 180, a = Math.sin(r(la2 - la1) / 2) ** 2 + Math.cos(r(la1)) * Math.cos(r(la2)) * Math.sin(r(lo2 - lo1) / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(a)); };
+router.get("/geo", requireAuth, requirePermission("staff:manage"), (req, res) => { const g = geoCfg(); res.json({ on: g.on, lat: Number.isFinite(g.lat) ? g.lat : null, lng: Number.isFinite(g.lng) ? g.lng : null, radius: g.radius }); });
+router.put("/geo", requireAuth, requirePermission("staff:manage"), (req, res) => {
+  const { lat, lng, radius, on } = req.body || {};
+  const set = db.prepare("INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value");
+  if (lat !== undefined || lng !== undefined) {
+    if (!(Math.abs(Number(lat)) <= 90 && Math.abs(Number(lng)) <= 180) || lat === null || lng === null || lat === "" || lng === "") return res.status(400).json({ error: "Clinic location is not valid" });
+    set.run("geo_lat", String(Number(lat))); set.run("geo_lng", String(Number(lng)));
+  }
+  if (radius !== undefined) { const r = Math.round(Number(radius)); if (!(r >= 30 && r <= 2000)) return res.status(400).json({ error: "Distance must be between 30 and 2000 metres" }); set.run("geo_radius", String(r)); }
+  if (on !== undefined) { if (on && !Number.isFinite(parseFloat(setting("geo_lat")))) return res.status(400).json({ error: "Set the clinic location first" }); set.run("geo_on", on ? "1" : "0"); }
+  const g = geoCfg(); res.json({ on: g.on, lat: g.lat, lng: g.lng, radius: g.radius });
+});
+
+router.get("/ping", requireKiosk, (req, res) => res.json({ ok: true, label: req.kiosk.label, enrolled: db.prepare("SELECT COUNT(*) n FROM face_templates").get().n, geo: geoCfg().on }));
 
 router.post("/checkin", requireKiosk, (req, res) => {
-  const { descriptor, snapshot } = req.body || {};
+  const { descriptor, snapshot, pos } = req.body || {};
   if (!okDesc(descriptor)) return res.status(400).json({ error: "No clear face seen" });
+  const g = geoCfg();
+  if (g.on) { // only at the clinic: no look, no mark, when the phone is away or does not share its location
+    const la = Number(pos?.lat), lo = Number(pos?.lng), acc = Math.min(100, Math.max(0, Number(pos?.acc) || 0));
+    if (!pos || !Number.isFinite(la) || !Number.isFinite(lo)) return res.json({ matched: false, needLocation: true });
+    const away = Math.round(metres(g.lat, g.lng, la, lo));
+    if (away - acc > g.radius) return res.json({ matched: false, outside: true, away });
+  }
   const per = new Map(); // best distance per person
   for (const t of db.prepare("SELECT t.user_id, t.descriptors, u.name FROM face_templates t JOIN users u ON u.id = t.user_id WHERE u.active = 1").all()) {
     let d = Infinity;
@@ -149,7 +177,7 @@ router.post("/checkin", requireKiosk, (req, res) => {
   const best = ranked[0];
   if (!best || best.distance > MATCH_DISTANCE) return res.json({ matched: false });
   // Two different people both fit: refuse rather than mark the wrong person.
-  if (ranked[1] && ranked[1].distance <= MATCH_DISTANCE && ranked[1].distance - best.distance < 0.04) return res.json({ matched: false, ambiguous: true });
+  if (ranked[1] && ranked[1].distance - best.distance < MATCH_MARGIN) return res.json({ matched: false, ambiguous: true });
 
   const now = istNow(), date = now.toISOString().slice(0, 10), hhmm = now.toISOString().slice(11, 16);
   const mins = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };

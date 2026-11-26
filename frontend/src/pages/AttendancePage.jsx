@@ -179,9 +179,18 @@ function FacePanel({ date, people, isAdmin, flash }) {
       let origin = window.location.origin;
       if (!phoneReachable && lan?.tunnelUrl) origin = lan.tunnelUrl;
       else if (!phoneReachable && ip) origin = lan.httpsPort ? `https://${ip}:${lan.httpsPort}` : `http://${ip}:${lan.httpPort}`;
-      setLink(`${origin}/kiosk#key=${encodeURIComponent(d.key)}`); load(); } catch (e) { flash(e.message); }
+      setLink(`${origin}/kiosk?key=${encodeURIComponent(d.key)}`); load(); } catch (e) { flash(e.message); }
   }
   const secure = window.isSecureContext;
+  const [geo, setGeo] = useState(null), [geoBusy, setGeoBusy] = useState(false);
+  useEffect(() => { if (isAdmin) api.kioskGeo().then(setGeo).catch(() => {}); }, [isAdmin]);
+  const saveGeo = async (body) => { try { setGeo(await api.saveKioskGeo(body)); flash("Saved"); } catch (e) { flash(e.message); } };
+  const setHere = () => {
+    if (!navigator.geolocation) { flash("This device cannot share its location"); return; }
+    setGeoBusy(true);
+    navigator.geolocation.getCurrentPosition(async (p) => { setGeoBusy(false); await saveGeo({ lat: p.coords.latitude, lng: p.coords.longitude, on: true }); },
+      () => { setGeoBusy(false); flash("Allow Location for this website, then try again"); }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+  };
   return (
     <>
       <div className="card">
@@ -207,6 +216,20 @@ function FacePanel({ date, people, isAdmin, flash }) {
             <div key={d.id} className="task-row"><div><div className="title">{d.label}</div><div className="meta">Set up {d.created_at?.slice(0, 10)} · last used {d.last_seen ? d.last_seen.replace("T", " ").slice(0, 16) + " UTC" : "never"}</div></div>
               <button className="btn btn-ghost btn-sm" onClick={async () => { await api.revokeKioskDevice(d.id); load(); }}>Switch off</button></div>
           ))}
+        </div>
+      )}
+
+      {isAdmin && geo && (
+        <div className="card">
+          <div className="title">Check-in Location</div>
+          <p className="meta" style={{ margin: "6px 0 10px", lineHeight: 1.6 }}>Check-in is accepted only when the clinic phone is at the clinic. Stand inside the clinic with this phone or computer and press <b>Set clinic location here</b>.</p>
+          <div className="task-row"><div><div className="title">{geo.on ? "Location limit is ON" : "Location limit is OFF"}</div><div className="meta">{geo.lat !== null ? `Clinic location saved · within ${geo.radius} m` : "Clinic location is not set yet"}</div></div>
+            <div className="right" style={{ gap: 8 }}>
+              <button className="btn btn-primary btn-sm" disabled={geoBusy} onClick={setHere}>{geoBusy ? "Getting location…" : "Set clinic location here"}</button>
+              {geo.lat !== null && <button className="btn btn-outline btn-sm" onClick={() => saveGeo({ on: !geo.on })}>{geo.on ? "Turn off" : "Turn on"}</button>}
+            </div></div>
+          {geo.lat !== null && <div className="task-row"><div className="meta">Allowed distance from the clinic</div>
+            <select className="field" style={{ maxWidth: 140 }} value={geo.radius} onChange={(e) => saveGeo({ radius: Number(e.target.value) })}>{[50, 100, 150, 200, 300, 500].map((n) => <option key={n} value={n}>{n} metres</option>)}</select></div>}
         </div>
       )}
 

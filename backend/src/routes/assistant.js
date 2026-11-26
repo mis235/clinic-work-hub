@@ -199,10 +199,16 @@ router.post("/ask", requireAuth, requirePermission("assistant:use"), async (req,
     const rows = db.prepare("SELECT l.from_date, l.to_date, l.days, l.reason_type, u.name FROM leave_requests l JOIN users u ON u.id = l.user_id WHERE l.status = 'pending' ORDER BY l.from_date").all();
     return res.json({ reply: rows.length ? `${rows.length} leave request${rows.length === 1 ? " is" : "s are"} waiting for approval:\n` + list(rows, (r) => `${r.name}: ${dmy(r.from_date)}${r.to_date !== r.from_date ? " – " + dmy(r.to_date) : ""} (${r.days} day, ${r.reason_type})`) + "\n\nOpen Leave & HR to approve." : "No leave requests are waiting. 🎉", source: "data" });
   }
-  if (/who.*(on leave|leave|absent|off)|on leave|leave today/.test(m) && lead) {
-    if (!canSeeAllLeave(userId, req.user.roleName)) return res.json({ reply: "Leave details are private. Only HR and the people who sign leave can see who is on leave.", source: "data" });
-    const rows = db.prepare("SELECT u.name, l.to_date FROM leave_requests l JOIN users u ON u.id = l.user_id WHERE l.status = 'approved' AND l.from_date <= ? AND l.to_date >= ?").all(t, t);
-    return res.json({ reply: rows.length ? "On approved leave today:\n" + list(rows, (r) => `${r.name} (until ${dmy(r.to_date)})`) : "Nobody is on approved leave today.", source: "data" });
+  if (/who.*(on leave|leave|absent|off|not (taken|marked|checked|come|came|logged|present)|missing)|on leave|leave today|not taken (the )?attend|without attend/.test(m) && lead) {
+    // "On leave today" = every person who has not taken attendance today (the clinic counts a person with no check-in as on leave).
+    const hhmm = new Date(Date.now() + 19800000).toISOString().slice(11, 16);
+    const all = db.prepare(`SELECT u.id, u.name FROM users u LEFT JOIN roles r ON r.id = u.role_id
+      WHERE u.active = 1 AND COALESCE(u.no_attendance,0) = 0 AND COALESCE(r.name,'') != 'admin' AND (COALESCE(u.joined_at,'') = '' OR u.joined_at <= ?) ORDER BY u.name`).all(t);
+    const done = new Set(db.prepare("SELECT user_id FROM attendance_marks WHERE mark_date = ? AND (in_time IS NOT NULL OR status IN ('P','L','H'))").all(t).map((r) => r.user_id));
+    const rows = all.filter((u) => !done.has(u.id));
+    const approved = canSeeAllLeave(userId, req.user.roleName) ? new Set(db.prepare("SELECT user_id FROM leave_requests WHERE status = 'approved' AND from_date <= ? AND to_date >= ?").all(t, t).map((r) => r.user_id)) : new Set();
+    const hm12 = (() => { const [h, mi] = hhmm.split(":").map(Number); return `${h % 12 || 12}:${String(mi).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; })();
+    return res.json({ reply: rows.length ? `On leave today (no attendance taken), as of ${hm12}: ${rows.length} of ${all.length} staff\n` + list(rows, (r) => r.name + (approved.has(r.id) ? " (approved leave)" : "")) : `Everyone has taken attendance today (${all.length} of ${all.length} staff), as of ${hm12}.`, source: "data" });
   }
   if (/late/.test(m) && /who|everyone|staff|team|this month|list/.test(m) && lead) {
     const s = hrSettings();
