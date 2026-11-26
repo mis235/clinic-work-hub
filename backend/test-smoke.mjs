@@ -860,6 +860,13 @@ try {
       const lr = await call("PUT", "/api/attendance/late-reason", { date: today, reason: "Bus broke down" }, stoken);
       ok("the person can give the late reason", lr.status === 200, JSON.stringify(lr.body));
       ok("the admin sees the reason", (await call("GET", "/api/attendance/late", null, admin)).body?.rows?.some((r) => r.user_id === staff.id && r.reason === "Bus broke down"));
+      const lateIn = async (q) => (await call("GET", `/api/attendance/late?${q}`, null, admin)).body;
+      ok("Late & checks takes a date range", (await lateIn(`from=${today}&to=${today}`)).rows?.some((r) => r.user_id === staff.id && r.type === "late"));
+      ok("a range with no days in it is empty", (await lateIn("from=2000-01-01&to=2000-01-05")).rows?.length === 0);
+      ok("a range over a year is refused", (await call("GET", "/api/attendance/late?from=2020-01-01&to=2026-01-01", null, admin)).status === 400);
+      await call("PUT", "/api/attendance/time", { userId: staff.id, date: today, inTime: "09:30", outTime: "18:30" }, admin);
+      ok("after HR corrects the time the person is no longer listed as late", !(await lateIn(`from=${today}&to=${today}`)).rows?.some((r) => r.user_id === staff.id && r.type === "late"));
+      await call("PUT", "/api/attendance/time", { userId: staff.id, date: today, inTime: "10:40", outTime: "18:30" }, admin);
       ok("the register carries the reason", (await call("GET", "/api/attendance/register", null, admin)).body?.rows?.find((r) => r.id === staff.id)?.times?.some((t) => t?.r === "Bus broke down"));
       ok("no reason for a day that was not late", (await call("PUT", "/api/attendance/late-reason", { date: "2020-01-01", reason: "Traffic jam" }, stoken)).status === 400);
     }

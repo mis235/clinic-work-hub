@@ -25,8 +25,10 @@ export default function AttendancePage({ user, onLogout, onBack }) {
   const [toast, setToast] = useState("");
   const flash = (m) => { setToast(m); setTimeout(() => setToast(""), 3000); };
   const month = date.slice(0, 7);
+  const [ver, setVer] = useState(0); // goes up after every change, so the Late & checks list refreshes after an HR edit
 
   const load = () => {
+    setVer((v) => v + 1);
     api.attendanceBoard(date).then(setBoard).catch((e) => { setBoard({ rows: [], counts: {}, total: 0 }); flash(e.message); });
     api.attendanceRegister(month).then(setReg).catch(() => setReg({ rows: [], daysInMonth: 0 }));
   };
@@ -121,7 +123,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
         </div>
       ))}
 
-      {tab === "late" && <LateReasonsPanel month={month} />}
+      {tab === "late" && <LateReasonsPanel month={month} ver={ver} />}
       {tab === "face" && <FacePanel date={date} people={board?.rows || []} isAdmin={user.role === "admin"} flash={flash} />}
       {tab === "sheet" && SETUP && <SheetPanel flash={flash} onChanged={load} />}
       {tab === "notes" && <MessagesPanel flash={flash} />}
@@ -131,21 +133,40 @@ export default function AttendancePage({ user, onLogout, onBack }) {
   );
 }
 
-function LateReasonsPanel({ month }) {
-  const [d, setD] = useState(null), [f, setF] = useState("all");
-  useEffect(() => { setD(null); const load = () => api.lateReasons(month).then(setD).catch(() => setD({ rows: [] })); load(); window.addEventListener("hub-refresh", load); return () => window.removeEventListener("hub-refresh", load); }, [month]);
-  if (!d) return <div className="empty">Loading…</div>;
+function LateReasonsPanel({ month, ver }) {
+  const today = todayIST();
+  const monthRange = (m) => { const [y, mo] = m.split("-").map(Number), last = new Date(Date.UTC(y, mo, 0)).getUTCDate(), end = `${m}-${String(last).padStart(2, "0")}`; return { from: `${m}-01`, to: m === today.slice(0, 7) ? today : end }; };
+  const [range, setRange] = useState(monthRange(month)), [custom, setCustom] = useState(false);
+  const [d, setD] = useState(null), [f, setF] = useState("all"), [tick, setTick] = useState(0);
+  useEffect(() => { if (!custom) setRange(monthRange(month)); }, [month]); // follows the Month register until a range is chosen by hand
+  const load = () => api.lateReasons(range.from, range.to).then(setD).catch(() => setD({ rows: [] }));
+  useEffect(() => { load(); }, [range.from, range.to, ver, tick]);   // also after every change made on this page
+  useEffect(() => { const t = setInterval(() => setTick((x) => x + 1), 60000), h = () => setTick((x) => x + 1); window.addEventListener("hub-refresh", h); window.addEventListener("focus", h); return () => { clearInterval(t); window.removeEventListener("hub-refresh", h); window.removeEventListener("focus", h); }; }, []);
+  const addDays = (n) => new Date(new Date(today + "T00:00:00Z").getTime() + n * 86400000).toISOString().slice(0, 10);
+  const pick = (from, to, c = true) => { setCustom(c); setRange({ from, to }); };
+  const prevMonth = (() => { const d0 = new Date(today.slice(0, 7) + "-01T00:00:00Z"); d0.setUTCMonth(d0.getUTCMonth() - 1); return d0.toISOString().slice(0, 7); })();
+  const QUICK = [["Today", () => pick(today, today)], ["Yesterday", () => pick(addDays(-1), addDays(-1))], ["Last 7 days", () => pick(addDays(-6), today)], ["This month", () => pick(today.slice(0, 7) + "-01", today)], ["Last month", () => { const r = monthRange(prevMonth); pick(r.from, r.to); }]];
+  const head = (
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
+      <label className="meta">From</label><input className="field" type="date" style={{ maxWidth: 160 }} value={range.from} max={range.to} onChange={(e) => e.target.value && pick(e.target.value, range.to)} />
+      <label className="meta">To</label><input className="field" type="date" style={{ maxWidth: 160 }} value={range.to} min={range.from} onChange={(e) => e.target.value && pick(range.from, e.target.value)} />
+      {QUICK.map(([l, fn]) => <button key={l} className="pill" onClick={fn}>{l}</button>)}
+      {custom && <button className="pill" onClick={() => { setCustom(false); setRange(monthRange(month)); }}>Follow the register month</button>}
+    </div>
+  );
+  if (!d) return <div className="card">{head}<div className="empty">Loading…</div></div>;
   const TYPES = { late: ["Late", "#d97706"], noin: ["No check-in", "#dc2626"], noout: ["No check-out", "#dc2626"], early: ["Left early", "#0ea5e9"], half: ["Half day", "#7c3aed"] };
   const rows = d.rows.filter((r) => f === "all" || r.type === f);
   const without = d.rows.filter((r) => !r.reason).length;
   return (
     <div className="card" style={{ overflowX: "auto" }}>
-      <div className="meta" style={{ marginBottom: 8 }}>{d.month} · {d.rows.length} to look at{without ? ` · ${without} without a reason` : ""}</div>
+      {head}
+      <div className="meta" style={{ marginBottom: 8 }}>{new Date(range.from + "T00:00:00Z").toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" })} to {new Date(range.to + "T00:00:00Z").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })} · {d.rows.length} to look at{without ? ` · ${without} without a reason` : ""} · updates by itself</div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
         <button className={`pill ${f === "all" ? "active" : ""}`} onClick={() => setF("all")}>All</button>
         {Object.entries(TYPES).map(([k, [l]]) => <button key={k} className={`pill ${f === k ? "active" : ""}`} onClick={() => setF(k)}>{l} ({d.rows.filter((r) => r.type === k).length})</button>)}
       </div>
-      {rows.length === 0 ? <div className="meta">Nothing here this month.</div> : (
+      {rows.length === 0 ? <div className="meta">Nothing here for these dates.</div> : (
         <table className="tbl" style={{ width: "100%" }}>
           <thead><tr><th style={{ textAlign: "left" }}>Date</th><th style={{ textAlign: "left" }}>Name</th><th>In</th><th>Out</th><th style={{ textAlign: "left" }}>What</th><th style={{ textAlign: "left" }}>Reason</th></tr></thead>
           <tbody>{rows.map((r, i) => (

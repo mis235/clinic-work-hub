@@ -434,11 +434,15 @@ router.put("/late-reason", requireAuth, (req, res) => {
 // Admin / manager: everything to look at for the month, one list: late arrivals, no morning check-in, no check-out,
 // left early, half days, each with the person's reason when they gave one.
 router.get("/late", requireAuth, requirePermission("attendance:view_all"), (req, res) => {
-  const month = /^\d{4}-\d{2}$/.test(req.query.month || "") ? req.query.month : istToday().slice(0, 7);
-  const today = istToday(), rows = [];
+  const today = istToday(), rows = [], D = /^\d{4}-\d{2}-\d{2}$/;
+  const month = /^\d{4}-\d{2}$/.test(req.query.month || "") ? req.query.month : today.slice(0, 7);
+  // A date range (from / to) or, without one, a whole month. Read live from the same marks as the Month register, so every HR edit shows here.
+  let from = D.test(req.query.from || "") ? req.query.from : `${month}-01`, to = D.test(req.query.to || "") ? req.query.to : (D.test(req.query.from || "") ? from : `${month}-31`);
+  if (to < from) [from, to] = [to, from];
+  if (new Date(to) - new Date(from) > 366 * 86400000) return res.status(400).json({ error: "Choose a range of one year or less" });
   const marks = db.prepare(`SELECT m.user_id, u.name, m.mark_date AS date, m.in_time, m.out_time, m.status, m.late_reason AS reason
-      FROM attendance_marks m JOIN users u ON u.id = m.user_id WHERE u.active = 1 AND COALESCE(u.no_attendance,0) = 0 AND substr(m.mark_date,1,7) = ?
-      AND m.status IN ('P','L','H') ORDER BY m.mark_date DESC, u.name`).all(month);
+      FROM attendance_marks m JOIN users u ON u.id = m.user_id WHERE u.active = 1 AND COALESCE(u.no_attendance,0) = 0 AND m.mark_date BETWEEN ? AND ?
+      AND m.status IN ('P','L','H') ORDER BY m.mark_date DESC, u.name`).all(from, to);
   for (const r of marks) {
     const w = shiftWindow(r.user_id, r.date), base = { user_id: r.user_id, name: r.name, date: r.date, in_time: r.in_time || "", out_time: r.out_time || "", reason: r.reason || "" };
     const late = r.in_time && isLateArrival(r.user_id, r.date, r.in_time) ? Math.max(0, mm(r.in_time) - mm(w.start)) : 0;
@@ -448,7 +452,7 @@ router.get("/late", requireAuth, requirePermission("attendance:view_all"), (req,
     if (r.in_time && !r.out_time && r.date < today) rows.push({ ...base, type: "noout", late: 0, detail: "No check-out" });
     if (r.in_time && r.out_time && r.status !== "H" && mm(r.out_time) < mm(w.end) - 15) rows.push({ ...base, type: "early", late: 0, detail: `Left ${mm(w.end) - mm(r.out_time)} min early` });
   }
-  res.json({ month, rows });
+  res.json({ month, from, to, rows });
 });
 
 router.get("/register", requireAuth, requirePermission("attendance:view_all"), (req, res) => registerFor(req, res, null));

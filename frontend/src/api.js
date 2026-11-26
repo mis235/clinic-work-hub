@@ -187,7 +187,7 @@ export const api = {
   myAttendanceMonth: (month) => req(`/api/attendance/mine${month ? `?month=${month}` : ""}`),
   myLateDays: () => req("/api/attendance/late/mine"),
   saveLateReason: (date, reason) => req("/api/attendance/late-reason", { method: "PUT", body: { date, reason } }),
-  lateReasons: (month) => req(`/api/attendance/late${month ? `?month=${month}` : ""}`),
+  lateReasons: (from, to) => req(`/api/attendance/late?from=${from}&to=${to}`),
   attendanceRegister: (month) => req(`/api/attendance/register${month ? `?month=${month}` : ""}`),
   fines: (month, userId) => req(`/api/fines?month=${month || ""}${userId ? `&userId=${userId}` : ""}`),
   finesSummary: (month) => req(`/api/fines/summary?month=${month || ""}`),
