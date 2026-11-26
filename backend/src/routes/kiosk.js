@@ -31,6 +31,11 @@ const okDesc = (d) => Array.isArray(d) && d.length === 128 && d.every((x) => typ
 
 // Face check-in is for the clinic phone only: a computer or laptop opening the same link is refused.
 const isPhone = (req) => /Android|iPhone|iPad|iPod|Mobile/i.test(req.headers["user-agent"] || "");
+function phoneLabel(ua = "") {
+  const dev = /iPad/i.test(ua) ? "iPad" : /iPhone|iPod/i.test(ua) ? "iPhone" : /Android/i.test(ua) ? "Android phone" : "Phone";
+  const br = /CriOS|Chrome/i.test(ua) ? "Chrome" : /Safari/i.test(ua) ? "Safari" : /Firefox|FxiOS/i.test(ua) ? "Firefox" : "";
+  return br ? `${dev} · ${br}` : dev;
+}
 function requireKiosk(req, res, next) {
   if (!isPhone(req) && process.env.KIOSK_ALLOW_DESKTOP !== "true") return res.status(403).json({ error: "Face check-in works only on the clinic phone. Please use the phone.", phoneOnly: true });
   const h = req.headers.authorization || "";
@@ -39,6 +44,15 @@ function requireKiosk(req, res, next) {
     if (p.kind !== "kiosk") throw new Error("not a kiosk key");
     const dev = db.prepare("SELECT * FROM kiosk_devices WHERE id = ? AND revoked_at IS NULL").get(p.deviceId);
     if (!dev) return res.status(401).json({ error: "This clinic phone has been switched off by the admin" });
+    // One shared link can run on many phones: each phone gets its own id (kept in the phone) so it can be tracked and switched off alone.
+    const pid = String(req.headers["x-phone-id"] || "").replace(/[^\w-]/g, "").slice(0, 40);
+    if (pid.length >= 8) {
+      const ph = db.prepare("SELECT blocked_at FROM kiosk_phones WHERE id = ?").get(pid);
+      if (ph?.blocked_at) return res.status(401).json({ error: "This phone has been switched off by the admin" });
+      if (ph) db.prepare("UPDATE kiosk_phones SET last_seen = datetime('now'), device_id = ? WHERE id = ?").run(dev.id, pid);
+      else db.prepare("INSERT INTO kiosk_phones (id, device_id, label, last_seen) VALUES (?,?,?,datetime('now'))").run(pid, dev.id, phoneLabel(req.headers["user-agent"]));
+      req.phoneId = pid;
+    }
     db.prepare("UPDATE kiosk_devices SET last_seen = datetime('now') WHERE id = ?").run(dev.id);
     req.kiosk = dev; next();
   } catch { res.status(401).json({ error: "This phone is not set up for check-in. Ask the admin for a new link." }); }
@@ -115,6 +129,24 @@ router.post("/devices", requireAuth, requirePermission("staff:manage"), (req, re
   const label = String(req.body?.label || "Clinic phone").slice(0, 40);
   db.prepare("INSERT INTO kiosk_devices (id, label, created_by) VALUES (?,?,?)").run(id, label, req.user.userId);
   res.status(201).json({ id, label, key: jwt.sign({ kind: "kiosk", deviceId: id }, secret(), { expiresIn: "365d" }) });
+});
+// ONE link for every clinic phone: the same key is reused, so nobody ever needs a new link.
+const SHARED_LABEL = "Clinic check-in link (all phones)";
+router.get("/shared-link", requireAuth, requirePermission("staff:manage"), (req, res) => {
+  let d = db.prepare("SELECT id FROM kiosk_devices WHERE label = ? AND revoked_at IS NULL ORDER BY created_at LIMIT 1").get(SHARED_LABEL);
+  if (!d) { const id = randomUUID(); db.prepare("INSERT INTO kiosk_devices (id, label, created_by) VALUES (?,?,?)").run(id, SHARED_LABEL, req.user.userId); d = { id }; }
+  res.json({ id: d.id, key: jwt.sign({ kind: "kiosk", deviceId: d.id }, secret(), { expiresIn: "3650d" }) });
+});
+// Every phone that has opened the link, with today's check-ins.
+router.get("/phones", requireAuth, requirePermission("staff:manage"), (req, res) => {
+  res.json(db.prepare(`SELECT p.id, p.label, p.first_seen, p.last_seen, p.blocked_at,
+      (SELECT COUNT(*) FROM face_checkins f WHERE f.phone_id = p.id AND f.undone_at IS NULL AND date(f.created_at,'+5 hours','+30 minutes') = ?) AS today
+    FROM kiosk_phones p ORDER BY p.last_seen DESC`).all(istNow().toISOString().slice(0, 10)));
+});
+router.put("/phones/:id", requireAuth, requirePermission("staff:manage"), (req, res) => {
+  if (req.body?.label !== undefined) db.prepare("UPDATE kiosk_phones SET label = ? WHERE id = ?").run(String(req.body.label).slice(0, 40), req.params.id);
+  if (req.body?.blocked !== undefined) db.prepare("UPDATE kiosk_phones SET blocked_at = ? WHERE id = ?").run(req.body.blocked ? new Date().toISOString() : null, req.params.id);
+  res.json({ ok: true });
 });
 router.delete("/devices/:id", requireAuth, requirePermission("staff:manage"), (req, res) => {
   db.prepare("UPDATE kiosk_devices SET revoked_at = datetime('now') WHERE id = ?").run(req.params.id); res.json({ ok: true });
@@ -236,8 +268,8 @@ router.post("/checkin", requireKiosk, (req, res) => {
     let snapPath = null;
     const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(snapshot || "");
     if (m && m[1].length < 400000) { snapPath = path.join(SNAP_DIR, `${randomUUID()}.jpg`); fs.writeFileSync(snapPath, Buffer.from(m[1], "base64")); }
-    db.prepare("INSERT INTO face_checkins (id, user_id, device_id, distance, mark, kind, snapshot_path, prev) VALUES (?,?,?,?,?,?,?,?)")
-      .run(ckId, best.userId, req.kiosk.id, best.distance, mark, kind, snapPath, prevJson);
+    db.prepare("INSERT INTO face_checkins (id, user_id, device_id, distance, mark, kind, snapshot_path, prev, phone_id) VALUES (?,?,?,?,?,?,?,?,?)")
+      .run(ckId, best.userId, req.kiosk.id, best.distance, mark, kind, snapPath, prevJson, req.phoneId || null);
   }
   const lateMin = kind === "in" && mark === "L" && inTime ? Math.max(0, mins(inTime) - mins(win.start)) : 0;
   res.json({ matched: true, name: best.name, kind, mark, late: lateMin, label: MARKS[mark], time: kind === "out" ? outTime : inTime, inTime, outTime, workedMinutes: worked, already, noMorningCheckin: noIn, message: note ? note.body : null, undoId: already ? null : ckId });

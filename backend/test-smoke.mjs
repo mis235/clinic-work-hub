@@ -474,6 +474,20 @@ try {
   const brd2 = (await call("GET", "/api/attendance/board", null, admin)).body;
   ok("the face check-in shows on the attendance board", ["P", "L"].includes(brd2.rows.find((r) => r.id === mkd.body.id)?.mark));
   ok("face check-in is refused on a computer", (await fetch(base + "/api/kiosk/checkin", { method: "POST", headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120", Authorization: `Bearer ${kdev.body.key}` }, body: JSON.stringify({ descriptor: fdesc(1) }) })).status === 403);
+  {
+    const sl = await call("GET", "/api/kiosk/shared-link", null, admin), sl2 = await call("GET", "/api/kiosk/shared-link", null, admin);
+    ok("one shared check-in link is given, and it is the same every time", sl.status === 200 && sl.body.key && sl.body.id === sl2.body.id);
+    const ua = { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) Safari/604.1", Authorization: `Bearer ${sl.body.key}` };
+    const ping = (pid) => fetch(base + "/api/kiosk/ping", { headers: { ...ua, "x-phone-id": pid } });
+    ok("the shared link works on a phone", (await ping("phone-aaaa-0001")).status === 200);
+    await ping("phone-bbbb-0002");
+    const ph = (await call("GET", "/api/kiosk/phones", null, admin)).body;
+    ok("each phone on the shared link is listed", ph.length >= 2 && ph.some((p) => p.id === "phone-aaaa-0001" && /iPhone/.test(p.label)));
+    await call("PUT", "/api/kiosk/phones/phone-aaaa-0001", { blocked: true }, admin);
+    ok("one phone can be switched off alone", (await ping("phone-aaaa-0001")).status === 401 && (await ping("phone-bbbb-0002")).status === 200);
+    await call("PUT", "/api/kiosk/phones/phone-aaaa-0001", { blocked: false }, admin);
+    ok("and switched back on", (await ping("phone-aaaa-0001")).status === 200);
+  }
   await call("DELETE", `/api/kiosk/devices/${kdev.body.id}`, null, admin);
   {
     const dsh = await call("GET", "/api/shift-checklist/dashboard", null, admin);

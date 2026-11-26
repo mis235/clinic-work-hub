@@ -511,6 +511,15 @@ ensureColumn("generated_docs", "email_error", "email_error TEXT");
 ensureColumn("face_checkins", "kind", "kind TEXT");
 ensureColumn("face_checkins", "undone_at", "undone_at TEXT");
 ensureColumn("face_checkins", "prev", "prev TEXT");
+ensureColumn("face_checkins", "phone_id", "phone_id TEXT");
+db.exec(`CREATE TABLE IF NOT EXISTS kiosk_phones (
+  id TEXT PRIMARY KEY,
+  device_id TEXT,
+  label TEXT NOT NULL,
+  first_seen TEXT NOT NULL DEFAULT (datetime('now')),
+  last_seen TEXT,
+  blocked_at TEXT
+)`);
 ensureColumn("attendance", "note", "note TEXT");
 ensureColumn("attendance", "selfie_path", "selfie_path TEXT");
 ensureColumn("users", "shift_start", "shift_start TEXT");
