@@ -416,6 +416,29 @@ try {
     ok("check-in at the clinic is accepted", (await kc({ lat: 17.4001, lng: 78.4001, acc: 20 })).body?.matched === true);
     await call("PUT", "/api/kiosk/geo", { on: false }, admin);
   }
+  { // repeated and accidental looks (the clock is set by the test header)
+    const sp = allU.filter((u) => u.role === "staff" && ![mkd.body.id, faceOther.id].includes(u.id));
+    const today = new Date(Date.now() + 19800000).toISOString().slice(0, 10);
+    const scan = (seed, at, extra = {}) => fetch(base + "/api/kiosk/checkin", { method: "POST", headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X)", "x-test-now": `${today}T${at}`, Authorization: `Bearer ${kdev.body.key}` }, body: JSON.stringify({ descriptor: fdesc(seed), ...extra }) }).then((r) => r.json());
+    if (sp.length >= 2) {
+      await call("POST", `/api/kiosk/enroll/${sp[0].id}`, { descriptors: [120, 120, 120].map(fdesc) }, admin);
+      await call("POST", `/api/kiosk/enroll/${sp[1].id}`, { descriptors: [150, 150, 150].map(fdesc) }, admin);
+      const a1 = await scan(120, "09:30"), a2 = await scan(120, "09:31"), a3 = await scan(120, "10:15");
+      ok("9:30 first look is the check-in", a1.matched && a1.kind === "in" && a1.inTime === "09:30", JSON.stringify(a1));
+      ok("looking again a minute later is 'already checked in'", a2.already === true && a2.kind === "in");
+      ok("looking again within the hour is not a check-out", a3.already === true && a3.kind === "in" && !a3.confirmOut);
+      const a4 = await scan(120, "12:00"), a5 = await scan(120, "12:01");
+      ok("a look in mid-day only asks 'leaving now?' and records nothing", a4.confirmOut === true && a5.confirmOut === true && !a5.outTime, JSON.stringify(a4));
+      const a6 = await scan(120, "12:02", { confirmOut: true });
+      ok("saying yes records the check-out once", a6.kind === "out" && a6.outTime === "12:02" && a6.already === false, JSON.stringify(a6));
+      const a7 = await scan(120, "12:10"), a8 = await scan(120, "18:45");
+      ok("after the check-out every later look is 'already recorded' and never moves it", a7.already === true && a8.already === true && a8.outTime === "12:02", JSON.stringify(a8));
+      await scan(150, "10:00");
+      const b2 = await scan(150, "19:00");
+      ok("near the end of the shift a look is the check-out with no question", b2.kind === "out" && b2.outTime === "19:00" && !b2.confirmOut, JSON.stringify(b2));
+      await call("DELETE", `/api/kiosk/enroll/${sp[0].id}`, null, admin); await call("DELETE", `/api/kiosk/enroll/${sp[1].id}`, null, admin);
+    }
+  }
   const brd2 = (await call("GET", "/api/attendance/board", null, admin)).body;
   ok("the face check-in shows on the attendance board", ["P", "L"].includes(brd2.rows.find((r) => r.id === mkd.body.id)?.mark));
   ok("face check-in is refused on a computer", (await fetch(base + "/api/kiosk/checkin", { method: "POST", headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120", Authorization: `Bearer ${kdev.body.key}` }, body: JSON.stringify({ descriptor: fdesc(1) }) })).status === 403);

@@ -19,7 +19,7 @@ fs.mkdirSync(SNAP_DIR, { recursive: true });
 const MATCH_DISTANCE = Number(process.env.FACE_MATCH_DISTANCE || 0.42); // lower = stricter (0.5 let look-alike colleagues through)
 const MATCH_MARGIN = Number(process.env.FACE_MATCH_MARGIN || 0.08); // the best person must beat the next person by at least this much
 const UNIQUE_DISTANCE = Number(process.env.FACE_UNIQUE_DISTANCE || 0.45); // two people closer than this are treated as the same face
-const MIN_GAP_MIN = Number(process.env.MIN_STAY_MINUTES || 30);        // a second look within this many minutes is not a logout
+const MIN_GAP_MIN = Number(process.env.MIN_STAY_MINUTES || 60);        // a second look within this many minutes is not a logout
 import { isLateArrival, syncLateFines, shiftWindow, dayStatus } from "./leave.js";
 import { queueSheet } from "../attendanceSheet.js";
 import { engage } from "../engage.js";
@@ -179,7 +179,7 @@ router.post("/checkin", requireKiosk, (req, res) => {
   // Two different people both fit: refuse rather than mark the wrong person.
   if (ranked[1] && ranked[1].distance - best.distance < MATCH_MARGIN) return res.json({ matched: false, ambiguous: true });
 
-  const now = istNow(), date = now.toISOString().slice(0, 10), hhmm = now.toISOString().slice(11, 16);
+  const now = process.env.NODE_ENV === "test" && req.headers["x-test-now"] ? new Date(String(req.headers["x-test-now"]) + "Z") : istNow(), date = now.toISOString().slice(0, 10), hhmm = now.toISOString().slice(11, 16);
   const mins = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
   const row = db.prepare("SELECT status, in_time, out_time FROM attendance_marks WHERE user_id = ? AND mark_date = ?").get(best.userId, date);
   let kind, mark = row?.status, inTime = row?.in_time || null, outTime = row?.out_time || null, already = false, noIn = false;
@@ -201,6 +201,8 @@ router.post("/checkin", requireKiosk, (req, res) => {
       ON CONFLICT(user_id, mark_date) DO UPDATE SET status = excluded.status, in_time = excluded.in_time, updated_at = datetime('now')`)
       .run(best.userId, date, mark, inTime, `Face check-in ${hhmm}`);
   } else if (!outTime && mins(hhmm) - mins(inTime) >= MIN_GAP_MIN) { // check-out is taken once; a later look never moves it (HR can correct the time)
+    // Well before the end of the shift a look is probably an accident (someone glancing at the phone): ask "Leaving now?" and record nothing until they confirm.
+    if (mins(hhmm) < mins(win.end) - 60 && req.body?.confirmOut !== true) return res.json({ matched: true, confirmOut: true, name: best.name, kind: "out", inTime, time: hhmm, already: false });
     kind = "out"; outTime = hhmm;
     db.prepare("UPDATE attendance_marks SET out_time = ?, updated_at = datetime('now') WHERE user_id = ? AND mark_date = ?").run(outTime, best.userId, date);
     // Left before half of the shift was worked: the day becomes a Half day (never touches Leave / Absent).
