@@ -31,20 +31,25 @@ export default function KioskPage() {
 
   useEffect(() => { // the screen is exactly as tall as the visible phone screen and never scrolls
     const root = document.documentElement, fit = () => root.style.setProperty("--kh", `${window.innerHeight}px`);
+    const meta = document.querySelector('meta[name="viewport"]'), oldMeta = meta?.getAttribute("content");
+    meta?.setAttribute("content", "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"); // no pinch or double-tap zoom on the clinic phone
     root.classList.add("kiosk-lock"); fit();
+    const still = (e) => { if (!e.target.closest?.("button, input, a")) e.preventDefault(); }, home = () => window.scrollTo(0, 0);
+    document.addEventListener("touchmove", still, { passive: false }); window.addEventListener("scroll", home);
     window.addEventListener("resize", fit); window.addEventListener("orientationchange", fit);
-    return () => { root.classList.remove("kiosk-lock"); root.style.removeProperty("--kh"); window.removeEventListener("resize", fit); window.removeEventListener("orientationchange", fit); };
+    return () => { root.classList.remove("kiosk-lock"); root.style.removeProperty("--kh"); if (oldMeta) meta?.setAttribute("content", oldMeta); document.removeEventListener("touchmove", still); window.removeEventListener("scroll", home); window.removeEventListener("resize", fit); window.removeEventListener("orientationchange", fit); };
   }, []);
   const confirmRef = useRef(null), undoRef = useRef(null);
   const [online, setOnline] = useState(true);
   const [lastIn, setLastIn] = useState(null);
+  const [today, setToday] = useState(null);
 
   useEffect(() => {
     // The setup link carries the phone's key (#key=...). Save it, and keep it in the address for iPhone home-screen icons.
     const k0 = kioskApi.key(); // saves the key and, on an old #key= link, moves it to ?key= (iPhone keeps the query when adding to the home screen)
     if (k0 && !/[?&]key=/.test(window.location.search)) { try { history.replaceState(null, "", "/kiosk?key=" + encodeURIComponent(k0)); } catch {} } // the key stays in the address so "Add to Home Screen" on an iPhone keeps it
     const demo = /demo=(\w+)/.exec(window.location.hash)?.[1]; // #demo=look|check|in|out|fail|error|offline shows a screen without the camera
-    if (demo) { const D = { look: { phase: "look", text: "Look at the camera" }, check: { phase: "check", text: "Checking…" }, in: { phase: "result", ok: true, text: "Welcome, Monika", sub: "In Time recorded 09:42 AM" }, out: { phase: "result", ok: true, text: "Goodbye, Monika", sub: "Out Time recorded 06:31 PM · worked 8h 49m" }, fail: { phase: "result", ok: false, text: "Face not recognised", sub: "Face the light and look straight at the camera." }, error: { phase: "error", text: "Camera is blocked. Allow the camera and try again." }, offline: { phase: "offline", text: "No internet right now", sub: "Hold still. Trying again…" } }; setState(D[demo] || D.look); if (demo === "offline") setOnline(false); return; }
+    if (demo) { const D = { look: { phase: "look", text: "Look at the camera" }, check: { phase: "check", text: "Checking…" }, in: { phase: "result", ok: true, text: "Welcome, Monika", sub: "In Time recorded 09:42 AM" }, out: { phase: "result", ok: true, text: "Goodbye, Monika", sub: "Out Time recorded 06:31 PM · worked 8h 49m" }, fail: { phase: "result", ok: false, text: "Face not recognised", sub: "Face the light and look straight at the camera." }, error: { phase: "error", text: "Camera is blocked. Allow the camera and try again." }, offline: { phase: "offline", text: "No internet right now", sub: "Hold still. Trying again…" } }; setState(D[demo] || D.look); setToday({ count: 12, recent: [{ name: "Monika", kind: "in", time: "09:42" }, { name: "Praneeth", kind: "in", time: "09:40" }, { name: "Kavya", kind: "out", time: "09:12" }] }); if (demo === "offline") setOnline(false); return; }
     let dead = false, stop = null, last = { id: "", at: 0 }, lock = null;
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const net = (e) => !e?.status; // no HTTP status means no internet (or a timeout), not a refusal from the server
@@ -58,7 +63,8 @@ export default function KioskPage() {
     let geoOn = false, pos = null, posErr = 0, watch = null;
     const startGeo = () => { if (watch !== null || !navigator.geolocation) return; try { watch = navigator.geolocation.watchPosition((p) => { posErr = 0; pos = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy, at: Date.now() }; }, (e) => { posErr = e.code || 2; }, { enableHighAccuracy: true, maximumAge: 20000, timeout: 30000 }); } catch {} };
     // Every minute: tell the server this phone is alive, and show whether the internet is reachable.
-    const beat = setInterval(() => { kioskApi.call("ping").then((r) => { setOnline(true); geoOn = !!r.geo; if (geoOn) startGeo(); }).catch((e) => { if (net(e)) setOnline(false); }); }, 45000);
+    const loadToday = () => kioskApi.call("today").then(setToday).catch(() => {});
+    const beat = setInterval(() => { loadToday(); kioskApi.call("ping").then((r) => { setOnline(true); geoOn = !!r.geo; if (geoOn) startGeo(); }).catch((e) => { if (net(e)) setOnline(false); }); }, 45000);
     window.addEventListener("online", () => setOnline(true));
     window.addEventListener("offline", () => setOnline(false));
     (async () => {
@@ -73,7 +79,7 @@ export default function KioskPage() {
           try { info = await kioskApi.call("ping"); break; }
           catch (e) { if (!net(e)) throw e; if (dead) return; setOnline(false); setState({ phase: "offline", text: "Waiting for internet…", sub: "Attendance starts by itself when the signal is back." }); await sleep(4000); }
         }
-        setOnline(true);
+        setOnline(true); loadToday();
         geoOn = !!info.geo; if (geoOn) startGeo();
         if (info.enrolled === 0) { setState({ phase: "error", text: "No faces are enrolled yet. Ask the admin to enroll staff faces first." }); return; }
         setState({ phase: "start", text: "Getting ready…", sub: "Loading the face scanner" });
@@ -95,11 +101,12 @@ export default function KioskPage() {
         let lastOk = null; // the last recorded person, so the "Not me" button stays while they stand there
         undoRef.current = async (id) => {
           try { await kioskApi.call("undo", { id }); } catch (e) { setState({ phase: "result", ok: false, text: "Could not cancel", sub: e.message }); return; }
-          lastOk = null; last = { at: Date.now() + 1500 }; setLastIn(null);
+          lastOk = null; last = { at: Date.now() + 1500 }; setLastIn(null); setTimeout(loadToday, 400);
           setState({ phase: "result", ok: false, text: "Cancelled", sub: "Nothing was recorded. Please look at the camera again." });
           setTimeout(() => setState((s) => (s.phase === "result" ? { phase: "look", text: "Look at the camera" } : s)), 3000);
         };
         const showResult = (r, payload) => {
+          if (r.matched && !r.confirmOut) setTimeout(loadToday, 400);
           if (r.confirmOut) { askOut(r, payload); return; }
           if (r.matched && r.already && lastOk && lastOk.name === r.name && Date.now() - lastOk.at < 6500) return; // same person still in front of the camera: keep the first answer on screen
             if (r.matched) {
@@ -202,9 +209,12 @@ export default function KioskPage() {
           </div>
         )}
         {showHow && !standalone && <p className="kiosk-hint">Tap the 3 dots at the top right of Chrome, then “Add to Home screen” and “Install”. On iPhone: tap Share, then “Add to Home Screen”.</p>}
+        <div className="kiosk-today">
+          <div className="kt-head"><b>Today</b><span>{today ? (today.count ? `${today.count} registered` : "No one registered yet") : "…"}</span></div>
+          {today?.recent?.map((r, i) => <div key={i} className="kt-row"><span>{r.name}</span><em className={r.kind === "out" ? "out" : "in"}>{r.kind === "out" ? "Out" : "In"} {t12(r.time)}</em></div>)}
+        </div>
         <div className="kiosk-bar">
           <span><i style={{ display: "inline-block", width: 9, height: 9, borderRadius: 99, marginRight: 6, background: online ? "#4cc38a" : "#f2a33a" }} />{online ? "Online" : "Weak internet"}</span>
-          {lastIn && <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Last: {lastIn.name} · {lastIn.out ? "out" : "in"} {lastIn.time}</span>}
           {!standalone && <button className="kb-install" onClick={install}>Install app</button>}
         </div>
       </div>

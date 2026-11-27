@@ -1631,3 +1631,11 @@ html.kiosk-lock .kiosk-msg p { font-size: 12.5px; margin-top: 2px; }
 .sd-select{border:1px solid #eee4f3;background:#faf7fd;border-radius:12px;padding:10px 12px;font:inherit;font-size:13.5px;color:#2b2238;min-width:170px}
 .sd-view{margin-left:auto}
 @media(max-width:640px){.sd-view{margin-left:0;width:100%}.sd-view button{flex:1}}
+
+html.kiosk-lock .kiosk { touch-action: none; -webkit-user-select: none; user-select: none; }
+.kiosk-today { flex: none; width: 100%; background: #fff; border-radius: 18px; padding: 8px 14px; box-shadow: var(--clay-shadow, 0 8px 20px rgba(110,80,190,.14)); box-sizing: border-box; }
+.kt-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: #7A6A9A; } .kt-head b { font-size: 12.5px; color: #3B2A5A; text-transform: uppercase; letter-spacing: .05em; }
+.kt-row { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 3px 0; border-top: 1px solid #f1eaf7; margin-top: 3px; } .kt-row span { font-weight: 600; color: #3B2A5A; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kt-row em { font-style: normal; flex: none; font-weight: 600; font-size: 12px; padding: 1px 9px; border-radius: 99px; } .kt-row em.in { background: #e3f6ec; color: #17794f; } .kt-row em.out { background: #ece4f7; color: #5a4a72; }
+@media (max-height: 700px) { html.kiosk-lock .kiosk-girl { display: none; } .kiosk-today .kt-row:nth-child(n+4) { display: none; } }
+@media (max-height: 600px) { html.kiosk-lock .kiosk-top { padding: 5px 12px; } html.kiosk-lock .kiosk-top img { height: 24px; } html.kiosk-lock .kiosk-clock b { font-size: 18px; } }

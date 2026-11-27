@@ -488,6 +488,10 @@ try {
         const f4 = await scan(121, "09:10", { descriptor: fdesc(777), fast: true }, D3);
         ok("a stranger on the fast path is never recorded", f4.matched === false && !f4.inTime, JSON.stringify(f4));
       }
+      {
+        const td = await call("GET", "/api/kiosk/today", null, kdev.body.key);
+        ok("the clinic phone can list who is registered today", td.status === 200 && typeof td.body.count === "number" && Array.isArray(td.body.recent), JSON.stringify(td.body));
+      }
       ok("another phone's check-in cannot be cancelled", (await kcall("/api/kiosk/undo", { id: "nope" })).status === 404);
       await call("DELETE", `/api/kiosk/enroll/${sp[0].id}`, null, admin);
     }

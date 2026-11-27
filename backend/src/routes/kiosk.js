@@ -294,6 +294,16 @@ function undoCheckin(c) {
   queueSheet(date.slice(0, 7));
 }
 const hasLater = (c) => !!db.prepare("SELECT 1 FROM face_checkins WHERE user_id = ? AND rowid > (SELECT rowid FROM face_checkins WHERE id = ?) AND undone_at IS NULL").get(c.user_id, c.id);
+// What the clinic phone shows under the camera: who is registered today (latest first) and how many people.
+router.get("/today", requireKiosk, (req, res) => {
+  const day = istNow().toISOString().slice(0, 10);
+  const rows = db.prepare(`SELECT u.name, f.kind, f.created_at FROM face_checkins f JOIN users u ON u.id = f.user_id
+    WHERE date(f.created_at,'+5 hours','+30 minutes') = ? AND f.undone_at IS NULL ORDER BY f.created_at DESC, f.rowid DESC LIMIT 40`).all(day);
+  const hhmm = (c) => new Date(new Date(String(c).replace(" ", "T") + "Z").getTime() + 19800000).toISOString().slice(11, 16);
+  const people = new Set(rows.map((r) => r.name));
+  res.json({ date: day, count: db.prepare(`SELECT COUNT(DISTINCT user_id) n FROM face_checkins WHERE date(created_at,'+5 hours','+30 minutes') = ? AND undone_at IS NULL`).get(day).n,
+    recent: rows.slice(0, 4).map((r) => ({ name: r.name, kind: r.kind === "out" ? "out" : "in", time: hhmm(r.created_at) })), people: people.size });
+});
 router.post("/undo", requireKiosk, (req, res) => {
   const c = db.prepare("SELECT * FROM face_checkins WHERE id = ? AND device_id = ?").get(String(req.body?.id || ""), req.kiosk.id);
   if (!c) return res.status(404).json({ error: "Nothing to cancel" });
