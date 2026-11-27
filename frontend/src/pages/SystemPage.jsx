@@ -114,7 +114,7 @@ function StorageCard() {
   const [s, setS] = useState(null); const [msg, setMsg] = useState("");
   const load = () => api.storage().then(setS).catch(() => {});
   useEffect(() => { load(); }, []);
-  async function clean() { try { const r = await api.cleanSnapshots(90); setMsg(`Removed ${r.removed} old clock-in photo${r.removed === 1 ? "" : "s"} (${mb(r.bytes)}).`); load(); } catch (e) { setMsg(e.message); } }
+  async function clean() { try { const r = await api.cleanSnapshots(90); setMsg(`Removed ${r.removed} old In Time photo${r.removed === 1 ? "" : "s"} (${mb(r.bytes)}).`); load(); } catch (e) { setMsg(e.message); } }
   if (!s) return null;
   const used = s.parts.reduce((t, p) => t + p.bytes, 0);
   const lowDisk = s.free != null && s.free < 5 * 1073741824;

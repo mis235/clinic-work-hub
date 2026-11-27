@@ -71,7 +71,7 @@ export default function ReportsPage({ user, onLogout, onBack }) {
                     <div className="title">{a.name}</div>
                     <div className="meta">{a.department}</div>
                   </div>
-                  <div style={{ fontSize: 12.5 }}>{a.check_ins} clock-ins{a.manual_entries > 0 ? ` · ${a.manual_entries} manual` : ""}</div>
+                  <div style={{ fontSize: 12.5 }}>{a.check_ins} punch-ins{a.manual_entries > 0 ? ` · ${a.manual_entries} manual` : ""}</div>
                 </div>
               ))}
             </div>

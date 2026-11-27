@@ -35,7 +35,7 @@ export function buildMonth(month) {
     summary.push([month, u.name, u.dept || "", c.P, c.L, c.H, c.LV, c.A, c.W, c.none, lateMin || "", Math.round(worked * 10) / 10, fines.get(u.id) || ""]);
   }
   return [
-    { name: month, header: ["Date", "Employee code", "Name", "Department", "Shift start", "Shift end", "Status", "Clock-in", "Clock-out", "Late (min after shift start)", "Hours", "Note"], rows: daily },
+    { name: month, header: ["Date", "Employee code", "Name", "Department", "Shift start", "Shift end", "Status", "In Time", "Out Time", "Late (min after shift start)", "Hours", "Note"], rows: daily },
     { name: month + " Summary", header: ["Month", "Name", "Department", "Present", "Late", "Half day", "Leave", "Absent", "Week off", "Not marked", "Late minutes", "Hours worked", "Fines (Rs)"], rows: summary },
   ];
 }

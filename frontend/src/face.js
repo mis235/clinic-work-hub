@@ -35,7 +35,7 @@ export function frameBrightness(video) {
 const opts = (fa) => new fa.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.55 });
 const mid = (pts) => ({ x: pts.reduce((t, q) => t + q.x, 0) / pts.length, y: pts.reduce((t, q) => t + q.y, 0) / pts.length });
 /** Look at the camera picture and say whether there is one real, usable face in it.
- *  mode "enroll" (registering a face) is strict; mode "kiosk" (daily clock-in) is a little more forgiving.
+ *  mode "enroll" (registering a face) is strict; mode "kiosk" (daily In Time) is a little more forgiving.
  *  Result: { ok, why, descriptor, box, score }.  why = none | soft | far | off | shape.
  *  A ceiling, a door or a wall must never pass as a face, because a saved "face" of junk makes everyone look the same. */
 export async function scanFace(video, mode = "enroll") {

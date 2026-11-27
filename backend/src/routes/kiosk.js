@@ -137,7 +137,7 @@ router.get("/shared-link", requireAuth, requirePermission("staff:manage"), (req,
   if (!d) { const id = randomUUID(); db.prepare("INSERT INTO kiosk_devices (id, label, created_by) VALUES (?,?,?)").run(id, SHARED_LABEL, req.user.userId); d = { id }; }
   res.json({ id: d.id, key: jwt.sign({ kind: "kiosk", deviceId: d.id }, secret(), { expiresIn: "3650d" }) });
 });
-// Every phone that has opened the link, with today's clock-ins.
+// Every phone that has opened the link, with today's punch-ins.
 router.get("/phones", requireAuth, requirePermission("staff:manage"), (req, res) => {
   res.json(db.prepare(`SELECT p.id, p.label, p.first_seen, p.last_seen, p.blocked_at,
       (SELECT COUNT(*) FROM face_checkins f WHERE f.phone_id = p.id AND f.undone_at IS NULL AND date(f.created_at,'+5 hours','+30 minutes') = ?) AS today
@@ -151,7 +151,7 @@ router.put("/phones/:id", requireAuth, requirePermission("staff:manage"), (req, 
 router.delete("/devices/:id", requireAuth, requirePermission("staff:manage"), (req, res) => {
   db.prepare("UPDATE kiosk_devices SET revoked_at = datetime('now') WHERE id = ?").run(req.params.id); res.json({ ok: true });
 });
-// Who clocked in by face today, with the picture taken at that moment (admin/manager only).
+// Who punched in by face today, with the picture taken at that moment (admin/manager only).
 router.get("/log", requireAuth, requirePermission("attendance:view_all"), (req, res) => {
   const date = /^\d{4}-\d{2}-\d{2}$/.test(req.query.date || "") ? req.query.date : istNow().toISOString().slice(0, 10);
   res.json(db.prepare(
@@ -167,7 +167,7 @@ router.get("/snap/:id", (req, res, next) => { if (!req.headers.authorization && 
   });
 
 // ---- clinic phone side -----------------------------------------------------
-// ---- clinic location: clock-in works only at the clinic ---------------------
+// ---- clinic location: In Time works only at the clinic ---------------------
 const setting = (k) => db.prepare("SELECT value FROM app_settings WHERE key = ?").get(k)?.value;
 function geoCfg() { // one or more clinic places (e.g. two buildings), all sharing one allowed distance
   let points = []; try { points = JSON.parse(setting("geo_points") || "[]"); } catch {}
@@ -235,7 +235,7 @@ router.post("/checkin", requireKiosk, (req, res) => {
     kind = "out"; outTime = hhmm; noIn = true;
     db.prepare(`INSERT INTO attendance_marks (user_id, mark_date, status, out_time, note, marked_by) VALUES (?,?,'P',?,?,NULL)
       ON CONFLICT(user_id, mark_date) DO UPDATE SET out_time = excluded.out_time, updated_at = datetime('now')`)
-      .run(best.userId, date, outTime, `Clock-out only ${hhmm} - no morning clock-in, HR please verify`);
+      .run(best.userId, date, outTime, `Out Time only ${hhmm} - no morning In Time, HR please verify`);
     mark = row?.status || "P";
   } else if (!row || !row.in_time) {
     kind = "in"; inTime = hhmm;
@@ -243,7 +243,7 @@ router.post("/checkin", requireKiosk, (req, res) => {
     db.prepare(`INSERT INTO attendance_marks (user_id, mark_date, status, in_time, note, marked_by) VALUES (?,?,?,?,?,NULL)
       ON CONFLICT(user_id, mark_date) DO UPDATE SET status = excluded.status, in_time = excluded.in_time, updated_at = datetime('now')`)
       .run(best.userId, date, mark, inTime, `Face attendance ${hhmm}`);
-  } else if (!outTime && mins(hhmm) - mins(inTime) >= MIN_GAP_MIN) { // clock-out is taken once; a later look never moves it (HR can correct the time)
+  } else if (!outTime && mins(hhmm) - mins(inTime) >= MIN_GAP_MIN) { // Out Time is taken once; a later look never moves it (HR can correct the time)
     // Well before the end of the shift a look is probably an accident (someone glancing at the phone): ask "Leaving now?" and record nothing until they confirm.
     if (mins(hhmm) < mins(win.end) - 60 && req.body?.confirmOut !== true) return res.json({ matched: true, confirmOut: true, name: best.name, kind: "out", inTime, time: hhmm, already: false });
     kind = "out"; outTime = hhmm;
@@ -257,7 +257,7 @@ router.post("/checkin", requireKiosk, (req, res) => {
   if (!already) queueSheet(date.slice(0, 7));
   if (kind === "in" && !already) { try { syncLateFines(date.slice(0, 7)); } catch (e) { console.error("late fines:", e.message); } }
   const worked = inTime && outTime ? mins(outTime) - mins(inTime) : null;
-  // A kind note to the person: leaving early, staying late, or leaving with no morning clock-in.
+  // A kind note to the person: leaving early, staying late, or leaving with no morning In Time.
   let note = null;
   if (kind === "out" && !already) {
     if (noIn) note = engage(best.userId, "no_morning_checkin", date);
@@ -275,7 +275,7 @@ router.post("/checkin", requireKiosk, (req, res) => {
   res.json({ matched: true, name: best.name, kind, mark, late: lateMin, label: MARKS[mark], time: kind === "out" ? outTime : inTime, inTime, outTime, workedMinutes: worked, already, noMorningCheckin: noIn, message: note ? note.body : null, undoId: already ? null : ckId });
 });
 
-// "Not me": the person on screen is not the person who looked. Cancels that one clock-in (only the latest one, within 3 minutes) and puts the day back as it was.
+// "Not me": the person on screen is not the person who looked. Cancels that one In Time (only the latest one, within 3 minutes) and puts the day back as it was.
 function undoCheckin(c) {
   const prev = c.prev ? JSON.parse(c.prev) : null, date = prev?.date || new Date(new Date(String(c.created_at).replace(" ", "T") + "Z").getTime() + 19800000).toISOString().slice(0, 10);
   if (!prev?.had) db.prepare("DELETE FROM attendance_marks WHERE user_id = ? AND mark_date = ?").run(c.user_id, date);
@@ -297,7 +297,7 @@ router.post("/log/:id/undo", requireAuth, requirePermission("staff:manage"), (re
   const c = db.prepare("SELECT * FROM face_checkins WHERE id = ?").get(req.params.id);
   if (!c) return res.status(404).json({ error: "Not found" });
   if (c.undone_at) return res.json({ ok: true, already: true });
-  if (hasLater(c)) return res.status(400).json({ error: "This person has a later clock-in. Cancel the later one first." });
+  if (hasLater(c)) return res.status(400).json({ error: "This person has a later entry. Cancel the later one first." });
   undoCheckin(c); res.json({ ok: true });
 });
 

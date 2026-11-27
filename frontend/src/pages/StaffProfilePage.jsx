@@ -139,7 +139,7 @@ export default function StaffProfilePage({ user, staffId, isStaffLayout, onLogou
               <Row k="Reports to" v={d.reporting_to} />
               <Row k="Date of joining" v={d.joined_at ? `${d.joined_at}${d.tenureYears !== null ? ` (${d.tenureYears} yrs)` : ""}` : null} />
               <Row k="Shift checklist role" v={d.shift_role || "None assigned"} />
-              {!isStaffLayout && <Row k="Last clock-in" v={p.attendance.lastCheckIn ? new Date(p.attendance.lastCheckIn + "Z").toLocaleString() : "None yet"} />}
+              {!isStaffLayout && <Row k="Last In Time" v={p.attendance.lastCheckIn ? new Date(p.attendance.lastCheckIn + "Z").toLocaleString() : "None yet"} />}
             </div>
             <div className="card" style={{ marginBottom: 0 }}>
               <div className="card-head"><div className="name">Personal & emergency</div></div>

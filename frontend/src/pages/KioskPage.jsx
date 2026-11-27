@@ -38,7 +38,7 @@ export default function KioskPage() {
     const k0 = kioskApi.key(); // saves the key and, on an old #key= link, moves it to ?key= (iPhone keeps the query when adding to the home screen)
     if (k0 && !/[?&]key=/.test(window.location.search)) { try { history.replaceState(null, "", "/kiosk?key=" + encodeURIComponent(k0)); } catch {} } // the key stays in the address so "Add to Home Screen" on an iPhone keeps it
     const demo = /demo=(\w+)/.exec(window.location.hash)?.[1]; // #demo=look|check|in|out|fail|error|offline shows a screen without the camera
-    if (demo) { const D = { look: { phase: "look", text: "Look at the camera" }, check: { phase: "check", text: "Checking…" }, in: { phase: "result", ok: true, text: "Welcome, Monika", sub: "Clock-in recorded 09:42 AM" }, out: { phase: "result", ok: true, text: "Goodbye, Monika", sub: "Clock-out recorded 06:31 PM · worked 8h 49m" }, fail: { phase: "result", ok: false, text: "Face not recognised", sub: "Face the light and look straight at the camera." }, error: { phase: "error", text: "Camera is blocked. Allow the camera and try again." }, offline: { phase: "offline", text: "No internet right now", sub: "Hold still. Trying again…" } }; setState(D[demo] || D.look); if (demo === "offline") setOnline(false); return; }
+    if (demo) { const D = { look: { phase: "look", text: "Look at the camera" }, check: { phase: "check", text: "Checking…" }, in: { phase: "result", ok: true, text: "Welcome, Monika", sub: "In Time recorded 09:42 AM" }, out: { phase: "result", ok: true, text: "Goodbye, Monika", sub: "Out Time recorded 06:31 PM · worked 8h 49m" }, fail: { phase: "result", ok: false, text: "Face not recognised", sub: "Face the light and look straight at the camera." }, error: { phase: "error", text: "Camera is blocked. Allow the camera and try again." }, offline: { phase: "offline", text: "No internet right now", sub: "Hold still. Trying again…" } }; setState(D[demo] || D.look); if (demo === "offline") setOnline(false); return; }
     let dead = false, stop = null, last = { id: "", at: 0 }, lock = null;
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const net = (e) => !e?.status; // no HTTP status means no internet (or a timeout), not a refusal from the server
@@ -79,11 +79,11 @@ export default function KioskPage() {
           last = { at: Date.now() + 12000 };
           const timer = setTimeout(() => { if (confirmRef.current) { confirmRef.current = null; last = { at: Date.now() }; setState({ phase: "look", text: "Look at the camera" }); } }, 10000);
           confirmRef.current = {
-            yes: async () => { clearTimeout(timer); confirmRef.current = null; setState({ phase: "check", text: "Recording clock-out…" });
+            yes: async () => { clearTimeout(timer); confirmRef.current = null; setState({ phase: "check", text: "Recording Out Time…" });
               try { const r2 = await kioskApi.call("checkin", { ...payload, confirmOut: true }); last = { at: Date.now() }; showResult(r2, payload); } catch (e) { last = { at: Date.now() }; setState({ phase: "result", ok: false, text: "Please try again", sub: e.message }); } },
             no: () => { clearTimeout(timer); confirmRef.current = null; last = { at: Date.now() + 8000 }; setState({ phase: "look", text: "Look at the camera" }); },
           };
-          setState({ phase: "confirm", text: `Leaving now, ${r.name}?`, sub: `You clocked in at ${t12(r.inTime)}. Tap Yes only if you are going home.` });
+          setState({ phase: "confirm", text: `Leaving now, ${r.name}?`, sub: `You punched in at ${t12(r.inTime)}. Tap Yes only if you are going home.` });
         };
         let lastOk = null; // the last recorded person, so the "Not me" button stays while they stand there
         undoRef.current = async (id) => {
@@ -102,7 +102,7 @@ export default function KioskPage() {
               if (!r.already) lastOk = { name: r.name, at: Date.now() };
               setState({ phase: "result", ok: true, out, undoId: r.undoId,
                 text: r.already ? r.name : out ? `Thank you, ${r.name}` : `${greet}, ${r.name}`,
-                sub: r.already ? `${out ? "Clock-out" : "Clock-in"} already recorded at ${t12(r.time)}` : out ? `Clock-out recorded at ${t12(r.time)}${r.workedMinutes ? ` · Worked ${hm(r.workedMinutes)}` : ""}${r.message ? ` · ${r.message}` : ""}` : `Clock-in recorded at ${t12(r.time)} · ${r.label}${r.late ? ` · ${r.late} min late. Please add the reason in the Work Hub app.` : ""}` });
+                sub: r.already ? `${out ? "Out Time" : "In Time"} already recorded at ${t12(r.time)}` : out ? `Out Time recorded at ${t12(r.time)}${r.workedMinutes ? ` · Worked ${hm(r.workedMinutes)}` : ""}${r.message ? ` · ${r.message}` : ""}` : `In Time recorded at ${t12(r.time)} · ${r.label}${r.late ? ` · ${r.late} min late. Please add the reason in the Work Hub app.` : ""}` });
             } else if (r.needLocation) setState({ phase: "result", ok: false, text: "Location is needed", sub: "Allow Location for this website and try again." });
             else if (r.outside) setState({ phase: "result", ok: false, text: "You are outside the clinic", sub: "Attendance works only at the clinic." });
             else setState({ phase: "result", ok: false, text: r.ambiguous ? "Please try again" : "Face not recognised", sub: r.ambiguous ? "Stand alone in front of the camera and look straight at it." : "Face the light and look straight at the camera. Ask the admin if it keeps happening." });

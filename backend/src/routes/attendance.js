@@ -99,7 +99,7 @@ router.post("/register/verify", requireAuth, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// STEP 1 of clock-in/out: server issues a challenge only this user's already-
+// STEP 1 of In Time/out: server issues a challenge only this user's already-
 // registered phone(s) can sign, using their fingerprint/Face ID.
 // ---------------------------------------------------------------------------
 router.get("/checkin/options", requireAuth, requirePermission("attendance:checkin"), async (req, res) => {
@@ -128,7 +128,7 @@ router.post("/checkin/verify", requireAuth, requirePermission("attendance:checki
   const userId = req.user.userId;
   const { credential, latitude, longitude } = req.body || {};
   const expectedChallenge = consumeChallenge(userId, "checkin");
-  if (!expectedChallenge) return res.status(400).json({ error: "No clock-in in progress. Request options again." });
+  if (!expectedChallenge) return res.status(400).json({ error: "In Time missing in progress. Request options again." });
 
   const stored = db.prepare("SELECT * FROM webauthn_credentials WHERE id = ? AND user_id = ?").get(credential?.id, userId);
   if (!stored) return res.status(400).json({ error: "Unrecognized device for this user." });
@@ -200,7 +200,7 @@ router.get("/", requireAuth, (req, res) => {
 // ---------------------------------------------------------------------------
 // One-tap attendance. Works on every phone over plain http or https -- no
 // fingerprint hardware or special browser support needed. The server decides
-// whether the tap is a clock-in or a clock-out from what the person already
+// whether the tap is a In Time or a Out Time from what the person already
 // did today (India time), so staff can never get it "the wrong way round".
 // ---------------------------------------------------------------------------
 const IST = "'+5 hours', '+30 minutes'";
@@ -237,7 +237,7 @@ router.post("/punch", requireAuth, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// Attendance register. Staff do NOT clock in on the app: the admin / manager marks each day
+// Attendance register. Staff do NOT punch in on the app: the admin / manager marks each day
 // (like the paper sheet), and everything else (dashboard, fines, payroll hints) reads from these marks.
 // ---------------------------------------------------------------------------
 db.exec(`CREATE TABLE IF NOT EXISTS attendance_marks (
@@ -254,7 +254,7 @@ export const MARKS = { P: "Present", L: "Late", H: "Half day", LV: "Leave", A: "
 const isLead = (u) => u?.roleName === "admin" || u?.roleName === "manager";
 const istToday = () => new Date(Date.now() + 19800000).toISOString().slice(0, 10);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-// From this day, Present / Late / Half day come ONLY from the clock-in and clock-out times (face attendance), not from hand marking.
+// From this day, Present / Late / Half day come ONLY from the In Time and Out Time times (face attendance), not from hand marking.
 // Leave, Absent and Week off can still be recorded by HR. Change with the app setting att_manual_cutoff.
 const manualCutoff = () => db.prepare("SELECT value FROM app_settings WHERE key = 'att_manual_cutoff'").get()?.value || process.env.ATT_MANUAL_CUTOFF || "2026-11-18";
 const hhmmOk = (t) => /^([01]\d|2[0-3]):[0-5]\d$/.test(t || "");
@@ -269,10 +269,10 @@ export function monthCounts(userId, month) {
 }
 export const markFor = (userId, date) => db.prepare("SELECT status FROM attendance_marks WHERE user_id = ? AND mark_date = ?").get(userId, date)?.status || null;
 
-// ---- Auto leave: a working day nobody marked and who never clocked in becomes Leave ----------------------------------
+// ---- Auto leave: a working day nobody marked and who never punched in becomes Leave ----------------------------------
 // Safeguards: weekly-off days (default Sunday; app setting att_weekoff, e.g. "0,6") are skipped; a day on which NOBODY has
 // any mark at all is skipped (the clinic was closed or the app was off); admins and people who joined later are skipped.
-// A later clock-in or a manual change simply replaces the auto mark.
+// A later In Time or a manual change simply replaces the auto mark.
 db.exec("CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT)");
 export const AUTO_NOTE = "Auto: no attendance";
 export function autoMarkLeave(date, { allowToday = false, force = false } = {}) {
@@ -320,7 +320,7 @@ router.put("/mark", requireAuth, (req, res) => {
   const { userId, date, status, note } = req.body || {};
   if (!DATE_RE.test(date || "") || date > istToday()) return res.status(400).json({ error: "Choose today or an earlier date" });
   if (!db.prepare("SELECT 1 FROM users WHERE id = ? AND active = 1").get(userId)) return res.status(400).json({ error: "Choose a staff member" });
-  if (["P", "L", "H"].includes(status) && date >= manualCutoff()) return res.status(400).json({ error: "From Wednesday 18 Nov, Present, Late and Half day come only from clock-in and clock-out times. If someone forgot to clock in, use Fix Times on the Time Table." });
+  if (["P", "L", "H"].includes(status) && date >= manualCutoff()) return res.status(400).json({ error: "From Wednesday 18 Nov, Present, Late and Half day come only from In and Out times. If someone forgot to punch in, use Fix Times on the Time Table." });
   if (!status) db.prepare("DELETE FROM attendance_marks WHERE user_id = ? AND mark_date = ?").run(userId, date);
   else if (!MARKS[status]) return res.status(400).json({ error: "Unknown status" });
   else db.prepare(
@@ -338,7 +338,7 @@ router.post("/mark-day", requireAuth, (req, res) => {
   const { date, status, department } = req.body || {};
   if (!DATE_RE.test(date || "") || date > istToday()) return res.status(400).json({ error: "Choose today or an earlier date" });
   if (!MARKS[status]) return res.status(400).json({ error: "Unknown status" });
-  if (["P", "L", "H"].includes(status) && date >= manualCutoff()) return res.status(400).json({ error: "From Wednesday 18 Nov, attendance comes only from clock-in and clock-out times." });
+  if (["P", "L", "H"].includes(status) && date >= manualCutoff()) return res.status(400).json({ error: "From Wednesday 18 Nov, attendance comes only from In and Out times." });
   const users = db.prepare(
     `SELECT u.id FROM users u LEFT JOIN departments d ON d.id = u.department_id WHERE u.active = 1 AND COALESCE(u.no_attendance,0) = 0 ${department ? "AND d.name = ?" : ""}
      AND NOT EXISTS (SELECT 1 FROM attendance_marks m WHERE m.user_id = u.id AND m.mark_date = ?)`).all(...(department ? [department, date] : [date]));
@@ -375,15 +375,15 @@ router.get("/timesheet", requireAuth, requirePermission("attendance:view_all"), 
   res.json({ date, month, rows, manualCutoff: manualCutoff(), graceMin: Number(db.prepare("SELECT value FROM app_settings WHERE key = 'late_grace_min'").get()?.value || 15) });
 });
 
-// HR fixes a missing or wrong time (someone forgot to clock in/out). The status (Present / Late) follows the time.
+// HR fixes a missing or wrong time (someone forgot to punch in/out). The status (Present / Late) follows the time.
 router.put("/time", requireAuth, (req, res) => {
   if (!isLead(req.user)) return res.status(403).json({ error: "Only admin or a manager can fix times" });
   const { userId, date, inTime, outTime } = req.body || {};
   if (!DATE_RE.test(date || "") || date > istToday()) return res.status(400).json({ error: "Choose today or an earlier date" });
   if (!db.prepare("SELECT 1 FROM users WHERE id = ? AND active = 1").get(userId)) return res.status(400).json({ error: "Choose a staff member" });
   if ((inTime && !hhmmOk(inTime)) || (outTime && !hhmmOk(outTime))) return res.status(400).json({ error: "Use the time like 09:45" });
-  if (!inTime && !outTime) return res.status(400).json({ error: "Enter a clock-in or a clock-out time" });
-  if (inTime && outTime && mm(outTime) <= mm(inTime)) return res.status(400).json({ error: "Clock-out must be after clock-in" });
+  if (!inTime && !outTime) return res.status(400).json({ error: "Enter an In Time or an Out Time" });
+  if (inTime && outTime && mm(outTime) <= mm(inTime)) return res.status(400).json({ error: "Out Time must be after In Time" });
   const cur = db.prepare("SELECT * FROM attendance_marks WHERE user_id = ? AND mark_date = ?").get(userId, date);
   const newIn = inTime || cur?.in_time || null, newOut = outTime || cur?.out_time || null;
   const status = newIn ? dayStatus(userId, date, newIn, newOut) : (cur?.status || "P");
@@ -403,7 +403,7 @@ router.put("/time", requireAuth, (req, res) => {
 const lateInfo = (userId, date) => {
   const m = db.prepare("SELECT status, in_time, late_reason FROM attendance_marks WHERE user_id = ? AND mark_date = ?").get(userId, date);
   if (!m) return null;
-  if (!m.in_time) return m.out_time && ["P", "L", "H"].includes(m.status) ? { kind: "noin", in_time: "", late: 0, reason: m.late_reason || "" } : null; // only a clock-out: forgot the morning scan
+  if (!m.in_time) return m.out_time && ["P", "L", "H"].includes(m.status) ? { kind: "noin", in_time: "", late: 0, reason: m.late_reason || "" } : null; // only a Out Time: forgot the morning scan
   const late = isLateArrival(userId, date, m.in_time) ? Math.max(0, mm(m.in_time) - mm(shiftWindow(userId, date).start)) : 0;
   return late > 0 || m.status === "L" ? { kind: "late", in_time: m.in_time, late, reason: m.late_reason || "" } : null;
 };
@@ -428,10 +428,10 @@ router.put("/late-reason", requireAuth, (req, res) => {
   db.prepare("UPDATE attendance_marks SET late_reason = ?, late_reason_at = datetime('now') WHERE user_id = ? AND mark_date = ?").run(reason, req.user.userId, date);
   const me = db.prepare("SELECT name FROM users WHERE id = ?").get(req.user.userId);
   for (const a of db.prepare("SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id WHERE u.active = 1 AND r.name IN ('admin','manager')").all())
-    notifyUser(a.id, "late_" + req.user.userId, l.kind === "noin" ? `${me?.name || "Someone"} has no morning clock-in` : `${me?.name || "Someone"} was late${l.late ? ` by ${l.late} min` : ""}`, `${date}: ${reason}`);
+    notifyUser(a.id, "late_" + req.user.userId, l.kind === "noin" ? `${me?.name || "Someone"} has no morning In Time` : `${me?.name || "Someone"} was late${l.late ? ` by ${l.late} min` : ""}`, `${date}: ${reason}`);
   res.json({ ok: true, date, reason });
 });
-// Admin / manager: everything to look at for the month, one list: late arrivals, no morning clock-in, no clock-out,
+// Admin / manager: everything to look at for the month, one list: late arrivals, no morning In Time, no Out Time,
 // left early, half days, each with the person's reason when they gave one.
 router.get("/late", requireAuth, requirePermission("attendance:view_all"), (req, res) => {
   const today = istToday(), rows = [], D = /^\d{4}-\d{2}-\d{2}$/;
@@ -448,8 +448,8 @@ router.get("/late", requireAuth, requirePermission("attendance:view_all"), (req,
     const late = r.in_time && isLateArrival(r.user_id, r.date, r.in_time) ? Math.max(0, mm(r.in_time) - mm(w.start)) : 0;
     if (r.status === "H") rows.push({ ...base, type: "half", late, detail: r.in_time && r.out_time ? `Half day · worked ${Math.floor((mm(r.out_time) - mm(r.in_time)) / 60)}h ${(mm(r.out_time) - mm(r.in_time)) % 60}m` : "Half day" });
     else if (late > 0 || r.status === "L") rows.push({ ...base, type: "late", late, detail: `Late ${late} min` });
-    if (!r.in_time && r.out_time) rows.push({ ...base, type: "noin", late: 0, detail: "No morning clock-in (only a clock-out)" });
-    if (r.in_time && !r.out_time && r.date < today) rows.push({ ...base, type: "noout", late: 0, detail: "No clock-out" });
+    if (!r.in_time && r.out_time) rows.push({ ...base, type: "noin", late: 0, detail: "No morning In Time (only a Out Time)" });
+    if (r.in_time && !r.out_time && r.date < today) rows.push({ ...base, type: "noout", late: 0, detail: "Out Time missing" });
     if (r.in_time && r.out_time && r.status !== "H" && mm(r.out_time) < mm(w.end) - 15) rows.push({ ...base, type: "early", late: 0, detail: `Left ${mm(w.end) - mm(r.out_time)} min early` });
   }
   res.json({ month, from, to, rows });

@@ -119,7 +119,7 @@ app.get("/api/admin/audit", ...adminOnly, (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 100, 500);
   res.json(db.prepare("SELECT * FROM audit_log ORDER BY id DESC LIMIT ?").all(limit));
 });
-// Extra backup copy (e.g. a Google Drive folder) + storage report + clean-up of old clock-in photos
+// Extra backup copy (e.g. a Google Drive folder) + storage report + clean-up of old In Time photos
 app.get("/api/admin/backup-copy", ...adminOnly, (req, res) => res.json({ dir: copyFolder(), includeBig: includeBig(), time: backupTime(), status: copyStatus() }));
 app.put("/api/admin/backup-copy", ...adminOnly, async (req, res) => {
   try {
@@ -211,7 +211,7 @@ app.post("/api/jobs/run-checklist-digest", requireAuth, requirePermission("repor
 // app lives at one https address (no CORS, nothing else to host).
 const distDir = path.join(__dirname, "..", "..", "frontend", "dist");
 if (fs.existsSync(distDir)) {
-  // The Clock-in app's manifest carries the phone's key in its start address, so a home-screen icon (iPhone keeps separate storage) still opens already set up.
+  // The In Time app's manifest carries the phone's key in its start address, so a home-screen icon (iPhone keeps separate storage) still opens already set up.
   app.get("/kiosk.webmanifest", (req, res) => {
     try {
       const m = JSON.parse(fs.readFileSync(path.join(distDir, "kiosk.webmanifest"), "utf8"));
@@ -225,7 +225,7 @@ if (fs.existsSync(distDir)) {
     if (/[\\/]assets[\\/]/.test(fp)) res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
     else if (/[\\/]models[\\/]/.test(fp)) res.setHeader("Cache-Control", "public, max-age=2592000");
   } }));
-  // The Clock-in page is its own installable app: its page head carries the Clock-in name, icon and manifest from the first byte,
+  // The In Time page is its own installable app: its page head carries the In Time name, icon and manifest from the first byte,
   // so "Install" on that page never installs the Work Hub by mistake.
   app.get(/^\/kiosk\/?$/, (req, res) => {
     try {
