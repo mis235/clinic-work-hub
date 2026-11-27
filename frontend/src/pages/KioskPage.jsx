@@ -42,6 +42,12 @@ export default function KioskPage() {
   const confirmRef = useRef(null), undoRef = useRef(null);
   const [online, setOnline] = useState(true);
   const [lastIn, setLastIn] = useState(null);
+  useEffect(() => { // safety net: no old answer or "checking" screen may stay up; after a while go back to ready-to-scan
+    const ms = { result: 12000, check: 20000, offline: 20000, confirm: 30000 }[state.phase];
+    if (!ms) return;
+    const t = setTimeout(() => setState((s) => (s === state ? { phase: "look", text: "Look at the camera" } : s)), ms);
+    return () => clearTimeout(t);
+  }, [state]);
 
   useEffect(() => {
     // The setup link carries the phone's key (#key=...). Save it, and keep it in the address for iPhone home-screen icons.
@@ -55,8 +61,18 @@ export default function KioskPage() {
     const camOk = () => { const t = video.current?.srcObject?.getVideoTracks?.()[0]; return !!t && t.readyState === "live"; };
     const ensureCamera = async () => { if (!camOk()) { try { stop?.(); } catch {} stop = await startCamera(video.current); } };
     const keepAwake = async () => { try { if (navigator.wakeLock && document.visibilityState === "visible") lock = await navigator.wakeLock.request("screen"); } catch {} };
-    const onVis = () => { if (document.visibilityState === "visible") { keepAwake(); ensureCamera().catch(() => {}); } };
+    // Reopening the page must always start fresh: a phone that slept or was switched away keeps old results and frozen timers, so start the page again.
+    let hiddenAt = 0;
+    const fresh = () => { try { window.location.reload(); } catch {} };
+    const onVis = () => {
+      if (document.visibilityState === "hidden") { hiddenAt = Date.now(); return; }
+      if (hiddenAt && Date.now() - hiddenAt > 8000) { fresh(); return; } // away for a while: clean start
+      hiddenAt = 0; keepAwake(); ensureCamera().catch(() => {});
+      setState((s) => (s.phase === "result" || s.phase === "offline" || s.phase === "confirm" ? { phase: "look", text: "Look at the camera" } : s)); // a short switch: just clear the old answer
+    };
+    const onShow = (e) => { if (e.persisted) fresh(); }; // iPhone/Safari restored the old page from memory
     document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("pageshow", onShow);
     keepAwake();
     // Attendance works only at the clinic: when the admin switches the location limit on, this phone shares where it is.
     let geoOn = false, pos = null, posErr = 0, watch = null;
@@ -159,7 +175,7 @@ export default function KioskPage() {
         setState({ phase: "error", text: e.message === "NOKEY" ? "This phone is not set up yet. Open the setup link from the admin." : e.status === 401 || e.status === 403 ? e.message : cameraHelp(e) });
       }
     })();
-    return () => { dead = true; clearInterval(beat); document.removeEventListener("visibilitychange", onVis); try { lock?.release(); } catch {} stop?.(); };
+    return () => { dead = true; clearInterval(beat); document.removeEventListener("visibilitychange", onVis); window.removeEventListener("pageshow", onShow); try { lock?.release(); } catch {} stop?.(); };
   }, []);
 
   const [paste, setPaste] = useState("");
