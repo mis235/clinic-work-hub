@@ -1566,3 +1566,4 @@ html.kiosk-lock .kiosk-msg p { font-size: 12.5px; margin-top: 2px; }
 .kiosk-bar { flex: none; width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; opacity: .9; padding: 0 4px; }
 .kiosk-bar .kb-install { all: unset; cursor: pointer; background: var(--primary, #9472C8); color: #fff; border-radius: 99px; padding: 6px 14px; font-weight: 700; font-size: 12px; }
 .kiosk-hint { flex: none; font-size: 12px; color: #6B5A8A; text-align: center; margin: 0; }
+.kguide { position: absolute; left: 50%; top: 50%; width: 58%; height: 72%; transform: translate(-50%, -50%); border: 3px dashed rgba(255,255,255,.7); border-radius: 50%; pointer-events: none; }

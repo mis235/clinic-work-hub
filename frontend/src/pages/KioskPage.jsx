@@ -122,7 +122,7 @@ export default function KioskPage() {
           try {
             await ensureCamera();
             const f = await scanFace(video.current, "kiosk").catch(() => null);
-            if (!f || !f.ok) { prev = null; setState((s) => (s.phase === "result" || s.phase === "confirm" ? s : { phase: "look", text: "Look at the camera" })); continue; }
+            if (!f || !f.ok) { prev = null; const tip = f?.why === "far" ? "Come a little closer" : f?.why === "close" ? "Move back a little" : "Look at the camera"; setState((s) => (s.phase === "result" || s.phase === "confirm" ? s : s.text === tip ? s : { phase: "look", text: tip })); continue; }
             if (Date.now() - last.at < (last.hold ?? 2800)) { prev = null; continue; } // keep showing the last result for a moment
             if (geoOn && (!pos || Date.now() - pos.at > 10 * 60000)) { setState({ phase: "error", text: posErr === 1 ? "Location is blocked" : "Getting the clinic location…", sub: posErr === 1 ? "Allow Location for this website (iPhone: Settings → Privacy → Location Services → Safari Websites), then try again." : "Please wait a moment." }); await sleep(1500); continue; }
             const snap = snapshotJpeg(video.current, 200), posBody = geoOn && pos ? { lat: pos.lat, lng: pos.lng, acc: pos.acc } : undefined;
@@ -180,6 +180,7 @@ export default function KioskPage() {
           <video ref={video} playsInline muted />
           <i className="kc c1" /><i className="kc c2" /><i className="kc c3" /><i className="kc c4" />
           {tone === "look" && <span className="kscan" />}
+          {tone === "look" && <i className="kguide" />}
         </div>
         {state.phase === "result" && state.ok && <div className="lumi-confetti" aria-hidden>{Array.from({ length: 28 }, (_, i) => <i key={i} style={{ left: `${(i * 37) % 100}%`, background: ["#9472C8", "#FF9B7A", "#7DCB9F", "#F7C85C", "#FF6B8B"][i % 5], animationDelay: `${(i % 7) * 0.12}s` }} />)}</div>}
         <div className="kiosk-msg"><h2>{state.text}</h2>{state.sub && <p>{state.sub}</p>}</div>

@@ -58,7 +58,8 @@ export async function scanFace(video, mode = "enroll") {
   const eyeRatio = Math.hypot(R.x - L.x, R.y - L.y) / b.width, aspect = b.width / b.height;
   let why = "";
   if (score < (enroll ? 0.8 : 0.65)) why = "soft";
-  else if (b.width / vw < (enroll ? 0.2 : 0.12)) why = "far";
+  else if (b.width / vw < (enroll ? 0.2 : 0.2)) why = "far";
+  else if (!enroll && b.width / vw > 0.82) why = "close";
   else if (cx < 0.2 || cx > 0.8 || cy < 0.15 || cy > 0.85) why = "off";
   else if (aspect < 0.55 || aspect > 1.3 || eyeRatio < 0.25 || eyeRatio > 0.65 || roll > 35) why = "shape";
   return { ok: !why, why, descriptor: Array.from(r.descriptor), box: b, score };
