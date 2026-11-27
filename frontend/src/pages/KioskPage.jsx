@@ -29,6 +29,12 @@ export default function KioskPage() {
     else setShowHow((v) => !v);
   };
 
+  useEffect(() => { // the screen is exactly as tall as the visible phone screen and never scrolls
+    const root = document.documentElement, fit = () => root.style.setProperty("--kh", `${window.innerHeight}px`);
+    root.classList.add("kiosk-lock"); fit();
+    window.addEventListener("resize", fit); window.addEventListener("orientationchange", fit);
+    return () => { root.classList.remove("kiosk-lock"); root.style.removeProperty("--kh"); window.removeEventListener("resize", fit); window.removeEventListener("orientationchange", fit); };
+  }, []);
   const confirmRef = useRef(null), undoRef = useRef(null);
   const [online, setOnline] = useState(true);
   const [lastIn, setLastIn] = useState(null);
@@ -194,16 +200,12 @@ export default function KioskPage() {
             <button onClick={saveSetup} style={{ marginTop: 8 }}>Save setup</button>
           </div>
         )}
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12.5, opacity: 0.85, margin: "6px 4px 0" }}>
+        {showHow && !standalone && <p className="kiosk-hint">Tap the 3 dots at the top right of Chrome, then “Add to Home screen” and “Install”. On iPhone: tap Share, then “Add to Home Screen”.</p>}
+        <div className="kiosk-bar">
           <span><i style={{ display: "inline-block", width: 9, height: 9, borderRadius: 99, marginRight: 6, background: online ? "#4cc38a" : "#f2a33a" }} />{online ? "Online" : "Weak internet"}</span>
-          {lastIn && <span>Last: {lastIn.name} · {lastIn.out ? "out" : "in"} {lastIn.time}</span>}
+          {lastIn && <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Last: {lastIn.name} · {lastIn.out ? "out" : "in"} {lastIn.time}</span>}
+          {!standalone && <button className="kb-install" onClick={install}>Install app</button>}
         </div>
-        {!standalone && (
-          <div className="kiosk-install">
-            <button onClick={install}>Install Attendance app</button>
-            {showHow && <p>Tap the 3 dots at the top right of Chrome, then “Add to Home screen” and “Install”. On iPhone: tap Share, then “Add to Home Screen”.</p>}
-          </div>
-        )}
       </div>
     </div>
   );

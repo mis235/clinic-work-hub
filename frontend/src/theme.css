@@ -1549,3 +1549,20 @@ button, a, input, select, textarea, label { touch-action: manipulation; -webkit-
 .cd-col em small{font-size:10px;color:#a193b6}
 .cd-col.on em{color:#2b2238;font-weight:700}
 @media(max-width:820px){.cd-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.cd-strip{grid-template-columns:1fr}.cd-tools .field{width:100%}}
+
+/* Attendance (kiosk) screen: fits the phone exactly, never scrolls */
+html.kiosk-lock, html.kiosk-lock body { height: 100%; overflow: hidden; overscroll-behavior: none; position: fixed; width: 100%; inset: 0; }
+html.kiosk-lock .kiosk { height: var(--kh, 100vh); min-height: 0; overflow: hidden; padding: max(8px, env(safe-area-inset-top)) 12px max(8px, env(safe-area-inset-bottom)); box-sizing: border-box; }
+html.kiosk-lock .kiosk-frame { height: 100%; gap: 8px; min-height: 0; }
+html.kiosk-lock .kiosk-top { padding: 7px 14px; border-radius: 20px; flex: none; }
+html.kiosk-lock .kiosk-top img { height: 30px; }
+html.kiosk-lock .kiosk-clock b { font-size: 21px; } html.kiosk-lock .kiosk-clock span { font-size: 11.5px; }
+html.kiosk-lock .kiosk-girl { --gh: clamp(56px, 11.5vh, 140px); width: calc(var(--gh) * 1.236); height: var(--gh); margin: -2px 0 -10px; flex: none; }
+html.kiosk-lock .kiosk-girl .doll { width: 100% !important; height: calc(var(--gh) * 1.46) !important; }
+html.kiosk-lock .kiosk-cam { flex: 1 1 0; min-height: 90px; aspect-ratio: auto; border-width: 5px; border-radius: 28px; }
+html.kiosk-lock .kiosk-msg { flex: none; padding: 8px 14px; border-radius: 20px; }
+html.kiosk-lock .kiosk-msg h2 { font-size: clamp(17px, 3.3vh, 24px); }
+html.kiosk-lock .kiosk-msg p { font-size: 12.5px; margin-top: 2px; }
+.kiosk-bar { flex: none; width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; opacity: .9; padding: 0 4px; }
+.kiosk-bar .kb-install { all: unset; cursor: pointer; background: var(--primary, #9472C8); color: #fff; border-radius: 99px; padding: 6px 14px; font-weight: 700; font-size: 12px; }
+.kiosk-hint { flex: none; font-size: 12px; color: #6B5A8A; text-align: center; margin: 0; }
