@@ -35,7 +35,7 @@ export function frameBrightness(video) {
 const opts = (fa) => new fa.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.55 });
 const mid = (pts) => ({ x: pts.reduce((t, q) => t + q.x, 0) / pts.length, y: pts.reduce((t, q) => t + q.y, 0) / pts.length });
 /** Look at the camera picture and say whether there is one real, usable face in it.
- *  mode "enroll" (registering a face) is strict; mode "kiosk" (daily check-in) is a little more forgiving.
+ *  mode "enroll" (registering a face) is strict; mode "kiosk" (daily clock-in) is a little more forgiving.
  *  Result: { ok, why, descriptor, box, score }.  why = none | soft | far | off | shape.
  *  A ceiling, a door or a wall must never pass as a face, because a saved "face" of junk makes everyone look the same. */
 export async function scanFace(video, mode = "enroll") {
@@ -75,7 +75,7 @@ export async function startCamera(video) {
   return () => stream.getTracks().forEach((t) => t.stop());
 }
 export const cameraHelp = (e) => e?.message === "INSECURE"
-  ? "The camera is blocked because this address is not secure. Open the https:// link created on Attendance → Face check-in (on the phone tap Advanced → Proceed once), or use the app on the computer at localhost."
+  ? "The camera is blocked because this address is not secure. Open the https:// link created on Attendance → Face attendance (on the phone tap Advanced → Proceed once), or use the app on the computer at localhost."
   : /denied|Permission|NotAllowed/i.test(e?.name + e?.message) ? "Camera permission was denied. Allow the camera for this site and try again." : `Camera problem: ${e?.message || e}`;
 export function snapshotJpeg(video, w = 240) {
   const c = document.createElement("canvas"); c.width = w; c.height = Math.round(w * (video.videoHeight || 480) / (video.videoWidth || 640));

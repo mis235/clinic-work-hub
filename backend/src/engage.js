@@ -1,4 +1,4 @@
-// Warm, human notes to staff about their day (leaving early, staying late, no morning check-in).
+// Warm, human notes to staff about their day (leaving early, staying late, no morning clock-in).
 // Delivered in the app (a banner) and by email when the person has an email address. WhatsApp: HR gets a ready-to-send link.
 import { randomUUID } from "node:crypto";
 import db from "./db.js";
@@ -24,7 +24,7 @@ const VARIANTS = {
     (n) => ({ title: "You Went the Extra Mile", body: `Hi ${n}, thank you for staying back today. We know it was a long day. Get some good rest, and see you tomorrow with a fresh start.` }),
   ],
   no_morning_checkin: [
-    (n) => ({ title: "A Gentle Reminder", body: `Hi ${n}, we could not find your morning check-in today. Your check-out has been noted, and HR will confirm your timings. Please remember to check in when you arrive tomorrow. Thank you.` }),
+    (n) => ({ title: "A Gentle Reminder", body: `Hi ${n}, we could not find your morning clock-in today. Your clock-out has been noted, and HR will confirm your timings. Please remember to clock in when you arrive tomorrow. Thank you.` }),
   ],
 };
 
@@ -40,7 +40,7 @@ const wa = (phone, text) => {
   return `https://wa.me/${d}?text=${encodeURIComponent(text)}`;
 };
 
-const MOOD = { early_leave: "worried and caring: they left earlier than usual, so check gently that all is well", stayed_late: "grateful and warm: they stayed late, so thank them and tell them to rest", no_morning_checkin: "polite and gentle: no morning check-in was found, HR will confirm timings" };
+const MOOD = { early_leave: "worried and caring: they left earlier than usual, so check gently that all is well", stayed_late: "grateful and warm: they stayed late, so thank them and tell them to rest", no_morning_checkin: "polite and gentle: no morning clock-in was found, HR will confirm timings" };
 /** Ask Claude to write the note in a human way for this mood. Returns null if no key or any problem (the ready wording is used). */
 async function aiBody(kind, name, fallback, outTime) {
   const key = process.env.ANTHROPIC_API_KEY; if (!key || !MOOD[kind]) return null;
@@ -49,7 +49,7 @@ async function aiBody(kind, name, fallback, outTime) {
       method: "POST", headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" }, signal: AbortSignal.timeout(15000),
       body: JSON.stringify({ model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5", max_tokens: 160,
         system: "You write short, kind messages from Dr. Nishita's Clinic to a staff member. Simple English, 2 to 3 sentences, no emojis, no quotes, no judgement, never mention fines or salary. Start with Hi and the first name. Reply with the message only.",
-        messages: [{ role: "user", content: `Staff first name: ${name}. Tone: ${MOOD[kind]}.${outTime ? ` They checked out at ${outTime}.` : ""} Example of the idea: ${fallback}` }] }),
+        messages: [{ role: "user", content: `Staff first name: ${name}. Tone: ${MOOD[kind]}.${outTime ? ` They clocked out at ${outTime}.` : ""} Example of the idea: ${fallback}` }] }),
     });
     const d = await r.json(); const t = d?.content?.filter((b) => b.type === "text").map((b) => b.text).join(" ").trim();
     return r.ok && t && t.length < 600 ? t : null;

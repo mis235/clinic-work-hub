@@ -350,7 +350,7 @@ export default function LiveNumbers({ user }) {
 
       {sec === "leads" && x?.leads && (<>
         <div className="kpi-row"><Kpi l="Leads (TeleCRM)" v={x.leads.total} /></div>
-        {x.leads.total === 0 ? <div className="empty">No leads in the TeleCRM sheet yet. They appear here once TeleCRM sends them.</div> : (
+        {x.leads.total === 0 ? <div className="empty">No leads yet.</div> : (
         <div className="dept-grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))" }}>
           <Card t="Leads, last 14 days"><Columns items={x.leads.last14} val={(r) => r.n} label={(r) => r.d.slice(8)} /></Card>
           <Card t="By status"><Bars items={x.leads.byStatus} /></Card>

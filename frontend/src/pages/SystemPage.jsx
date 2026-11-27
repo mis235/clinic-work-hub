@@ -31,7 +31,7 @@ function PasswordCard() {
   }
   return (
     <div className="card" style={{ marginTop: 16 }}>
-      <div className="card-head"><div><span className="name">Change my password</span><span className="dept">For the admin sign-in. No file editing needed.</span></div></div>
+      <div className="card-head"><div><span className="name">Change my password</span></div></div>
       <div className="form-grid">
         <div><label className="field-label">Current Password</label><input className="field" type="password" value={cur} onChange={(e) => setCur(e.target.value)} autoComplete="current-password" /></div>
         <div><label className="field-label">New password (8+ characters)</label><input className="field" type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="new-password" /></div>
@@ -92,7 +92,7 @@ function BackupCopyCard({ onChanged }) {
   const st = cur?.status;
   return (
     <div className="card" style={{ marginTop: 16 }}>
-      <div className="card-head"><div><span className="name">Safe copy outside this app (Google Drive)</span><span className="dept">Every night the database and all photos/files are also copied to this folder</span></div>
+      <div className="card-head"><div><span className="name">Safe copy outside this app (Google Drive)</span></div>
         <span className={`badge ${cur?.dir ? (st && !st.ok ? "overdue" : "done") : "overdue"}`}>{cur?.dir ? (st && !st.ok ? "Problem" : "On") : "Not set up"}</span></div>
       <ol className="meta" style={{ lineHeight: 1.8, paddingLeft: 18, marginTop: 0 }}>
         <li>On the computer that runs the app, install <b>Google Drive for desktop</b> (free) and sign in with the clinic Google account.</li>
@@ -102,7 +102,7 @@ function BackupCopyCard({ onChanged }) {
       <input className="field" value={dir} onChange={(e) => setDir(e.target.value)} placeholder="G:\My Drive\ClinicBackups" />
       <label className="field-label" style={{ marginTop: 10 }}>Back up every day at (office time)</label>
       <input className="field" type="time" style={{ maxWidth: 160 }} value={time} onChange={(e) => setTime(e.target.value)} />
-      <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 10, fontSize: 13 }}><input type="checkbox" checked={big} onChange={(e) => setBig(e.target.checked)} style={{ marginTop: 3 }} /><span>Also copy training videos and face check-in photos <span className="meta">(they use a lot of space — leave this off unless you have plenty of Drive space)</span></span></label>
+      <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 10, fontSize: 13 }}><input type="checkbox" checked={big} onChange={(e) => setBig(e.target.checked)} style={{ marginTop: 3 }} /><span>Also copy training videos and face attendance photos <span className="meta">(they use a lot of space — leave this off unless you have plenty of Drive space)</span></span></label>
       {st && <div className="meta" style={{ marginTop: 8 }}>Last copy: {new Date(st.at).toLocaleString("en-IN")} — {st.ok ? `OK (${st.files} new files copied)` : <span style={{ color: "var(--red)" }}>{st.error}</span>}</div>}
       {msg && <div className={msg.ok ? "note" : "login-error"} style={{ marginTop: 10 }}>{msg.t}</div>}
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}><button className="btn btn-primary btn-sm" disabled={busy} onClick={save}>{busy ? "Working…" : "Save & copy now"}</button></div>
@@ -114,7 +114,7 @@ function StorageCard() {
   const [s, setS] = useState(null); const [msg, setMsg] = useState("");
   const load = () => api.storage().then(setS).catch(() => {});
   useEffect(() => { load(); }, []);
-  async function clean() { try { const r = await api.cleanSnapshots(90); setMsg(`Removed ${r.removed} old check-in photo${r.removed === 1 ? "" : "s"} (${mb(r.bytes)}).`); load(); } catch (e) { setMsg(e.message); } }
+  async function clean() { try { const r = await api.cleanSnapshots(90); setMsg(`Removed ${r.removed} old clock-in photo${r.removed === 1 ? "" : "s"} (${mb(r.bytes)}).`); load(); } catch (e) { setMsg(e.message); } }
   if (!s) return null;
   const used = s.parts.reduce((t, p) => t + p.bytes, 0);
   const lowDisk = s.free != null && s.free < 5 * 1073741824;
@@ -125,8 +125,7 @@ function StorageCard() {
       {s.free != null && <div className="kv"><span className="k">Free space left on the disk</span><span className="v"><span className={`badge ${lowDisk ? "overdue" : "done"}`}>{mb(s.free)}</span></span></div>}
       {lowDisk && <div className="login-error" style={{ marginTop: 10 }}>The disk is nearly full. Free some space or move to the cloud server.</div>}
       {msg && <div className="note" style={{ marginTop: 10 }}>{msg}</div>}
-      <button className="btn btn-outline btn-sm" style={{ marginTop: 12 }} onClick={clean}>Delete face check-in photos older than 90 days</button>
-      <div className="meta" style={{ marginTop: 6 }}>Attendance records stay; only the little snapshot pictures are removed.</div>
+      <button className="btn btn-outline btn-sm" style={{ marginTop: 12 }} onClick={clean}>Delete face attendance photos older than 90 days</button>
     </div>
   );
 }
@@ -149,8 +148,8 @@ function ImportCard({ onDone }) {
   }
   return (
     <div className="card">
-      <div className="card-head"><div><span className="name">Import checklist history</span><span className="dept">From the old Google Sheet / Apps Script dashboard</span></div></div>
-      <p className="meta" style={{ marginTop: 0 }}>In Google Sheets choose File → Download → Comma-separated values (.csv), then pick that file here. Entries already in the app are never overwritten, and duplicates keep the latest submission.</p>
+      <div className="card-head"><div><span className="name">Import checklist history</span></div></div>
+      
       <input className="field" type="file" accept=".csv,text/csv" onChange={(e) => { setFile(e.target.files[0] || null); setResult(null); setMapping({}); }} />
       {err && <div className="login-error" style={{ marginTop: 10 }}>{err}</div>}
       {result && (

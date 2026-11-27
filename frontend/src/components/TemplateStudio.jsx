@@ -26,8 +26,7 @@ export default function TemplateStudio({ kind, companies = [], roster = [], flas
   return (
     <div className="card">
       <div className="card-head">
-        <div><span className="name">{isPay ? "Payslip templates" : "Offer letter templates"}</span>
-          <span className="dept">Upload your own Word file once, then generate for everyone</span></div>
+        <div><span className="name">{isPay ? "Payslip templates" : "Offer letter templates"}</span></div>
         <button className="btn btn-primary btn-sm" onClick={() => setShowUpload(true)}>+ Upload template</button>
       </div>
       <div className="note"><span className="link" onClick={() => setShowFields((x) => !x)}>{showFields ? "Hide" : "See"} placeholders</span> · <span className="link" onClick={() => api.downloadSampleTemplate(kind).catch((e) => flash(e.message))}>Download sample</span>{showFields && <div style={{ marginTop: 8, columnCount: 2, fontSize: 12 }}>{fields.map((f) => <div key={f.key}><code>{`{${f.key}}`}</code> — {f.label}</div>)}</div>}</div>

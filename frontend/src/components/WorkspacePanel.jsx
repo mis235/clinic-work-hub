@@ -25,7 +25,7 @@ export default function WorkspacePanel({ deptId, title }) {
   }
   if (err && !d) return <div className="empty">{err}</div>;
   if (!d) return <div className="empty">Loading…</div>;
-  if (!d.department) return <div className="empty">You are not in a department yet. Ask the admin to set your department.</div>;
+  if (!d.department) return <div className="empty">No department assigned.</div>;
 
   return (
     <>
@@ -35,7 +35,7 @@ export default function WorkspacePanel({ deptId, title }) {
         <button className="btn btn-primary btn-sm" onClick={() => setForm({ title: "", kind: "sheet", url: "", note: "" })}>+ Add to workspace</button>
       </div>
       {err && <div className="login-error" style={{ marginBottom: 10 }}>{err}</div>}
-      {d.items.length === 0 && <div className="empty">Nothing here yet. Add your sheets and dashboards with “Add to workspace”.</div>}
+      {d.items.length === 0 && <div className="empty">Nothing here yet.</div>}
       <div className="dept-grid">
         {d.items.map((it) => (
           <div key={it.id} className="dept-card" style={{ cursor: "default" }}>
@@ -52,7 +52,6 @@ export default function WorkspacePanel({ deptId, title }) {
       </div>
       {open && (
         <div className="card" style={{ marginTop: 16 }}>
-          <div className="meta" style={{ marginBottom: 8 }}>If this stays blank, the site does not allow showing inside other apps (Google sign-in pages often do not). Use “Open ↗”.</div>
           <iframe title={open.title} src={open.url} style={{ width: "100%", height: 520, border: "1px solid var(--line)", borderRadius: 12, background: "#fff" }} />
         </div>
       )}

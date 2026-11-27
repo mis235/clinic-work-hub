@@ -36,7 +36,7 @@ export default function ExitsPage({ user, onLogout, onBack }) {
       {wording && <WordingCard flash={flash} />}
 
       {openId ? <ExitDetail id={openId} flash={flash} onClose={() => { setOpenId(null); load(); }} /> : (
-        !list ? <div className="empty">Loading…</div> : list.length === 0 ? <div className="empty">No exits yet. Use “Start an exit” when someone resigns or their contract ends.</div> : (
+        !list ? <div className="empty">Loading…</div> : list.length === 0 ? <div className="empty">No exits yet.</div> : (
           <div className="card">
             {list.map((e) => (
               <div key={e.id} className="task-row" style={{ cursor: "pointer" }} onClick={() => setOpenId(e.id)}>
@@ -78,7 +78,7 @@ function StartModal({ onClose, onDone }) {
       </select>
       <label className="field-label">Date of Resignation / Notice</label>
       <input className="field" type="date" value={f.resignationDate} onChange={(e) => pickDate(e.target.value)} />
-      <label className="field-label">Last working day (30 days is filled in; change it if agreed otherwise)</label>
+      <label className="field-label">Last working day</label>
       <input className="field" type="date" value={f.lastWorkingDay} onChange={(e) => { setLwdEdited(true); set("lastWorkingDay", e.target.value); }} />
       <label className="field-label">Note (optional)</label>
       <input className="field" value={f.reasonNote} onChange={(e) => set("reasonNote", e.target.value)} placeholder="e.g. higher studies" />
@@ -133,7 +133,7 @@ function ExitDetail({ id, flash, onClose }) {
       </div>
 
       <div className="card" style={{ marginBottom: 14 }}>
-        <div className="title" style={{ marginBottom: 6 }}>Clearance checklist (all needed before settlement)</div>
+        <div className="title" style={{ marginBottom: 6 }}>Clearance checklist</div>
         {x.clearance_items.map((c) => (
           <label key={c.key} className="task-row" style={{ cursor: closed ? "default" : "pointer" }}>
             <div className="title" style={{ fontWeight: 500 }}>{c.label}</div>

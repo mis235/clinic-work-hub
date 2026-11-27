@@ -25,14 +25,14 @@ function LateAsk() {
       <b style={{ color: "#9a3412" }}>Please tell us why</b>
       {days.map((l) => (
         <div key={l.date} style={{ marginTop: 8 }}>
-          <div className="meta">{new Date(l.date + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })} · {l.kind === "noin" ? "no morning check-in" : `in at ${l.in_time}${l.late ? ` · ${l.late} min late` : ""}`}</div>
+          <div className="meta">{new Date(l.date + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })} · {l.kind === "noin" ? "no morning clock-in" : `in at ${l.in_time}${l.late ? ` · ${l.late} min late` : ""}`}</div>
           {l.reason ? <div style={{ marginTop: 4 }}>Your reason: <b>{l.reason}</b> <button className="btn btn-outline btn-sm" style={{ marginLeft: 6 }} onClick={() => setDays(days.map((x) => x.date === l.date ? { ...x, reason: "" } : x))}>Change</button></div> : (
             <>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "6px 0" }}>
                 {(l.kind === "noin" ? QUICK_NOIN : QUICK).map((q) => <button key={q} type="button" className="pill" onClick={() => setTxt({ ...txt, [l.date]: q })}>{q}</button>)}
               </div>
               <div style={{ display: "flex", gap: 6 }}>
-                <input className="field" style={{ flex: 1, fontSize: 16 }} value={txt[l.date] || ""} onChange={(e) => setTxt({ ...txt, [l.date]: e.target.value })} placeholder={l.kind === "noin" ? "Why is there no morning check-in?" : "Why were you late?"} maxLength={200} />
+                <input className="field" style={{ flex: 1, fontSize: 16 }} value={txt[l.date] || ""} onChange={(e) => setTxt({ ...txt, [l.date]: e.target.value })} placeholder={l.kind === "noin" ? "Why is there no morning clock-in?" : "Why were you late?"} maxLength={200} />
                 <button className="btn btn-primary btn-sm" disabled={busy === l.date} onClick={() => save(l.date)}>{busy === l.date ? "…" : "Send"}</button>
               </div>
             </>)}

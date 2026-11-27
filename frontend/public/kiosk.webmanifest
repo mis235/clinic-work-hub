@@ -1,8 +1,8 @@
 {
   "id": "/kiosk",
-  "name": "Clinic Check-in",
-  "short_name": "Check-in",
-  "description": "Face check-in for clinic staff.",
+  "name": "Clinic Attendance",
+  "short_name": "Attendance",
+  "description": "Face attendance for clinic staff.",
   "start_url": "/kiosk",
   "scope": "/kiosk",
   "display": "standalone",

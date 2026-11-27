@@ -29,12 +29,10 @@ export default function InstallPage() {
       <div style={{ maxWidth: 520, margin: "0 auto", padding: "28px 18px 40px" }}>
         <img src="/logo.png" alt="" style={{ height: 44 }} />
         <h1 style={{ fontSize: 26, margin: "14px 0 4px" }}>Install the clinic apps</h1>
-        <p style={{ margin: "0 0 22px", color: "#5b4d6b", lineHeight: 1.5 }}>Two separate apps, each with its own icon on the phone.</p>
 
         <div style={card}>
           <div style={{ fontSize: 12, fontWeight: 700, color: "#C42F8F", letterSpacing: ".04em" }}>FOR EVERY STAFF MEMBER</div>
           <h2 style={{ fontSize: 20, margin: "4px 0 6px" }}>Work Hub</h2>
-          <p style={{ margin: "0 0 14px", color: "#5b4d6b", lineHeight: 1.5 }}>Tasks, shift checklist, my attendance, payslips and my documents (offer letter, ID papers). Sign in with your name and PIN.</p>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {!standalone && <button style={btn} onClick={install}>Install Work Hub</button>}
             <a href="/" style={{ ...ghost, textDecoration: "none", display: "inline-block" }}>Open Work Hub</a>
@@ -49,10 +47,9 @@ export default function InstallPage() {
 
         <div style={card}>
           <div style={{ fontSize: 12, fontWeight: 700, color: "#6b4fa0", letterSpacing: ".04em" }}>FOR THE CLINIC PHONE ONLY</div>
-          <h2 style={{ fontSize: 20, margin: "4px 0 6px" }}>Check-in (attendance)</h2>
-          <p style={{ margin: "0 0 12px", color: "#5b4d6b", lineHeight: 1.5 }}>Staff look at the camera and are marked present. This phone needs a one-time setup link from the admin: Attendance, then Clinic phone, then create the setup link. Open that link on the clinic phone, then tap “Install Check-in app”.</p>
+          <h2 style={{ fontSize: 20, margin: "4px 0 6px" }}>Attendance</h2>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-            <a href="/kiosk" style={{ ...btn, background: "#2a1b3d", textDecoration: "none", display: "inline-block" }}>Open Check-in</a>
+            <a href="/kiosk" style={{ ...btn, background: "#2a1b3d", textDecoration: "none", display: "inline-block" }}>Open Attendance</a>
             <span style={{ fontSize: 13, color: kioskSet ? "#176b34" : "#8a5a00", fontWeight: 700 }}>{kioskSet ? "This phone is set up" : "This phone is not set up yet"}</span>
           </div>
         </div>

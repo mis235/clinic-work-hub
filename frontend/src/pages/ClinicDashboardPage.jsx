@@ -145,7 +145,6 @@ function PatientDashboard({ user }) {
       {user.role === "admin" && !full && SETUP && (
         <div style={{ border: "1px dashed var(--line)", borderRadius: 12, padding: "10px 12px", marginBottom: 10 }}>
           <b style={{ fontSize: 13.5 }}>Auto-update from Google Drive</b>
-          <div className="meta">Save the dashboard .html from your Claude "Clinic Dashboard" project into one Drive file (Anyone with the link, Viewer) and paste its link here. The app checks it every 20 minutes.</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
             <input className="field" style={{ flex: "1 1 280px", margin: 0 }} value={srcUrl} onChange={(e) => setSrcUrl(e.target.value)} placeholder="https://drive.google.com/file/d/…" />
             <button className="btn btn-primary btn-sm" onClick={saveSrc}>Save Link</button>
@@ -153,7 +152,6 @@ function PatientDashboard({ user }) {
           </div>
           <div style={{ borderTop: "1px solid var(--line)", margin: "10px 0 8px" }} />
           <b style={{ fontSize: 13.5 }}>Or show a live link (always the latest)</b>
-          <div className="meta">Paste the web link of a dashboard that is already live, such as a Looker Studio report or a published page. It then shows here instead of the file.</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
             <input className="field" style={{ flex: "1 1 280px", margin: 0 }} value={liveIn} onChange={(e) => setLiveIn(e.target.value)} placeholder="https://…" />
             <button className="btn btn-primary btn-sm" onClick={() => saveLive(false)}>Save Live Link</button>

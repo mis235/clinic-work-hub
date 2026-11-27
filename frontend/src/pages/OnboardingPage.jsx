@@ -210,7 +210,6 @@ function WizardModal({ shiftRoles, managers, departments, onClose, onOpenProfile
             <div className="kv"><span className="k">Sign in as</span><span className="v">{created.name}</span></div>
             <div className="kv"><span className="k">Temporary PIN</span><span className="v" style={{ fontSize: 18, letterSpacing: 4 }}>{f.pin}</span></div>
           </div>
-          <div className="note" style={{ marginTop: 14 }}>They will be asked to set their own PIN the first time they sign in. Next, collect their documents from the Onboarding list.</div>
           <div className="actions"><button className="btn btn-ghost" onClick={onClose}>Done</button><button className="btn btn-primary" onClick={() => { onClose(); onOpenProfile(created.id); }}>View profile</button></div>
         </div>
       </div>
@@ -259,8 +258,7 @@ function WizardModal({ shiftRoles, managers, departments, onClose, onOpenProfile
             <div><label className="field-label">Emergency Contact Name & Relation</label><input className="field" value={f.emergencyContactName} onChange={set("emergencyContactName")} /></div>
             <div><label className="field-label">Emergency Contact Phone</label><input className="field" value={f.emergencyContactPhone} onChange={set("emergencyContactPhone")} /></div>
             <div className="full"><label className="field-label">Temporary sign-in PIN (4 digits)</label>
-              <input className="field" inputMode="numeric" maxLength={4} value={f.pin} onChange={(e) => setF((x) => ({ ...x, pin: e.target.value.replace(/\D/g, "") }))} />
-              <div className="login-hint">Suggested at random. The person must change it at first sign-in.</div></div>
+              <input className="field" inputMode="numeric" maxLength={4} value={f.pin} onChange={(e) => setF((x) => ({ ...x, pin: e.target.value.replace(/\D/g, "") }))} /></div>
           </div>
         )}
 

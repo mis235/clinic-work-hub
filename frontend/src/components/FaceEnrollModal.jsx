@@ -43,8 +43,8 @@ export default function FaceEnrollModal({ person, onClose, onDone }) {
               <div className="meta" style={{ marginTop: -4 }}>Best if {clash.similar.name}'s face was taken in poor light. Then register {clash.similar.name} again.</div>
               {clash.similar.canForce
                 ? <><button className="btn btn-outline" disabled={busy} onClick={saveAnyway}>They are two different people: save anyway</button>
-                    <div className="meta" style={{ marginTop: -4 }}>Use this only if you are sure. Check-in may ask these two to try again until their faces are re-taken in good light.</div></>
-                : <div className="meta">These two faces are so close that they are almost surely the same person, so saving both is not allowed.</div>}
+                    <div className="meta" style={{ marginTop: -4 }}>Use this only if you are sure. Clock-in may ask these two to try again until their faces are re-taken in good light.</div></>
+                : <div className="meta">These faces are too similar to save both.</div>}
             </div>
             {err && <div className="login-error" style={{ marginTop: 10 }}>{err}</div>}
             <div className="actions"><button className="btn btn-ghost" onClick={() => setClash(null)}>Take the picture again</button><button className="btn btn-ghost" onClick={onClose}>Close</button></div>

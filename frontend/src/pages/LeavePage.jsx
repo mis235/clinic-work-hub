@@ -206,7 +206,6 @@ function Late() {
           {r.nextFineIn && <div className="meta">{r.nextFineIn} more late arrival{r.nextFineIn === 1 ? "" : "s"} → next fine</div>}
         </div>
       ))}
-      <div className="note">Grooming / dress-code and other fines: add them under Attendance → Fines. They also go to the payslip automatically.</div>
     </>
   );
 }
@@ -216,7 +215,7 @@ function Birthdays() {
   useEffect(() => { api.birthdays(366).then(setRows).catch(() => setRows([])); }, []);
   const mon = (d) => new Date(d + "T00:00:00Z").toLocaleDateString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" });
   if (!rows) return <div className="empty">Loading…</div>;
-  if (!rows.length) return <div className="empty">No dates of birth saved yet. Add them in Staff → Edit.</div>;
+  if (!rows.length) return <div className="empty">No dates of birth saved yet.</div>;
   const groups = []; for (const r of rows) { const m = r.inDays === 0 ? "Today" : mon(r.next); (groups.at(-1)?.m === m ? groups.at(-1).r : (groups.push({ m, r: [] }), groups.at(-1).r)).push(r); }
   return groups.map((g) => (
     <div key={g.m} className="card"><div className="title" style={{ marginBottom: 6 }}>{g.m === "Today" ? <span className="icon-h"><Icon name="cake" size={16} /> Today</span> : g.m}</div>

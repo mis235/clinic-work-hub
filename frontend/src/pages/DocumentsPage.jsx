@@ -61,7 +61,7 @@ export default function DocumentsPage({ user, isStaffLayout, onLogout, onBack })
       </div>
 
       {data === null && <div className="empty">Loading…</div>}
-      {data && shown.length === 0 && <div className="empty">Nothing here yet. Click “Add document” to upload a file or paste a Google Sheet / dashboard link.</div>}
+      {data && shown.length === 0 && <div className="empty">Nothing here yet.</div>}
       <div className="grid-2">
         {shown.map((d) => (
           <div key={d.id} className="card" style={{ marginBottom: 0 }}>

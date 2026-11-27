@@ -56,7 +56,6 @@ export default function StaffListImport({ onClose, onDone }) {
                 </tbody>
               </table>
             </div>
-            <div className="meta" style={{ marginTop: 8 }}>People not in your list are not touched. Phone numbers for new people are placeholders — fix them in Edit details.</div>
             {err && <div className="login-error" style={{ marginTop: 8 }}>{err}</div>}
             <div className="actions"><button className="btn btn-outline" onClick={() => setData(null)}>Back</button><button className="btn btn-primary" disabled={busy} onClick={apply}>{busy ? "Saving…" : `Apply (${rows.length})`}</button></div>
           </>

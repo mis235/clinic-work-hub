@@ -8,13 +8,13 @@ import { snapUrl } from "../api.js";
 const todayIST = () => new Date(Date.now() + 19800000).toISOString().slice(0, 10);
 const MARKS = [["P", "Present", "done"], ["L", "Late", "overdue"], ["H", "Half day", "accepted"], ["LV", "Leave", "accepted"], ["A", "Absent", "overdue"], ["W", "Off", "accepted"]];
 const CYCLE = ["", "P", "L", "A", "H", "LV", "W"];
-const CUTOFF = "2026-11-18"; // from Wednesday: Present / Late / Half day only from check-in times
+const CUTOFF = "2026-11-18"; // from Wednesday: Present / Late / Half day only from clock-in times
 const CYCLE_AFTER = ["", "A", "LV", "W"];
 const t12 = (t) => { const [h, m] = String(t).split(":").map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
 const short = (t) => String(t).replace(/^0/, "");
 const shiftDay = (d, n) => new Date(new Date(d + "T00:00:00Z").getTime() + n * 86400000).toISOString().slice(0, 10);
 
-// Attendance is marked by the admin / manager (like the paper register). Staff do not check in on the app.
+// Attendance is marked by the admin / manager (like the paper register). Staff do not clock in on the app.
 export default function AttendancePage({ user, onLogout, onBack }) {
   const [date, setDate] = useState(todayIST());
   const [board, setBoard] = useState(null);
@@ -62,7 +62,7 @@ export default function AttendancePage({ user, onLogout, onBack }) {
       <div className="pill-row">
         <button className={`pill ${tab === "register" ? "active" : ""}`} onClick={() => setTab("register")}>Month register</button>
         <button className={`pill ${tab === "late" ? "active" : ""}`} onClick={() => setTab("late")}>Late &amp; checks</button>
-        <button className={`pill ${tab === "face" ? "active" : ""}`} onClick={() => setTab("face")}>Face check-in</button>
+        <button className={`pill ${tab === "face" ? "active" : ""}`} onClick={() => setTab("face")}>Face attendance</button>
         {user.role === "admin" && SETUP && <button className={`pill ${tab === "sheet" ? "active" : ""}`} onClick={() => setTab("sheet")}>Google Sheet</button>}
         {user.role === "admin" && <button className={`pill ${tab === "fines" ? "active" : ""}`} onClick={() => setTab("fines")}>Fines</button>}
         <button className={`pill ${tab === "notes" ? "active" : ""}`} onClick={() => setTab("notes")}>Staff Messages</button>
@@ -72,8 +72,8 @@ export default function AttendancePage({ user, onLogout, onBack }) {
         <div className="modal-backdrop" onClick={() => setFix(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>{fix.name} · {new Date(fix.date + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })}</h3>
-                        <label className="field-label">Check-in time</label><input className="field" type="time" value={fix.inTime} onChange={(e) => setFix({ ...fix, inTime: e.target.value })} />
-            <label className="field-label">Check-out time</label><input className="field" type="time" value={fix.outTime} onChange={(e) => setFix({ ...fix, outTime: e.target.value })} />
+                        <label className="field-label">Clock-in time</label><input className="field" type="time" value={fix.inTime} onChange={(e) => setFix({ ...fix, inTime: e.target.value })} />
+            <label className="field-label">Clock-out time</label><input className="field" type="time" value={fix.outTime} onChange={(e) => setFix({ ...fix, outTime: e.target.value })} />
             <button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} disabled={!fix.inTime && !fix.outTime} onClick={async () => { try { await api.fixAttendanceTime({ userId: fix.userId, date: fix.date, inTime: fix.inTime, outTime: fix.outTime }); setFix(null); load(); flash("Saved."); } catch (e) { flash(e.message); } }}>Save Times</button>
             <div className="meta" style={{ marginTop: 12 }}>Mark the day as</div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
@@ -155,7 +155,7 @@ function LateReasonsPanel({ month, ver }) {
     </div>
   );
   if (!d) return <div className="card">{head}<div className="empty">Loading…</div></div>;
-  const TYPES = { late: ["Late", "#d97706"], noin: ["No check-in", "#dc2626"], noout: ["No check-out", "#dc2626"], early: ["Left early", "#0ea5e9"], half: ["Half day", "#7c3aed"] };
+  const TYPES = { late: ["Late", "#d97706"], noin: ["No clock-in", "#dc2626"], noout: ["No clock-out", "#dc2626"], early: ["Left early", "#0ea5e9"], half: ["Half day", "#7c3aed"] };
   const rows = d.rows.filter((r) => f === "all" || r.type === f);
   const without = d.rows.filter((r) => !r.reason).length;
   return (
@@ -210,7 +210,7 @@ function FacePanel({ date, people, isAdmin, flash }) {
 
       {isAdmin && (
         <div className="card">
-          <div className="title">Clinic Check-in Link</div>
+          <div className="title">Clinic Attendance Link</div>
           {link && <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
             <input className="field" readOnly value={link} onFocus={(e) => e.target.select()} />
             <button className="btn btn-primary btn-sm" onClick={() => { try { navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 2500); } catch {} }}>{copied ? "Copied" : "Copy"}</button>
@@ -224,7 +224,7 @@ function FacePanel({ date, people, isAdmin, flash }) {
 
       {isAdmin && geo && (
         <div className="card">
-          <div className="title">Check-in Locations</div>
+          <div className="title">Attendance Locations</div>
           <div className="task-row"><div><div className="title">{geo.on ? "Location limit is ON" : "Location limit is OFF"}</div><div className="meta">{geo.points.length ? `${geo.points.length} place${geo.points.length === 1 ? "" : "s"} saved · within ${geo.radius} m of each` : "No place saved yet"}</div></div>
             {geo.points.length > 0 && <button className="btn btn-outline btn-sm" onClick={() => saveGeo({ on: !geo.on })}>{geo.on ? "Turn off" : "Turn on"}</button>}</div>
           {geo.points.map((p, i) => <div key={i} className="task-row"><div className="title">{p.name}</div><button className="btn btn-ghost btn-sm" onClick={() => saveGeo({ remove: i })}>Remove</button></div>)}
@@ -253,8 +253,8 @@ function FacePanel({ date, people, isAdmin, flash }) {
       )}
 
       <div className="card">
-        <div className="title" style={{ marginBottom: 6 }}>Face check-ins on {date}</div>
-        {log.length === 0 && <div className="empty">No face check-ins yet.</div>}
+        <div className="title" style={{ marginBottom: 6 }}>Face attendances on {date}</div>
+        {log.length === 0 && <div className="empty">No face attendances yet.</div>}
         {log.map((l) => (
           <div key={l.id} className="task-row">
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -262,8 +262,8 @@ function FacePanel({ date, people, isAdmin, flash }) {
               <div><div className="title">{l.name}</div><div className="meta">{new Date(l.created_at.replace(" ", "T") + "Z").toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })} · match {Math.round((1 - l.distance) * 100)}%</div></div>
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <span className={`badge ${l.kind === "out" ? "accepted" : l.mark === "P" ? "done" : "overdue"}`}>{l.kind === "out" ? "Logged out" : l.mark === "P" ? "Logged in" : "Logged in (late)"}</span>
-              <button className="btn btn-ghost btn-sm" onClick={async () => { if (!window.confirm(`Cancel this check-in for ${l.name}? Use it when the photo is a different person.`)) return; try { await api.undoKioskCheckin(l.id); flash("Cancelled — that day is back as it was"); load(); } catch (e) { flash(e.message); } }}>Wrong person</button>
+              <span className={`badge ${l.kind === "out" ? "accepted" : l.mark === "P" ? "done" : "overdue"}`}>{l.kind === "out" ? "Clocked out" : l.mark === "P" ? "Clocked in" : "Clocked in (late)"}</span>
+              <button className="btn btn-ghost btn-sm" onClick={async () => { if (!window.confirm(`Cancel this clock-in for ${l.name}? Use it when the photo is a different person.`)) return; try { await api.undoKioskCheckin(l.id); flash("Cancelled — that day is back as it was"); load(); } catch (e) { flash(e.message); } }}>Wrong person</button>
             </div>
           </div>
         ))}
@@ -273,7 +273,7 @@ function FacePanel({ date, people, isAdmin, flash }) {
   );
 }
 
-const KIND = { announcement: "Announcement", early_leave: "Left early", stayed_late: "Stayed late", no_morning_checkin: "No morning check-in" };
+const KIND = { announcement: "Announcement", early_leave: "Left early", stayed_late: "Stayed late", no_morning_checkin: "No morning clock-in" };
 function MessagesPanel({ flash }) {
   const [d, setD] = useState(null);
   const load = () => api.listMessages().then(setD).catch((e) => { setD({ messages: [], enabled: true }); flash(e.message); });
@@ -322,7 +322,7 @@ function Announce({ flash, onSent }) {
         <button className="btn btn-outline" onClick={contacts}>Download Contacts for TeleCRM</button>
       </div>
       {res && <div style={{ marginTop: 12 }}>
-        <div className="meta" style={{ marginBottom: 6 }}>Send on WhatsApp (tap a number to open WhatsApp with the message ready):</div>
+        <div className="meta" style={{ marginBottom: 6 }}>Send on WhatsApp:</div>
         <button className="btn btn-ghost btn-sm" onClick={() => navigator.clipboard?.writeText(res.text)}>Copy Message</button>
         {res.recipients.map((r) => (
           <div key={r.name} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", flexWrap: "wrap" }}>

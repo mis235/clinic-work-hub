@@ -1196,7 +1196,7 @@ try {
   // The person downloads their own paper; the Check-in page is its own installable app
   if (fs.existsSync(path.join(process.cwd(), "..", "frontend", "dist", "index.html"))) {
     const kh = await (await fetch(base + "/kiosk")).text();
-    ok("Check-in page installs as its own app (own manifest, name and icon)", kh.includes('href="/kiosk.webmanifest"') && kh.includes("Clinic Check-in") && kh.includes("/kiosk-192.png") && !kh.includes('href="/manifest.json"'));
+    ok("Attendance page installs as its own app (own manifest, name and icon)", kh.includes('href="/kiosk.webmanifest"') && kh.includes("Clinic Attendance") && kh.includes("/kiosk-192.png") && !kh.includes('href="/manifest.json"'));
     const hh = await (await fetch(base + "/install")).text();
     ok("Install page opens without sign-in and keeps the Work Hub manifest", hh.includes('href="/manifest.json"'));
   }

@@ -77,8 +77,8 @@ export default function StaffEditModal({ staff, shiftRoles, managers = [], depar
 
         {showAccess && (
           <div className="note" style={{ marginTop: 14 }}>
-            <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 8 }}><input type="checkbox" checked={isHr} onChange={(e) => setIsHr(e.target.checked)} style={{ marginTop: 3 }} /><span><b>HR — leave approver</b><br /><span className="meta">Receives leave requests, confirms them, records Sir/Mam's approval, sees late arrivals and birthdays, sets the HR rules.</span></span></label>
-            <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}><input type="checkbox" checked={leadership} onChange={(e) => setLeadership(e.target.checked)} style={{ marginTop: 3 }} /><span><b>Leadership access (MIS, COS, COE, doctors)</b><br /><span className="meta">Sees Reports, Dashboards, Knowledge and the full-clinic assistant. Everyone else only sees their own work.</span></span></label>
+            <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 8 }}><input type="checkbox" checked={isHr} onChange={(e) => setIsHr(e.target.checked)} style={{ marginTop: 3 }} /><span><b>HR — leave approver</b></span></label>
+            <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}><input type="checkbox" checked={leadership} onChange={(e) => setLeadership(e.target.checked)} style={{ marginTop: 3 }} /><span><b>Leadership access (MIS, COS, COE, doctors)</b></span></label>
           </div>
         )}
 
@@ -112,7 +112,6 @@ export default function StaffEditModal({ staff, shiftRoles, managers = [], depar
               <option value="default">Clinic default amount</option><option value="flat">Fixed ₹ amount</option><option value="day_pct">% of one day's salary</option></select></div>
           {f.lateFineType !== "default" && <div><label className="field-label">{f.lateFineType === "flat" ? "Amount (₹)" : "Percent of one day's salary"}</label>
             <input className="field" type="number" inputMode="decimal" value={f.lateFineValue} onChange={set("lateFineValue")} /></div>}
-          <div style={{ gridColumn: "1 / -1", fontSize: 12, color: "var(--muted)" }}>Late = more than 15 minutes after the shift start. Every 3 late days = 1 fine, added to payroll automatically.</div>
         </div>
 
         <div className="step-label" style={{ marginTop: 20 }}>Personal & Contact</div>

@@ -119,7 +119,7 @@ app.get("/api/admin/audit", ...adminOnly, (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 100, 500);
   res.json(db.prepare("SELECT * FROM audit_log ORDER BY id DESC LIMIT ?").all(limit));
 });
-// Extra backup copy (e.g. a Google Drive folder) + storage report + clean-up of old check-in photos
+// Extra backup copy (e.g. a Google Drive folder) + storage report + clean-up of old clock-in photos
 app.get("/api/admin/backup-copy", ...adminOnly, (req, res) => res.json({ dir: copyFolder(), includeBig: includeBig(), time: backupTime(), status: copyStatus() }));
 app.put("/api/admin/backup-copy", ...adminOnly, async (req, res) => {
   try {
@@ -211,7 +211,7 @@ app.post("/api/jobs/run-checklist-digest", requireAuth, requirePermission("repor
 // app lives at one https address (no CORS, nothing else to host).
 const distDir = path.join(__dirname, "..", "..", "frontend", "dist");
 if (fs.existsSync(distDir)) {
-  // The Check-in app's manifest carries the phone's key in its start address, so a home-screen icon (iPhone keeps separate storage) still opens already set up.
+  // The Clock-in app's manifest carries the phone's key in its start address, so a home-screen icon (iPhone keeps separate storage) still opens already set up.
   app.get("/kiosk.webmanifest", (req, res) => {
     try {
       const m = JSON.parse(fs.readFileSync(path.join(distDir, "kiosk.webmanifest"), "utf8"));
@@ -225,18 +225,18 @@ if (fs.existsSync(distDir)) {
     if (/[\\/]assets[\\/]/.test(fp)) res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
     else if (/[\\/]models[\\/]/.test(fp)) res.setHeader("Cache-Control", "public, max-age=2592000");
   } }));
-  // The Check-in page is its own installable app: its page head carries the Check-in name, icon and manifest from the first byte,
+  // The Clock-in page is its own installable app: its page head carries the Clock-in name, icon and manifest from the first byte,
   // so "Install" on that page never installs the Work Hub by mistake.
   app.get(/^\/kiosk\/?$/, (req, res) => {
     try {
       const html = fs.readFileSync(path.join(distDir, "index.html"), "utf8")
         .replace('href="/manifest.json"', 'href="/kiosk.webmanifest"')
         .replace('<meta name="theme-color" content="#C42F8F"', '<meta name="theme-color" content="#2a1b3d"')
-        .replace('content="Work Hub" />', 'content="Check-in" />')
+        .replace('content="Work Hub" />', 'content="Attendance" />')
         .replace(/iPhone|iPad|iPod/i.test(req.headers["user-agent"] || "") ? '<meta name="apple-mobile-web-app-capable" content="yes" />' : "\u0000", '<meta name="apple-mobile-web-app-capable" content="no" />')
         .replace('<link rel="apple-touch-icon" href="/apple-touch-icon.png" />', '<link rel="apple-touch-icon" href="/kiosk-apple-touch-icon.png" />')
         .replace('<link rel="icon" type="image/png" href="/icon-192.png" />', '<link rel="icon" type="image/png" href="/kiosk-192.png" />')
-        .replace(/<title>[^<]*<\/title>/, "<title>Clinic Check-in</title>");
+        .replace(/<title>[^<]*<\/title>/, "<title>Clinic Attendance</title>");
       res.set("Cache-Control", "no-cache").type("html").send(html);
     } catch { res.sendFile(path.join(distDir, "index.html")); }
   });

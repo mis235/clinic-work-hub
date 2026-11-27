@@ -125,7 +125,7 @@ export default function PayrollPage({ user, onLogout, onBack }) {
 
         <div className="card pay-panel">
           <div className="pay-panel-head"><div><h2>Salary set-up</h2></div></div>
-          {profiles?.length === 0 && <div className="empty">No salary details yet. Press "+ Set up an employee's pay" above.</div>}
+          {profiles?.length === 0 && <div className="empty">No salary details yet.</div>}
           <div className="pay-table-wrap"><table className="pay-table">
             <thead><tr><th>Employee</th><th>Company</th><th className="r">Basic</th><th className="r">Retention</th><th className="r">Actions</th></tr></thead>
             <tbody>{(profiles || []).filter((p) => company === "all" || p.company_id === company).map((p) => (

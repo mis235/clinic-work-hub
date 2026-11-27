@@ -26,7 +26,7 @@ export default function PunchCard() {
     try {
       const pos = await getPosition(); // optional -- attendance is recorded even if location is blocked
       const r = await api.attendancePunch(pos || {});
-      setMsg(r.duplicate ? "Already recorded a moment ago." : r.type === "check_in" ? "You are checked in. Have a great shift!" : "You are checked out. See you next time!");
+      setMsg(r.duplicate ? "Already recorded a moment ago." : r.type === "check_in" ? "You are clocked in. Have a great shift!" : "You are clocked out. See you next time!");
       await load();
     } catch (e) { setErr(e.message); } finally { setBusy(false); }
   }
@@ -37,12 +37,12 @@ export default function PunchCard() {
   return (
     <div className="card punch-card">
       <div className="card-head">
-        <div><span className="name">Attendance</span><span className="dept">{inNow ? "You are checked in" : today.records.length ? "You are checked out" : "Not checked in yet today"}</span></div>
+        <div><span className="name">Attendance</span><span className="dept">{inNow ? "You are clocked in" : today.records.length ? "You are clocked out" : "Not clocked in yet today"}</span></div>
       </div>
       {err && <div className="login-error" style={{ marginBottom: 10 }}>{err}</div>}
       {msg && <div className="note" style={{ marginBottom: 12 }}>{msg}</div>}
       <button className={`btn ${inNow ? "btn-outline" : "btn-primary"}`} style={{ width: "100%", padding: "14px 18px", fontSize: 15 }} disabled={busy} onClick={punch}>
-        <Icon name={inNow ? "logout" : "check"} size={18} /> {busy ? "Saving…" : inNow ? "Check out" : "Check in"}
+        <Icon name={inNow ? "logout" : "check"} size={18} /> {busy ? "Saving…" : inNow ? "Clock out" : "Clock in"}
       </button>
       {today.records.length > 0 && (
         <div className="meta" style={{ marginTop: 10 }}>

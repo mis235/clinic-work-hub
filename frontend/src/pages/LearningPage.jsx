@@ -94,7 +94,7 @@ export default function LearningPage({ user, isStaffLayout, onLogout, onBack }) 
               {departments.map((d) => { const st = stat(all.filter((v) => v.department === d)); return (
                 <button key={d} className={`btn btn-sm ${deptF === d ? "btn-primary" : "btn-outline"}`} onClick={() => setDeptF(deptF === d ? "" : d)}>{d} · {st.n}</button>); })}
             </div>
-            {shown.length === 0 && <div className="empty">Nothing matches. Clear the search or choose All.</div>}
+            {shown.length === 0 && <div className="empty">Nothing matches.</div>}
           </div>);
       })()}
 
@@ -213,7 +213,7 @@ function VideoForm({ initial, departments, existingFolders = [], onClose, onDone
         <datalist id="folder-list">{existingFolders.map((f) => <option key={f} value={f} />)}</datalist>
         <label className="field-label">Short description (optional)</label>
         <input className="field" value={description} onChange={(e) => setDescription(e.target.value)} />
-        {busy && !editing && mode === "file" && <div className="meta" style={{ marginTop: 10 }}>Uploading — large files can take a few minutes. Please keep this window open.</div>}
+        {busy && !editing && mode === "file" && <div className="meta" style={{ marginTop: 10 }}>Uploading…</div>}
         {err && <div className="login-error" style={{ marginTop: 12 }}>{err}</div>}
         <div className="actions">
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>

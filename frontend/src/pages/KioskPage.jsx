@@ -11,7 +11,7 @@ export default function KioskPage() {
   const [clock, setClock] = useState(new Date());
   useEffect(() => { const t = setInterval(() => setClock(new Date()), 1000); return () => clearInterval(t); }, []);
 
-  // Make this page installable as its own "Check-in" app (separate from the Work Hub app).
+  // Make this page installable as its own "Attendance" app (separate from the Work Hub app).
   const [installEvt, setInstallEvt] = useState(null);
   const [showHow, setShowHow] = useState(false);
   const standalone = typeof window !== "undefined" && (window.matchMedia?.("(display-mode: standalone)").matches || navigator.standalone);
@@ -38,7 +38,7 @@ export default function KioskPage() {
     const k0 = kioskApi.key(); // saves the key and, on an old #key= link, moves it to ?key= (iPhone keeps the query when adding to the home screen)
     if (k0 && !/[?&]key=/.test(window.location.search)) { try { history.replaceState(null, "", "/kiosk?key=" + encodeURIComponent(k0)); } catch {} } // the key stays in the address so "Add to Home Screen" on an iPhone keeps it
     const demo = /demo=(\w+)/.exec(window.location.hash)?.[1]; // #demo=look|check|in|out|fail|error|offline shows a screen without the camera
-    if (demo) { const D = { look: { phase: "look", text: "Look at the camera" }, check: { phase: "check", text: "Checking…" }, in: { phase: "result", ok: true, text: "Welcome, Monika", sub: "Logged in 09:42 AM" }, out: { phase: "result", ok: true, text: "Goodbye, Monika", sub: "Logged out 06:31 PM · worked 8h 49m" }, fail: { phase: "result", ok: false, text: "Face not recognised", sub: "Face the light and look straight at the camera." }, error: { phase: "error", text: "Camera is blocked. Allow the camera and try again." }, offline: { phase: "offline", text: "No internet right now", sub: "Hold still. Trying again…" } }; setState(D[demo] || D.look); if (demo === "offline") setOnline(false); return; }
+    if (demo) { const D = { look: { phase: "look", text: "Look at the camera" }, check: { phase: "check", text: "Checking…" }, in: { phase: "result", ok: true, text: "Welcome, Monika", sub: "Clock-in recorded 09:42 AM" }, out: { phase: "result", ok: true, text: "Goodbye, Monika", sub: "Clock-out recorded 06:31 PM · worked 8h 49m" }, fail: { phase: "result", ok: false, text: "Face not recognised", sub: "Face the light and look straight at the camera." }, error: { phase: "error", text: "Camera is blocked. Allow the camera and try again." }, offline: { phase: "offline", text: "No internet right now", sub: "Hold still. Trying again…" } }; setState(D[demo] || D.look); if (demo === "offline") setOnline(false); return; }
     let dead = false, stop = null, last = { id: "", at: 0 }, lock = null;
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const net = (e) => !e?.status; // no HTTP status means no internet (or a timeout), not a refusal from the server
@@ -48,7 +48,7 @@ export default function KioskPage() {
     const onVis = () => { if (document.visibilityState === "visible") { keepAwake(); ensureCamera().catch(() => {}); } };
     document.addEventListener("visibilitychange", onVis);
     keepAwake();
-    // Check-in works only at the clinic: when the admin switches the location limit on, this phone shares where it is.
+    // Attendance works only at the clinic: when the admin switches the location limit on, this phone shares where it is.
     let geoOn = false, pos = null, posErr = 0, watch = null;
     const startGeo = () => { if (watch !== null || !navigator.geolocation) return; try { watch = navigator.geolocation.watchPosition((p) => { posErr = 0; pos = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy, at: Date.now() }; }, (e) => { posErr = e.code || 2; }, { enableHighAccuracy: true, maximumAge: 20000, timeout: 30000 }); } catch {} };
     // Every minute: tell the server this phone is alive, and show whether the internet is reachable.
@@ -65,7 +65,7 @@ export default function KioskPage() {
         let info;
         for (;;) { // start-up without internet: wait and keep trying instead of giving up
           try { info = await kioskApi.call("ping"); break; }
-          catch (e) { if (!net(e)) throw e; if (dead) return; setOnline(false); setState({ phase: "offline", text: "Waiting for internet…", sub: "Check-in starts by itself when the signal is back." }); await sleep(4000); }
+          catch (e) { if (!net(e)) throw e; if (dead) return; setOnline(false); setState({ phase: "offline", text: "Waiting for internet…", sub: "Attendance starts by itself when the signal is back." }); await sleep(4000); }
         }
         setOnline(true);
         geoOn = !!info.geo; if (geoOn) startGeo();
@@ -79,11 +79,11 @@ export default function KioskPage() {
           last = { at: Date.now() + 12000 };
           const timer = setTimeout(() => { if (confirmRef.current) { confirmRef.current = null; last = { at: Date.now() }; setState({ phase: "look", text: "Look at the camera" }); } }, 10000);
           confirmRef.current = {
-            yes: async () => { clearTimeout(timer); confirmRef.current = null; setState({ phase: "check", text: "Recording check-out…" });
+            yes: async () => { clearTimeout(timer); confirmRef.current = null; setState({ phase: "check", text: "Recording clock-out…" });
               try { const r2 = await kioskApi.call("checkin", { ...payload, confirmOut: true }); last = { at: Date.now() }; showResult(r2, payload); } catch (e) { last = { at: Date.now() }; setState({ phase: "result", ok: false, text: "Please try again", sub: e.message }); } },
             no: () => { clearTimeout(timer); confirmRef.current = null; last = { at: Date.now() + 8000 }; setState({ phase: "look", text: "Look at the camera" }); },
           };
-          setState({ phase: "confirm", text: `Leaving now, ${r.name}?`, sub: `You checked in at ${t12(r.inTime)}. Tap Yes only if you are going home.` });
+          setState({ phase: "confirm", text: `Leaving now, ${r.name}?`, sub: `You clocked in at ${t12(r.inTime)}. Tap Yes only if you are going home.` });
         };
         let lastOk = null; // the last recorded person, so the "Not me" button stays while they stand there
         undoRef.current = async (id) => {
@@ -102,9 +102,9 @@ export default function KioskPage() {
               if (!r.already) lastOk = { name: r.name, at: Date.now() };
               setState({ phase: "result", ok: true, out, undoId: r.undoId,
                 text: r.already ? r.name : out ? `Thank you, ${r.name}` : `${greet}, ${r.name}`,
-                sub: r.already ? `${out ? "Check-out" : "Check-in"} already recorded at ${t12(r.time)}` : out ? `Check-out recorded at ${t12(r.time)}${r.workedMinutes ? ` · Worked ${hm(r.workedMinutes)}` : ""}${r.message ? ` · ${r.message}` : ""}` : `Check-in recorded at ${t12(r.time)} · ${r.label}${r.late ? ` · ${r.late} min late. Please add the reason in the Work Hub app.` : ""}` });
+                sub: r.already ? `${out ? "Clock-out" : "Clock-in"} already recorded at ${t12(r.time)}` : out ? `Clock-out recorded at ${t12(r.time)}${r.workedMinutes ? ` · Worked ${hm(r.workedMinutes)}` : ""}${r.message ? ` · ${r.message}` : ""}` : `Clock-in recorded at ${t12(r.time)} · ${r.label}${r.late ? ` · ${r.late} min late. Please add the reason in the Work Hub app.` : ""}` });
             } else if (r.needLocation) setState({ phase: "result", ok: false, text: "Location is needed", sub: "Allow Location for this website and try again." });
-            else if (r.outside) setState({ phase: "result", ok: false, text: "You are outside the clinic", sub: "Check-in works only at the clinic." });
+            else if (r.outside) setState({ phase: "result", ok: false, text: "You are outside the clinic", sub: "Attendance works only at the clinic." });
             else setState({ phase: "result", ok: false, text: r.ambiguous ? "Please try again" : "Face not recognised", sub: r.ambiguous ? "Stand alone in front of the camera and look straight at it." : "Face the light and look straight at the camera. Ask the admin if it keeps happening." });
           if (!r.matched) last = { at: Date.now(), hold: 1200 }; // not recognised: look again almost at once
           setTimeout(() => setState((s) => (s.phase === "result" ? { phase: "look", text: "Look at the camera" } : s)), r.matched && !r.already ? 6000 : r.matched ? 3000 : 2000);
@@ -190,7 +190,7 @@ export default function KioskPage() {
         </div>
         {!standalone && (
           <div className="kiosk-install">
-            <button onClick={install}>Install Check-in app</button>
+            <button onClick={install}>Install Attendance app</button>
             {showHow && <p>Tap the 3 dots at the top right of Chrome, then “Add to Home screen” and “Install”. On iPhone: tap Share, then “Add to Home Screen”.</p>}
           </div>
         )}

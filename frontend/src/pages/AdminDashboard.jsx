@@ -192,7 +192,7 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
 
         <div className="section-head"><h2>Today's Attendance</h2><button className="btn btn-ghost btn-sm" onClick={() => onNavigate("Attendance")}>Full board</button></div>
         {!board || !board.rows || board.rows.every((r) => !r.mark) ? (
-          <div className="empty">Attendance is not marked for today yet. Open Attendance to mark it.</div>
+          <div className="empty">Attendance not marked yet today.</div>
         ) : (
           <div className="card">
             {board.rows.filter((r) => r.mark).slice(0, 30).map((r) => (

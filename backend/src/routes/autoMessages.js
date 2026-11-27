@@ -145,7 +145,7 @@ export default router;
     db.prepare("UPDATE auto_messages SET active = 0 WHERE title = 'Good Morning Team' AND trigger_type = 'daily'").run();
     add("Good Morning, {name}", "{quote}\n\nHave a wonderful day at Dr. Nishita's Clinic.", "weekly", "08:45");
     add("Good Evening, {name}", "{quote}\n\nThank you for your work today.", "weekly", "19:45");
-    add("Please check in, {name}", "Hi {name}, your attendance is not marked yet today. Please check in now.", "attendance_missing", "10:45");
+    add("Please clock in, {name}", "Hi {name}, your attendance is not marked yet today. Please clock in now.", "attendance_missing", "10:45");
     add("Tasks waiting, {name}", "Hi {name}, you have {count} task(s) waiting: {tasks}. Please complete or update them.", "task_pending", "16:00");
     add("Checklist not submitted, {name}", "Hi {name}, your shift checklist for today is not submitted yet. Please open Work Hub and submit it before you leave.", "checklist_pending", "17:30");
     db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('auto_msgs_seeded_v2', '1')").run();

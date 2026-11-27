@@ -96,7 +96,7 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
                   <div><dt>Phone</dt><dd className={realPhone ? "" : "warn"}>{realPhone ? s.phone : "Not added"}</dd></div>
                   <div><dt>Type</dt><dd>{s.employment_type || "—"}</dd></div>
                   <div><dt>Reports to</dt><dd>{s.reporting_to || "—"}</dd></div>
-                  <div><dt>Face check-in</dt><dd className={!s.active ? "" : faces[s.id] && !faces[s.id].same_as ? "ok" : "warn"}>{!s.active ? "—" : faces[s.id]?.same_as ? `Same as ${faces[s.id].same_as}` : faces[s.id] ? "Enrolled" : "Not enrolled"}</dd></div>
+                  <div><dt>Face attendance</dt><dd className={!s.active ? "" : faces[s.id] && !faces[s.id].same_as ? "ok" : "warn"}>{!s.active ? "—" : faces[s.id]?.same_as ? `Same as ${faces[s.id].same_as}` : faces[s.id] ? "Enrolled" : "Not enrolled"}</dd></div>
                 </dl>
                 <div className="sa-actions">
                   <button className="btn btn-primary btn-sm" onClick={() => onOpenProfile(s.id)}>View profile</button>
@@ -178,7 +178,7 @@ function AddStaffModal({ departments, shiftRoles, onClose, onDone }) {
         {face ? (
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             {face.photo && <img alt="" src={URL.createObjectURL(face.photo)} style={{ width: 64, height: 64, borderRadius: "50%", objectFit: "cover" }} />}
-            <div><div className="title">Face captured ✓</div><div className="meta">Attendance will be taken from this face. It is also used as the profile picture if you did not choose one.</div></div>
+            <div><div className="title">Face captured ✓</div></div>
             <button className="btn btn-ghost btn-sm" onClick={() => { setFace(null); setCam(true); }}>Retake</button>
           </div>
         ) : cam ? (
@@ -188,7 +188,7 @@ function AddStaffModal({ departments, shiftRoles, onClose, onDone }) {
             setFace(r); setCam(false);
           }} />
         ) : <button className="btn btn-outline btn-sm" onClick={() => setCam(true)}>📷 Take photo with camera</button>}
-        <div className="step-label" style={{ marginTop: 20 }}>Documents (optional — you can also add these later from their profile)</div>
+        <div className="step-label" style={{ marginTop: 20 }}>Documents (optional)</div>
         <div className="form-grid">
           {types.map((t) => (
             <div key={t.key}><label className="field-label">{t.label}</label>

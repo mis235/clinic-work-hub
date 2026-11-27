@@ -12,7 +12,7 @@ const router = Router();
 // and staff alike), unlike the 7 AI Advisors (which are management-strategy
 // consultants gated to admin/manager). This one answers the everyday
 // questions a staff member actually has: "how many tasks do I have left",
-// "am I checked in today", "what's the leave policy", "who do I ask about
+// "am I clocked in today", "what's the leave policy", "who do I ask about
 // my payslip". It works with zero configuration (pure rule-based answers
 // pulled straight from this clinic's own data), and gets noticeably more
 // conversational if ANTHROPIC_API_KEY is set in .env — but never requires it.
@@ -28,7 +28,7 @@ const SUGGESTED_QUESTIONS = [
   "Upcoming birthdays",
   "Who was late this month?",
   "How many tasks do I have open?",
-  "Did I check in today?",
+  "Did I clock in today?",
   "What's the leave policy?",
   "How do I mark attendance?",
   "Who do I ask about my payslip?",
@@ -63,9 +63,9 @@ function myAttendanceLine(userId) {
     )
     .get(userId).n;
   if (!today) {
-    return `You haven't checked in today yet. You've checked in ${monthCount} day${monthCount === 1 ? "" : "s"} so far this month. Use the biometric attendance button on your dashboard to check in.`;
+    return `You haven't clocked in today yet. You've clocked in ${monthCount} day${monthCount === 1 ? "" : "s"} so far this month. Use the biometric attendance button on your dashboard to clock in.`;
   }
-  return `You ${today.type === "check_in" ? "checked in" : "checked out"} today at ${new Date(today.recorded_at).toLocaleTimeString()}. You've checked in ${monthCount} day${monthCount === 1 ? "" : "s"} this month.`;
+  return `You ${today.type === "check_in" ? "clocked in" : "clocked out"} today at ${new Date(today.recorded_at).toLocaleTimeString()}. You've clocked in ${monthCount} day${monthCount === 1 ? "" : "s"} this month.`;
 }
 
 function policyGapLine(userId) {
@@ -200,7 +200,7 @@ router.post("/ask", requireAuth, requirePermission("assistant:use"), async (req,
     return res.json({ reply: rows.length ? `${rows.length} leave request${rows.length === 1 ? " is" : "s are"} waiting for approval:\n` + list(rows, (r) => `${r.name}: ${dmy(r.from_date)}${r.to_date !== r.from_date ? " – " + dmy(r.to_date) : ""} (${r.days} day, ${r.reason_type})`) + "\n\nOpen Leave & HR to approve." : "No leave requests are waiting. 🎉", source: "data" });
   }
   if (/who.*(on leave|leave|absent|off|not (taken|marked|checked|come|came|logged|present)|missing)|on leave|leave today|not taken (the )?attend|without attend/.test(m) && lead) {
-    // "On leave today" = every person who has not taken attendance today (the clinic counts a person with no check-in as on leave).
+    // "On leave today" = every person who has not taken attendance today (the clinic counts a person with no clock-in as on leave).
     const hhmm = new Date(Date.now() + 19800000).toISOString().slice(11, 16);
     const all = db.prepare(`SELECT u.id, u.name FROM users u LEFT JOIN roles r ON r.id = u.role_id
       WHERE u.active = 1 AND COALESCE(u.no_attendance,0) = 0 AND COALESCE(r.name,'') != 'admin' AND (COALESCE(u.joined_at,'') = '' OR u.joined_at <= ?) ORDER BY u.name`).all(t);

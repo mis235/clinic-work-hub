@@ -103,7 +103,7 @@ export function storageReport() {
   const priv = path.join(dataDir, "private");
   const parts = [
     ["Database", sizeOf(dbFile) + sizeOf(dbFile + "-wal")], ["Backups", sizeOf(backupDir)], ["Checklist & task photos", sizeOf(path.join(dataDir, "uploads"))],
-    ["Face check-in snapshots", sizeOf(path.join(priv, "checkin-snaps"))], ["Training videos", sizeOf(path.join(priv, "training")) + sizeOf(path.join(priv, "videos"))],
+    ["Face attendance snapshots", sizeOf(path.join(priv, "checkin-snaps"))], ["Training videos", sizeOf(path.join(priv, "training")) + sizeOf(path.join(priv, "videos"))],
     ["Payslips", sizeOf(path.join(dataDir, "payslips"))],
   ];
   const known = parts.reduce((t, p) => t + p[1], 0);
@@ -111,7 +111,7 @@ export function storageReport() {
   return { parts: parts.map(([name, bytes]) => ({ name, bytes })), free, total };
 }
 
-/** Deletes face check-in photos older than N days (the attendance records stay). */
+/** Deletes face attendance photos older than N days (the attendance records stay). */
 export function cleanSnapshots(days) {
   const rows = db.prepare("SELECT id, snapshot_path FROM face_checkins WHERE snapshot_path IS NOT NULL AND created_at < datetime('now', ?)").all(`-${Number(days)} days`);
   let bytes = 0;
