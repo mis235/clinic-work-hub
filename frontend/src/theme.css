@@ -1607,3 +1607,13 @@ html.kiosk-lock .kiosk-msg p { font-size: 12.5px; margin-top: 2px; }
 .st-tf i{width:8px;height:8px;border-radius:99px;background:#c9bcd9}
 .st-tf.ok{color:#15803d}.st-tf.ok i{background:#22a06b}.st-tf.warn{color:#b45309}.st-tf.warn i{background:#e0952f}
 .st-tact{margin-top:8px;padding-top:8px;border-top:1px solid #f1eaf7;width:100%;justify-content:center}
+
+/* Staff Profiles: grouped by department */
+.st-group{margin-bottom:18px}
+.st-group header{display:flex;align-items:baseline;gap:10px;margin:0 4px 8px}
+.st-group header b{font-size:15px;color:#2b2238}.st-group header span{font-size:12.5px;color:#8a7a99}.st-group header em{font-style:normal;font-size:12px;color:#17794f;margin-left:auto}
+.st-gl{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:10px}
+.st-gi{display:flex;align-items:center;gap:11px;background:#fff;border:1px solid #eee4f3;border-radius:14px;padding:8px 10px 8px 12px;box-shadow:0 4px 12px rgba(120,90,170,.06)}
+.st-gi .st-nm{flex:1;min-width:0}
+.st-dot{flex:none;width:9px;height:9px;border-radius:99px;background:#c9bcd9}.st-dot.ok{background:#22a06b}.st-dot.warn{background:#e0952f}
+@media(max-width:520px){.st-gl{grid-template-columns:1fr}.st-gi{flex-wrap:wrap}.st-gi .st-act{width:100%;padding-left:47px;justify-content:flex-start}}

@@ -21,7 +21,7 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
   const [editing, setEditing] = useState(null);
   const [dept, setDept] = useState("All");
   const [q, setQ] = useState("");
-  const [view, setViewState] = useState(() => { try { return localStorage.getItem("staffView") === "tiles" ? "tiles" : "list"; } catch { return "list"; } });
+  const [view, setViewState] = useState(() => { try { return ["tiles", "groups"].includes(localStorage.getItem("staffView")) ? localStorage.getItem("staffView") : "list"; } catch { return "list"; } });
   const setView = (v) => { setViewState(v); try { localStorage.setItem("staffView", v); } catch {} };
   const [toast, setToast] = useState(null);
   const [photoVer, setPhotoVer] = useState(0);
@@ -70,13 +70,43 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
         {importing && <StaffImport onClose={() => setImporting(false)} onDone={() => refresh()} />}
         {pasting && <StaffListImport onClose={() => setPasting(false)} onDone={(m) => { setPasting(false); flash(m); refresh(); }} />}
         <div className="pill-row" style={{ alignItems: "center" }}>
-          <div className="cd-seg" style={{ marginRight: 6 }}><button className={view === "list" ? "on" : ""} onClick={() => setView("list")}>List</button><button className={view === "tiles" ? "on" : ""} onClick={() => setView("tiles")}>Tiles</button></div>
+          <div className="cd-seg" style={{ marginRight: 6 }}><button className={view === "list" ? "on" : ""} onClick={() => setView("list")}>List</button><button className={view === "tiles" ? "on" : ""} onClick={() => setView("tiles")}>Tiles</button><button className={view === "groups" ? "on" : ""} onClick={() => setView("groups")}>By department</button></div>
           {removedCount > 0 && <button className={`pill ${showRemoved ? "active" : ""}`} onClick={() => setShowRemoved((x) => !x)}>{showRemoved ? "← Back to active staff" : `Removed staff (${removedCount})`}</button>}
           {!showRemoved && depts.map((d) => <button key={d} className={`pill ${dept === d ? "active" : ""}`} onClick={() => setDept(d)}>{d}</button>)}
         </div>
 
         {roster === null && <div className="empty">Loading…</div>}
         {roster && shown.length === 0 && <div className="empty">No staff found.</div>}
+        {shown.length > 0 && view === "groups" && (() => {
+          const groups = {}; shown.forEach((p) => { (groups[p.department || "No department"] ||= []).push(p); });
+          return Object.entries(groups).sort((x, y) => x[0].localeCompare(y[0])).map(([name, list]) => (
+            <section key={name} className="st-group">
+              <header><b>{name}</b><span>{list.length} {list.length === 1 ? "person" : "people"}</span><em>{list.filter((p) => p.active && faces[p.id] && !faces[p.id].same_as).length} face enrolled</em></header>
+              <div className="st-gl">
+                {list.map((p) => {
+                  const f = faces[p.id], faceOk = f && !f.same_as;
+                  return (
+                    <div key={p.id} className="st-gi">
+                      <Avatar id={p.id} name={p.name} hasPhoto={!!p.has_photo} size={36} v={photoVer} />
+                      <div className="st-nm"><div><span className="link" onClick={() => onOpenProfile(p.id)}>{p.name}</span></div><small>{p.designation || "No designation"}</small></div>
+                      <span className={`st-dot ${!p.active ? "" : faceOk ? "ok" : "warn"}`} title={!p.active ? "Inactive" : f?.same_as ? `Same as ${f.same_as}` : f ? "Face enrolled" : "Face not enrolled"} />
+                      <div className="st-act">
+                        <button className="st-ic" title="View profile" aria-label="View profile" onClick={() => onOpenProfile(p.id)}><Icon name="eye" size={16} /></button>
+                        {p.active
+                          ? <>
+                              <button className="st-ic" title="Edit details" aria-label="Edit details" onClick={() => setEditing(p)}><Icon name="pencil" size={16} /></button>
+                              <button className="st-ic" title={f ? "Re-enroll face" : "Enroll face"} aria-label={f ? "Re-enroll face" : "Enroll face"} onClick={() => setFaceFor(p)}><Icon name="fingerprint" size={16} /></button>
+                              {p.id !== user.id && <button className="st-rm" onClick={() => remove(p)}>Remove</button>}
+                            </>
+                          : <button className="btn btn-outline btn-sm" onClick={async () => { await api.restoreStaff(p.id); flash(`${p.name} restored.`); refresh(); }}>Restore</button>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          ));
+        })()}
         {shown.length > 0 && view === "tiles" && (
           <div className="st-tiles">
             {shown.map((s) => {
