@@ -1617,3 +1617,17 @@ html.kiosk-lock .kiosk-msg p { font-size: 12.5px; margin-top: 2px; }
 .st-gi .st-nm{flex:1;min-width:0}
 .st-dot{flex:none;width:9px;height:9px;border-radius:99px;background:#c9bcd9}.st-dot.ok{background:#22a06b}.st-dot.warn{background:#e0952f}
 @media(max-width:520px){.st-gl{grid-template-columns:1fr}.st-gi{flex-wrap:wrap}.st-gi .st-act{width:100%;padding-left:47px;justify-content:flex-start}}
+
+/* Staff Directory toolbar */
+.sd-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.sd-menuwrap{position:relative}
+.sd-overlay{position:fixed;inset:0;z-index:40}
+.sd-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:50;background:#fff;border:1px solid #eee4f3;border-radius:14px;box-shadow:0 14px 34px rgba(90,60,140,.2);padding:6px;min-width:190px;display:flex;flex-direction:column}
+.sd-menu button{all:unset;cursor:pointer;padding:10px 12px;border-radius:9px;font-size:13.5px;color:#2b2238}
+.sd-menu button:hover{background:#f4eefa}
+.sd-toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:#fff;border:1px solid #eee4f3;border-radius:16px;padding:10px 12px;margin-bottom:16px;box-shadow:0 4px 14px rgba(120,90,170,.06)}
+.sd-search{display:flex;align-items:center;gap:8px;flex:1 1 220px;min-width:180px;background:#faf7fd;border:1px solid #eee4f3;border-radius:12px;padding:0 12px;color:#8a7a99}
+.sd-search input{all:unset;flex:1;padding:10px 0;font-size:14px;color:#2b2238}
+.sd-select{border:1px solid #eee4f3;background:#faf7fd;border-radius:12px;padding:10px 12px;font:inherit;font-size:13.5px;color:#2b2238;min-width:170px}
+.sd-view{margin-left:auto}
+@media(max-width:640px){.sd-view{margin-left:0;width:100%}.sd-view button{flex:1}}

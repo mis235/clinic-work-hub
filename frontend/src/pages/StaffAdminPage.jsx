@@ -20,7 +20,7 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
   const [shiftRoles, setShiftRoles] = useState([]);
   const [editing, setEditing] = useState(null);
   const [dept, setDept] = useState("All");
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(""); const [menu, setMenu] = useState(false);
   const [view, setViewState] = useState(() => { try { return ["list", "groups"].includes(localStorage.getItem("staffView")) ? localStorage.getItem("staffView") : "tiles"; } catch { return "tiles"; } });
   const setView = (v) => { setViewState(v); try { localStorage.setItem("staffView", v); } catch {} };
   const [toast, setToast] = useState(null);
@@ -59,20 +59,22 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
             <div className="eyebrow">People</div>
             <h1>Staff Directory</h1>
           </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <input className="field" style={{ width: 200 }} placeholder="Search by name…" value={q} onChange={(e) => setQ(e.target.value)} />
-            <button className="btn btn-outline" onClick={() => setPasting(true)}>Paste staff list</button>
-            <button className="btn btn-outline" onClick={() => setImporting(true)}>Import staff files</button>
+          <div className="sd-actions">
+            <div className="sd-menuwrap">
+              <button className="btn btn-outline" onClick={() => setMenu((m) => !m)}>Import <i className="cd-caret" style={{ marginLeft: 8, top: -2 }} /></button>
+              {menu && <><div className="sd-overlay" onClick={() => setMenu(false)} /><div className="sd-menu"><button onClick={() => { setMenu(false); setPasting(true); }}>Paste staff list</button><button onClick={() => { setMenu(false); setImporting(true); }}>Import staff files</button></div></>}
+            </div>
             <button className="btn btn-primary" onClick={() => setAdding(true)}><Icon name="userplus" size={16} /> Onboard Staff</button>
           </div>
         </div>
 
         {importing && <StaffImport onClose={() => setImporting(false)} onDone={() => refresh()} />}
         {pasting && <StaffListImport onClose={() => setPasting(false)} onDone={(m) => { setPasting(false); flash(m); refresh(); }} />}
-        <div className="pill-row" style={{ alignItems: "center" }}>
-          <div className="cd-seg" style={{ marginRight: 6 }}><button className={view === "list" ? "on" : ""} onClick={() => setView("list")}>List</button><button className={view === "tiles" ? "on" : ""} onClick={() => setView("tiles")}>Tiles</button><button className={view === "groups" ? "on" : ""} onClick={() => setView("groups")}>By department</button></div>
-          {removedCount > 0 && <button className={`pill ${showRemoved ? "active" : ""}`} onClick={() => setShowRemoved((x) => !x)}>{showRemoved ? "← Back to active staff" : `Removed staff (${removedCount})`}</button>}
-          {!showRemoved && depts.map((d) => <button key={d} className={`pill ${dept === d ? "active" : ""}`} onClick={() => setDept(d)}>{d}</button>)}
+        <div className="sd-toolbar">
+          <label className="sd-search"><Icon name="search" size={16} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name" /></label>
+          {!showRemoved && <select className="sd-select" value={dept} onChange={(e) => setDept(e.target.value)} aria-label="Department">{depts.map((d) => <option key={d} value={d}>{d === "All" ? "All departments" : d}</option>)}</select>}
+          {removedCount > 0 && <div className="cd-seg"><button className={!showRemoved ? "on" : ""} onClick={() => setShowRemoved(false)}>Active</button><button className={showRemoved ? "on" : ""} onClick={() => setShowRemoved(true)}>Removed<em>{removedCount}</em></button></div>}
+          <div className="cd-seg sd-view"><button className={view === "list" ? "on" : ""} onClick={() => setView("list")}>List</button><button className={view === "tiles" ? "on" : ""} onClick={() => setView("tiles")}>Tiles</button><button className={view === "groups" ? "on" : ""} onClick={() => setView("groups")}>By department</button></div>
         </div>
 
         {roster === null && <div className="empty">Loading…</div>}
