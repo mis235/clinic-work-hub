@@ -30,7 +30,6 @@ export default function ReportsPage({ user, onLogout, onBack }) {
               {[7, 30, 90].map((d) => <button key={d} className={`pill ${days === d ? "active" : ""}`} onClick={() => setDays(d)}>Last {d} days</button>)}
             </div>
             <h2 style={{ fontSize: 16, margin: "8px 0 10px" }}>Overall work completion — {report.completion?.overall_pct == null ? "no data yet" : `${report.completion.overall_pct}%`}</h2>
-            <div className="meta" style={{ marginBottom: 10 }}>Counts every shift-checklist item (including imported history) plus every task an admin assigned.</div>
             <div className="card">
               {(report.completionByDept || []).length === 0 && <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>Nothing recorded in this period.</div>}
               {(report.completionByDept || []).map((d) => (

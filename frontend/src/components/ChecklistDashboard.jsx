@@ -117,7 +117,6 @@ export default function ChecklistDashboard({ user }) {
       {canAssign && asg && (
         <details className="card" style={{ marginBottom: 16 }}>
           <summary className="title" style={{ cursor: "pointer" }}>⚙ Admin: choose who fills each checklist</summary>
-          <p className="meta" style={{ margin: "6px 0 10px" }}>Tap a checklist name, then tick the people who should fill it.</p>
           {asg.roles.map((r) => (
             <details key={r.roleName} style={{ borderTop: "1px solid var(--line)", padding: "8px 0" }}>
               <summary style={{ cursor: "pointer" }}><b>{r.roleName}</b> <span className="meta">— {[...new Set([...r.own, ...r.assigned])].map((id) => asg.staff.find((x) => x.id === id)?.name).filter(Boolean).join(", ") || "nobody yet"}</span></summary>

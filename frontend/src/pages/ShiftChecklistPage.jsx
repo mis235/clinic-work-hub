@@ -219,7 +219,6 @@ export default function ShiftChecklistPage({ user, isStaffLayout, onLogout, onBa
 
               <div className="card">
                 <div className="card-head"><div className="name">Photo evidence <span className="meta">(optional)</span></div></div>
-                <div className="meta" style={{ marginBottom: 12 }}>Take a live photo as proof — a stocked shelf, a cleaned room, or your check-in sheet.</div>
                 <input type="file" accept="image/*" capture="environment" onChange={onPhotoChange} />
                 {photoPreview && <img src={photoPreview} alt="Preview" style={{ marginTop: 12, maxWidth: 200, borderRadius: 14, display: "block" }} />}
               </div>

@@ -110,7 +110,6 @@ export default function LibraryPage({ user, isStaffLayout, onLogout, onBack }) {
               <label style={{ display: "flex", gap: 8, alignItems: "center" }}><input type="radio" checked={access.value !== "all" && access.value !== "admin"} onChange={() => setAccess({ ...access, value: data.departments[0]?.id || "all" })} />Only one department
                 <select className="field" style={{ maxWidth: 200 }} value={access.value !== "all" && access.value !== "admin" ? access.value : ""} onChange={(e) => e.target.value && setAccess({ ...access, value: e.target.value })}><option value="">Choose…</option>{data.departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
               <label style={{ display: "flex", gap: 8 }}><input type="radio" checked={access.value === "admin"} onChange={() => setAccess({ ...access, value: "admin" })} />Admin only</label>
-              <div className="meta">Managers and the admin can always open department folders. Everything inside the folder follows this setting.</div>
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                 <button className="btn btn-ghost btn-sm" onClick={() => setAccess(null)}>Cancel</button>
                 <button className="btn btn-primary btn-sm" onClick={() => { const a = access; setAccess(null); run(() => api.libraryAccess(a.f.id, a.value), () => "Saved."); }}>Save</button>

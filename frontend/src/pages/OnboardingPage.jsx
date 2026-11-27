@@ -162,7 +162,6 @@ function ResetPinModal({ person, onClose, onDone }) {
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h3>Reset PIN — {person.name}</h3>
-        <p className="lead">Set a temporary 4-digit PIN and share it with them privately. They will be asked to choose their own at next sign-in.</p>
         <label className="field-label">Temporary PIN</label>
         <input className="field" inputMode="numeric" maxLength={4} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} placeholder="4 digits" />
         {err && <div className="login-error">{err}</div>}
@@ -251,7 +250,6 @@ function WizardModal({ shiftRoles, managers, departments, onClose, onOpenProfile
         )}
         {step === 2 && (
           <div>
-            <p className="lead">Pick the daily Opening / During-the-day / End-of-day checklist this person will fill in. Leave empty if their role has no shift checklist.</p>
             <label className="field-label">Shift Checklist Role</label>
             <select className="field" value={f.shiftRole} onChange={set("shiftRole")}><option value="">— None —</option>{shiftRoles.map((r) => <option key={r} value={r}>{r}</option>)}</select>
           </div>

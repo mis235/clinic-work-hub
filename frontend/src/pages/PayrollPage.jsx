@@ -99,7 +99,7 @@ export default function PayrollPage({ user, onLogout, onBack }) {
 
         <div className="card pay-panel">
           <div className="pay-panel-head">
-            <div><h2>Payslips</h2><p>Check each payslip, then send it. Staff see it in their login only after you send.</p></div>
+            <div><h2>Payslips</h2></div>
             <button className="btn btn-primary btn-sm" onClick={sendAllDrafts}><Icon name="send" size={15} /> Send all drafts</button>
           </div>
           <div className="seg">{[["draft", "Drafts", inCo.filter((x) => !x.published_at).length], ["sent", "Sent", inCo.filter((x) => x.published_at).length], ["all", "All", inCo.length]].map(([k, l, n]) => <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{l} <span>{n}</span></button>)}</div>
@@ -124,7 +124,7 @@ export default function PayrollPage({ user, onLogout, onBack }) {
         </div>
 
         <div className="card pay-panel">
-          <div className="pay-panel-head"><div><h2>Salary set-up</h2><p>Each person's monthly pay. Prepare makes this month's draft payslip.</p></div></div>
+          <div className="pay-panel-head"><div><h2>Salary set-up</h2></div></div>
           {profiles?.length === 0 && <div className="empty">No salary details yet. Press "+ Set up an employee's pay" above.</div>}
           <div className="pay-table-wrap"><table className="pay-table">
             <thead><tr><th>Employee</th><th>Company</th><th className="r">Basic</th><th className="r">Retention</th><th className="r">Actions</th></tr></thead>

@@ -1474,3 +1474,14 @@ button, a, input, select, textarea, label { touch-action: manipulation; -webkit-
 .lumi-panel { z-index: 150; height: min(480px, calc(100vh - 210px)) !important; max-height: calc(100vh - 210px); }
 .lumi-fab { z-index: 150; }
 @media (max-height: 640px) { .lumi-panel { height: calc(100vh - 190px) !important; } }
+
+/* Staff Profiles: even, scannable cards */
+.sa-card{margin-bottom:0;display:flex;flex-direction:column;gap:14px;padding:18px}
+.sa-facts{display:grid;grid-template-columns:1fr 1fr;gap:10px 18px;margin:0;padding:14px 0;border-top:1px solid var(--line,#eee4f3);border-bottom:1px solid var(--line,#eee4f3)}
+.sa-facts>div{min-width:0}
+.sa-facts dt{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:#8a7a99;margin:0 0 2px}
+.sa-facts dd{margin:0;font-size:13.5px;font-weight:600;color:var(--ink,#2b2238);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sa-facts dd.warn{color:#b45309}
+.sa-facts dd.ok{color:#15803d}
+.sa-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:auto}
+.sa-actions .sa-danger{margin-left:auto;color:#b91c1c}

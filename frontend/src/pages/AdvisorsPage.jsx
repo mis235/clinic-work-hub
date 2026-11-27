@@ -12,7 +12,6 @@ export function AdvisorsBody({ intro = true }) {
     <AdvisorChat advisor={active} onBack={() => setActive(null)} />
   ) : (
     <>
-      {intro && <p className="meta">Specialist advisers for staffing and workforce questions. Advice only, nothing changes automatically.</p>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12, marginTop: 12 }}>
         {advisors === null && <div className="empty">Loading…</div>}
         {advisors?.map((a) => (

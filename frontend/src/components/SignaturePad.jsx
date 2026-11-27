@@ -42,7 +42,6 @@ export default function SignaturePad({ onSave }) {
         <label className="btn btn-outline btn-sm" style={{ cursor: "pointer" }}>Upload a picture<input type="file" accept="image/*" onChange={upload} style={{ display: "none" }} /></label>
       </div>
       {err && <div className="login-error" style={{ marginTop: 8 }}>{err}</div>}
-      <div className="meta" style={{ marginTop: 6 }}>Draw above, or upload a clear photo of your signature on white paper.</div>
     </div>
   );
 }

@@ -207,10 +207,6 @@ function FacePanel({ date, people, isAdmin, flash }) {
   };
   return (
     <>
-      <div className="card">
-        <div className="title">How It Works</div>
-        <p className="meta" style={{ margin: "6px 0 0", lineHeight: 1.6 }}>Register each person's face once. Leave the clinic phone open on the check-in screen. The <b>first</b> time someone looks at the camera each day is their <b>login</b> (marked Present, or Late after 10:30 AM). Looking again later (at least 30 minutes after) records their <b>logout</b>. One face can belong to only one person. A picture of each check-in is saved below for you to review.</p>
-      </div>
 
       {isAdmin && (
         <div className="card">
@@ -229,7 +225,6 @@ function FacePanel({ date, people, isAdmin, flash }) {
       {isAdmin && geo && (
         <div className="card">
           <div className="title">Check-in Locations</div>
-          <p className="meta" style={{ margin: "6px 0 10px", lineHeight: 1.6 }}>Check-in is accepted only at the clinic places saved here. Go to each place (Road No. 7, Road No. 3 …), type its name and press <b>Add this place</b> while you are standing inside it.</p>
           <div className="task-row"><div><div className="title">{geo.on ? "Location limit is ON" : "Location limit is OFF"}</div><div className="meta">{geo.points.length ? `${geo.points.length} place${geo.points.length === 1 ? "" : "s"} saved · within ${geo.radius} m of each` : "No place saved yet"}</div></div>
             {geo.points.length > 0 && <button className="btn btn-outline btn-sm" onClick={() => saveGeo({ on: !geo.on })}>{geo.on ? "Turn off" : "Turn on"}</button>}</div>
           {geo.points.map((p, i) => <div key={i} className="task-row"><div className="title">{p.name}</div><button className="btn btn-ghost btn-sm" onClick={() => saveGeo({ remove: i })}>Remove</button></div>)}
@@ -287,8 +282,7 @@ function MessagesPanel({ flash }) {
   return (
     <div className="card">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <div><div className="title">Kind Notes Sent to Staff</div>
-          <div className="meta">When someone leaves early, stays late or checks out with no morning check-in, they get a warm note in the app and by email.</div></div>
+        <div><div className="title">Kind Notes Sent to Staff</div></div>
         <label className="pill" style={{ cursor: "pointer" }}><input type="checkbox" checked={d.enabled} onChange={async (e) => { await api.setMessagesOn(e.target.checked); load(); }} /> Send Automatically</label>
       </div>
       <Announce flash={flash} onSent={load} />
@@ -321,7 +315,6 @@ function Announce({ flash, onSent }) {
   return (
     <div style={{ background: "var(--bg-soft, #faf5fb)", borderRadius: 12, padding: 14, margin: "14px 0" }}>
       <div className="title">New Announcement</div>
-      <div className="meta" style={{ marginBottom: 8 }}>Goes to every staff member as a banner in the app and by email. You can then send it on WhatsApp below.</div>
       <input className="field" placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
       <textarea className="field" rows={4} placeholder="Message" value={body} onChange={(e) => setBody(e.target.value)} style={{ marginTop: 8 }} />
       <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
@@ -358,7 +351,6 @@ function SheetPanel({ flash, onChanged }) {
     <div style={{ display: "grid", gap: 14 }}>
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Attendance in Google Sheets</h3>
-        <div className="meta">Every check-in, check-out and fix goes to your Google Sheet within a minute. One tab per month (day by day) and one summary tab. Download it from Google Sheets: File → Download → Excel.</div>
         <div className="meta" style={{ marginTop: 8 }}><b>Set up once (5 minutes):</b></div>
         <ol className="meta" style={{ margin: "4px 0 8px 18px", lineHeight: 1.7 }}>
           <li>Open Google Sheets, make a new empty sheet, name it “Clinic Attendance”. Copy its link from the address bar into the box below.</li>

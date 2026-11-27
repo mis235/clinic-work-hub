@@ -78,9 +78,9 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
           {shown.map((s) => {
             const realPhone = s.phone && !s.phone.startsWith("+9190000200");
             return (
-              <div key={s.id} className="card" style={{ marginBottom: 0 }}>
+              <div key={s.id} className="card sa-card">
                 <div className="person-row">
-                  <Avatar id={s.id} name={s.name} hasPhoto={!!s.has_photo} size={46} v={photoVer} />
+                  <Avatar id={s.id} name={s.name} hasPhoto={!!s.has_photo} size={48} v={photoVer} />
                   <div className="info">
                     <div className="nm"><span className="link" onClick={() => onOpenProfile(s.id)}>{s.name}</span></div>
                     <div className="sub">
@@ -88,28 +88,23 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
                       {s.designation && s.designation.includes("confirm") && <span style={{ color: "var(--red)" }}> — needs confirming</span>}
                     </div>
                   </div>
-                  <span className={`badge ${s.role === "admin" ? "accepted" : s.role === "manager" ? "sent" : "pending"}`} style={{ textTransform: "capitalize" }}>{s.role}</span>
+                  {(s.role === "admin" || s.role === "manager") && <span className={`badge ${s.role === "admin" ? "accepted" : "sent"}`} style={{ textTransform: "capitalize" }}>{s.role}</span>}
                 </div>
-                <div style={{ marginTop: 14 }}>
-                  <span className="chip">{s.department || "No department"}</span>
-                  {s.employee_code && <span className="chip">{s.employee_code}</span>}
-                  {s.employment_type && <span className="chip">{s.employment_type}</span>}
-                  <span className={`chip ${realPhone ? "" : "warn"}`}>{realPhone ? s.phone : "placeholder phone"}</span>
-                  {s.alt_phone && <span className="chip">Alt: {s.alt_phone}</span>}
-                  {s.active && <span className={`chip ${faces[s.id] && !faces[s.id].same_as ? "" : "warn"}`}>{faces[s.id]?.same_as ? `Same face as ${faces[s.id].same_as} — redo` : faces[s.id] ? "Enrolled" : "Not enrolled"}</span>}
-                  {!s.email && <span className="chip warn">no email</span>}
-                </div>
-                <div className="meta" style={{ marginTop: 6 }}>
-                  Shift checklist: <strong style={{ color: "var(--ink)" }}>{s.shift_role || "none assigned"}</strong>
-                  {s.reporting_to && <> · Reports to <strong style={{ color: "var(--ink)" }}>{s.reporting_to}</strong></>}
-                </div>
-                <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-                  <button className="btn btn-outline btn-sm" onClick={() => onOpenProfile(s.id)}>View profile</button>
+                <dl className="sa-facts">
+                  <div><dt>Department</dt><dd>{s.department || "—"}</dd></div>
+                  <div><dt>Employee ID</dt><dd>{s.employee_code || "—"}</dd></div>
+                  <div><dt>Phone</dt><dd className={realPhone ? "" : "warn"}>{realPhone ? s.phone : "Not added"}</dd></div>
+                  <div><dt>Type</dt><dd>{s.employment_type || "—"}</dd></div>
+                  <div><dt>Reports to</dt><dd>{s.reporting_to || "—"}</dd></div>
+                  <div><dt>Face check-in</dt><dd className={!s.active ? "" : faces[s.id] && !faces[s.id].same_as ? "ok" : "warn"}>{!s.active ? "—" : faces[s.id]?.same_as ? `Same as ${faces[s.id].same_as}` : faces[s.id] ? "Enrolled" : "Not enrolled"}</dd></div>
+                </dl>
+                <div className="sa-actions">
+                  <button className="btn btn-primary btn-sm" onClick={() => onOpenProfile(s.id)}>View profile</button>
                   {s.active
                     ? <>
-                        <button className="btn btn-ghost btn-sm" onClick={() => setEditing(s)}>Edit details</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setEditing(s)}>Edit</button>
                         <button className="btn btn-ghost btn-sm" onClick={() => setFaceFor(s)}>{faces[s.id] ? "Re-enroll face" : "Enroll face"}</button>
-                        {s.id !== user.id && <button className="btn btn-ghost btn-sm" onClick={() => remove(s)}>Remove</button>}
+                        {s.id !== user.id && <button className="btn btn-ghost btn-sm sa-danger" onClick={() => remove(s)}>Remove</button>}
                       </>
                     : <button className="btn btn-outline btn-sm" onClick={async () => { await api.restoreStaff(s.id); flash(`${s.name} restored.`); refresh(); }}>Restore</button>}
                 </div>

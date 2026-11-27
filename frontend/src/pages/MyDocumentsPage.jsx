@@ -52,7 +52,7 @@ export default function MyDocumentsPage({ user, onLogout, onBack } = {}) {
       <div className="page-head">
         <div className="eyebrow">My documents</div>
         <h1>Your papers at the clinic</h1>
-        <p>{total ? "Tap Download to save a copy to your phone." : "Nothing has been added yet."} {missing.length ? `${missing.length} paper${missing.length > 1 ? "s" : ""} still to give to the clinic office.` : "All required papers are on file."}</p>
+        <p>{!total ? "Nothing has been added yet. " : ""}{missing.length ? `${missing.length} paper${missing.length > 1 ? "s" : ""} still to give to the clinic office.` : "All required papers are on file."}</p>
       </div>
       {err && <div className="login-error" style={{ marginBottom: 12 }}>{err}</div>}
       {ok && <div className="note" style={{ marginBottom: 12 }}>{ok}</div>}

@@ -109,7 +109,6 @@ export default function Login({ onLoggedIn }) {
           <div className="login-lean"><Doll mood={mood} size={250} /></div>
           <div className="login-eyebrow">Staff sign-in</div>
           <h1>Welcome Back</h1>
-          <p className="sub">Sign in to see your tasks, checklists and what's happening at the clinic today.</p>
 
           <div className="tab-switch">
             <button type="button" className={tab === "pin" ? "active" : ""} onClick={() => setTab("pin")} onTouchEnd={(e) => { e.preventDefault(); setTab("pin"); }}>Name & PIN</button>
