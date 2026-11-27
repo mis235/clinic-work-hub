@@ -1567,3 +1567,30 @@ html.kiosk-lock .kiosk-msg p { font-size: 12.5px; margin-top: 2px; }
 .kiosk-bar .kb-install { all: unset; cursor: pointer; background: var(--primary, #9472C8); color: #fff; border-radius: 99px; padding: 6px 14px; font-weight: 700; font-size: 12px; }
 .kiosk-hint { flex: none; font-size: 12px; color: #6B5A8A; text-align: center; margin: 0; }
 .kguide { position: absolute; left: 50%; top: 50%; width: 58%; height: 72%; transform: translate(-50%, -50%); border: 3px dashed rgba(255,255,255,.7); border-radius: 50%; pointer-events: none; }
+
+/* Staff Profiles: compact directory list */
+.st-list{background:#fff;border:1px solid #eee4f3;border-radius:18px;box-shadow:0 6px 18px rgba(120,90,170,.07);overflow:hidden}
+.st-row{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,1fr) minmax(0,.8fr) minmax(0,1.25fr) minmax(0,1.45fr) minmax(0,.95fr) 168px;align-items:center;gap:12px;padding:9px 16px;border-bottom:1px solid #f1eaf7;font-size:13px}
+.st-row:last-child{border-bottom:0}
+.st-row:not(.st-head):hover{background:#fbf8fe}
+.st-head{background:#faf7fd;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:#8a7a99;font-weight:600;padding-top:10px;padding-bottom:10px}
+.st-who{display:flex;align-items:center;gap:11px;min-width:0}
+.st-nm{min-width:0;line-height:1.3}
+.st-nm>div:first-child{display:flex;align-items:center;gap:8px;min-width:0}.st-nm .link{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st-nm small{display:block;color:#8a7a99;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st-role{flex:none;margin-left:0;font-size:10.5px!important;padding:1px 8px!important;text-transform:capitalize}
+.st-mob{display:none!important}
+.st-c{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#2b2238}
+.st-c.warn{color:#b45309}.st-face.ok{color:#15803d;font-weight:600}.st-face.warn{color:#b45309;font-weight:600}
+.st-act{display:flex;align-items:center;gap:4px;justify-content:flex-end}
+.st-ic{all:unset;cursor:pointer;width:32px;height:32px;border-radius:10px;display:grid;place-items:center;color:#7a56b5}
+.st-ic:hover{background:#f1eaf7}
+.st-rm{all:unset;cursor:pointer;font-size:12px;color:#b42323;padding:6px 8px;border-radius:8px;margin-left:2px}
+.st-rm:hover{background:#fde6e6}
+@media(max-width:980px){
+  .st-head{display:none}
+  .st-row{grid-template-columns:minmax(0,1fr);gap:4px;padding:10px 12px}
+  .st-act{justify-content:flex-start;padding-left:46px}
+  .st-row>.st-c{display:none}
+  .st-mob{display:block!important}
+}

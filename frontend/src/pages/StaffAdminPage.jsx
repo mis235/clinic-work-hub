@@ -74,44 +74,42 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
 
         {roster === null && <div className="empty">Loading…</div>}
         {roster && shown.length === 0 && <div className="empty">No staff found.</div>}
-        <div className="grid-2">
-          {shown.map((s) => {
-            const realPhone = s.phone && !s.phone.startsWith("+9190000200");
-            return (
-              <div key={s.id} className="card sa-card">
-                <div className="person-row">
-                  <Avatar id={s.id} name={s.name} hasPhoto={!!s.has_photo} size={48} v={photoVer} />
-                  <div className="info">
-                    <div className="nm"><span className="link" onClick={() => onOpenProfile(s.id)}>{s.name}</span></div>
-                    <div className="sub">
-                      {s.designation || "No designation"}
-                      {s.designation && s.designation.includes("confirm") && <span style={{ color: "var(--red)" }}> — needs confirming</span>}
+        {shown.length > 0 && (
+          <div className="st-list">
+            <div className="st-row st-head"><span>Staff</span><span>Department</span><span>ID</span><span>Phone</span><span>Reports to</span><span>Face</span><span /></div>
+            {shown.map((s) => {
+              const realPhone = s.phone && !s.phone.startsWith("+9190000200");
+              const f = faces[s.id], faceOk = f && !f.same_as;
+              return (
+                <div key={s.id} className="st-row">
+                  <div className="st-who">
+                    <Avatar id={s.id} name={s.name} hasPhoto={!!s.has_photo} size={38} v={photoVer} />
+                    <div className="st-nm">
+                      <div><span className="link" onClick={() => onOpenProfile(s.id)}>{s.name}</span>{(s.role === "admin" || s.role === "manager") && <span className={`badge ${s.role === "admin" ? "accepted" : "sent"} st-role`}>{s.role}</span>}</div>
+                      <small>{s.designation || "No designation"}{s.designation && s.designation.includes("confirm") && <span style={{ color: "var(--red)" }}> — needs confirming</span>}</small>
+                      <small className="st-mob">{[s.department, s.employee_code, realPhone ? s.phone : null].filter(Boolean).join(" · ")}</small>
                     </div>
                   </div>
-                  {(s.role === "admin" || s.role === "manager") && <span className={`badge ${s.role === "admin" ? "accepted" : "sent"}`} style={{ textTransform: "capitalize" }}>{s.role}</span>}
+                  <span className="st-c">{s.department || "—"}</span>
+                  <span className="st-c">{s.employee_code || "—"}</span>
+                  <span className={`st-c ${realPhone ? "" : "warn"}`}>{realPhone ? s.phone : "Not added"}</span>
+                  <span className="st-c">{s.reporting_to || "—"}</span>
+                  <span className={`st-c st-face ${!s.active ? "" : faceOk ? "ok" : "warn"}`}>{!s.active ? "—" : f?.same_as ? `Same as ${f.same_as}` : f ? "Enrolled" : "Not enrolled"}</span>
+                  <div className="st-act">
+                    <button className="st-ic" title="View profile" aria-label="View profile" onClick={() => onOpenProfile(s.id)}><Icon name="eye" size={16} /></button>
+                    {s.active
+                      ? <>
+                          <button className="st-ic" title="Edit details" aria-label="Edit details" onClick={() => setEditing(s)}><Icon name="pencil" size={16} /></button>
+                          <button className="st-ic" title={f ? "Re-enroll face" : "Enroll face"} aria-label={f ? "Re-enroll face" : "Enroll face"} onClick={() => setFaceFor(s)}><Icon name="fingerprint" size={16} /></button>
+                          {s.id !== user.id && <button className="st-rm" onClick={() => remove(s)}>Remove</button>}
+                        </>
+                      : <button className="btn btn-outline btn-sm" onClick={async () => { await api.restoreStaff(s.id); flash(`${s.name} restored.`); refresh(); }}>Restore</button>}
+                  </div>
                 </div>
-                <dl className="sa-facts">
-                  <div><dt>Department</dt><dd>{s.department || "—"}</dd></div>
-                  <div><dt>Employee ID</dt><dd>{s.employee_code || "—"}</dd></div>
-                  <div><dt>Phone</dt><dd className={realPhone ? "" : "warn"}>{realPhone ? s.phone : "Not added"}</dd></div>
-                  <div><dt>Type</dt><dd>{s.employment_type || "—"}</dd></div>
-                  <div><dt>Reports to</dt><dd>{s.reporting_to || "—"}</dd></div>
-                  <div><dt>Face attendance</dt><dd className={!s.active ? "" : faces[s.id] && !faces[s.id].same_as ? "ok" : "warn"}>{!s.active ? "—" : faces[s.id]?.same_as ? `Same as ${faces[s.id].same_as}` : faces[s.id] ? "Enrolled" : "Not enrolled"}</dd></div>
-                </dl>
-                <div className="sa-actions">
-                  <button className="btn btn-primary btn-sm" onClick={() => onOpenProfile(s.id)}>View profile</button>
-                  {s.active
-                    ? <>
-                        <button className="btn btn-ghost btn-sm" onClick={() => setEditing(s)}>Edit</button>
-                        <button className="btn btn-ghost btn-sm" onClick={() => setFaceFor(s)}>{faces[s.id] ? "Re-enroll face" : "Enroll face"}</button>
-                        {s.id !== user.id && <button className="btn btn-ghost btn-sm sa-danger" onClick={() => remove(s)}>Remove</button>}
-                      </>
-                    : <button className="btn btn-outline btn-sm" onClick={async () => { await api.restoreStaff(s.id); flash(`${s.name} restored.`); refresh(); }}>Restore</button>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
         {toast && <div className="toast">{toast}</div>}
         {faceFor && <FaceEnrollModal person={faceFor} onClose={() => setFaceFor(null)} onDone={(m) => { setFaceFor(null); flash(m); loadFaces(); }} />}
