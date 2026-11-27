@@ -44,17 +44,23 @@ export default function HrOverview({ user, onNavigate }) {
         </div></div>
       )}
       {lead ? (
-        <div className="grid-2" style={{ marginBottom: 16 }}>
-          <div className="card" style={{ marginBottom: 0 }}>
-            <div className="card-head"><div className="name">Leave</div><button className="btn btn-ghost btn-sm" onClick={() => onNavigate?.("Leave")}>Open</button></div>
-            <Section title={`Waiting for approval (${d.pending.length})`} empty="Nothing waiting.">{d.pending.slice(0, 6).map((r) => <Line key={r.id} a={r.staff_name} b={range(r)} badge={r.withName ? `With ${r.withName}` : "Waiting"} cls="in_progress" />)}</Section>
-            <Section title="Recently decided" empty="No decisions in the last 7 days.">{d.recent.slice(0, 6).map((r) => <Line key={r.id} a={r.staff_name} b={range(r)} badge={r.status === "approved" ? "Approved" : "Not approved"} cls={r.status === "approved" ? "done" : "overdue"} />)}</Section>
-            <Section title={`On leave today (${d.onLeaveToday.length})`} empty="Everyone is in.">{d.onLeaveToday.map((r) => <Line key={r.id} a={r.staff_name} b={`until ${dmy(r.to_date)}`} />)}</Section>
-            {d.upcoming.length > 0 && <Section title="Coming up (14 days)">{d.upcoming.map((r) => <Line key={r.id} a={r.staff_name} b={range(r)} />)}</Section>}
+        <div className="hr-grid">
+          <div className="card hr-card">
+            <div className="card-head"><div className="name icon-h"><Icon name="calendarCheck" size={18} /> Leave</div><button className="btn btn-ghost btn-sm" onClick={() => onNavigate?.("Leave")}>Open</button></div>
+            <div className="hr-body">
+              <Section title={`Waiting for approval (${d.pending.length})`} empty="Nothing waiting.">{d.pending.slice(0, 6).map((r) => <Line key={r.id} a={r.staff_name} b={range(r)} badge={r.withName ? `With ${r.withName}` : "Waiting"} cls="in_progress" />)}</Section>
+              <Section title="Recently decided" empty="No decisions in the last 7 days.">{d.recent.slice(0, 6).map((r) => <Line key={r.id} a={r.staff_name} b={range(r)} badge={r.status === "approved" ? "Approved" : "Not approved"} cls={r.status === "approved" ? "done" : "overdue"} />)}</Section>
+              <Section title={`On leave today (${d.onLeaveToday.length})`} empty="Everyone is in.">{d.onLeaveToday.map((r) => <Line key={r.id} a={r.staff_name} b={`until ${dmy(r.to_date)}`} />)}</Section>
+              {d.upcoming.length > 0 && <Section title="Coming up (14 days)">{d.upcoming.map((r) => <Line key={r.id} a={r.staff_name} b={range(r)} />)}</Section>}
+            </div>
           </div>
-          <div className="card" style={{ marginBottom: 0 }}>
-            <BirthdayCard d={d} />
-            {d.late.length > 0 && <Section title={`Late arrivals this month (fine after every ${d.lateRules.late_limit})`}>{d.late.map((l) => <Line key={l.id} a={l.name} b={`${l.count} late`} badge={l.count >= d.lateRules.late_limit ? "Fine" : null} cls="overdue" />)}</Section>}
+          <div className="card hr-card"><div className="hr-body"><BirthdayCard d={d} /></div></div>
+          <div className="card hr-card">
+            <div className="card-head"><div className="name icon-h"><Icon name="clock" size={18} /> Late arrivals</div><span className="meta">This month</span></div>
+            <div className="hr-body">
+              {d.late.length === 0 ? <div className="meta" style={{ padding: "6px 0" }}>No late arrivals this month.</div>
+                : d.late.map((l) => <Line key={l.id} a={l.name} b={`${l.count} late`} badge={l.count >= d.lateRules.late_limit ? "Fine" : null} cls="overdue" />)}
+            </div>
           </div>
         </div>
       ) : (

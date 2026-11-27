@@ -1639,3 +1639,16 @@ html.kiosk-lock .kiosk { touch-action: none; -webkit-user-select: none; user-sel
 .kt-row em { font-style: normal; flex: none; font-weight: 600; font-size: 12px; padding: 1px 9px; border-radius: 99px; } .kt-row em.in { background: #e3f6ec; color: #17794f; } .kt-row em.out { background: #ece4f7; color: #5a4a72; }
 @media (max-height: 700px) { html.kiosk-lock .kiosk-girl { display: none; } .kiosk-today .kt-row:nth-child(n+4) { display: none; } }
 @media (max-height: 600px) { html.kiosk-lock .kiosk-top { padding: 5px 12px; } html.kiosk-lock .kiosk-top img { height: 24px; } html.kiosk-lock .kiosk-clock b { font-size: 18px; } }
+
+/* Dashboard: clean 3-column HR row, compact attendance */
+.hr-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:0 0 16px;align-items:stretch}
+.hr-grid .hr-card{margin:0;display:flex;flex-direction:column;min-width:0}
+.hr-grid .hr-body{max-height:330px;overflow:auto;padding-right:4px}
+.hr-grid .task-row{border-bottom:1px solid var(--line,#eee)}
+.hr-grid .task-row:last-child{border-bottom:0}
+.att-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.att-chip{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line,#eee);border-radius:12px;background:#fff}
+.att-chip .att-n{flex:1;min-width:0}
+.att-chip .title,.att-chip .meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:1100px){.hr-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.hr-grid{grid-template-columns:1fr}.hr-grid .hr-body{max-height:none}}

@@ -13,7 +13,7 @@ import { STATUS, effectiveStatus } from "../constants.js";
 import Sidebar from "../components/Sidebar.jsx";
 import MobileTopBar from "../components/MobileTopBar.jsx";
 import HeroBanner from "../components/HeroBanner.jsx";
-import { Kpi, WeekBars, StatusDonut, EomCard, Strip } from "../components/DashWidgets.jsx";
+import { Kpi, WeekBars, StatusDonut, EomCard } from "../components/DashWidgets.jsx";
 import Doll from "../components/Doll.jsx";
 import { doll } from "../components/Doll.jsx";
 import Icon, { initials } from "../components/Icon.jsx";
@@ -144,7 +144,6 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
           <EomCard canAnnounce onNavigate={onNavigate} />
         </div>
 
-        <Strip title="Shift checklists" sub={`${submitted.length} of ${expected || 0} submitted today`} action="Open" onClick={() => onNavigate("Dashboards")} />
 
         <TeamBoard canAnnounce hideEom onNavigate={onNavigate} />
         <MyFinesCard />
@@ -194,12 +193,9 @@ export default function AdminDashboard({ user, onLogout, onNavigate, onOpenProfi
         {!board || !board.rows || board.rows.every((r) => !r.mark) ? (
           <div className="empty">Attendance not marked yet today.</div>
         ) : (
-          <div className="card">
-            {board.rows.filter((r) => r.mark).slice(0, 30).map((r) => (
-              <div key={r.id} className="task-row">
-                <div><div className="title">{r.name}</div><div className="meta">{r.department}</div></div>
-                <span className={`badge ${r.mark === "P" ? "done" : r.mark === "A" || r.mark === "L" ? "overdue" : "accepted"}`}>{r.mark_label}</span>
-              </div>
+          <div className="card att-chips">
+            {board.rows.filter((r) => r.mark).slice(0, 60).map((r) => (
+              <div key={r.id} className="att-chip"><div className="avatar sm">{initials(r.name)}</div><div className="att-n"><div className="title">{r.name}</div><div className="meta">{r.department}</div></div><span className={`badge ${r.mark === "P" ? "done" : r.mark === "A" || r.mark === "L" ? "overdue" : "accepted"}`}>{r.mark_label}</span></div>
             ))}
           </div>
         )}
