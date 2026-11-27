@@ -221,7 +221,10 @@ if (fs.existsSync(distDir)) {
       res.set("Cache-Control", "no-cache").type("application/manifest+json").send(JSON.stringify(m));
     } catch { res.sendFile(path.join(distDir, "kiosk.webmanifest")); }
   });
-  app.use(express.static(distDir));
+  app.use(express.static(distDir, { setHeaders: (res, fp) => { // hashed app files and the face models never change under the same name: let the phone keep them
+    if (/[\\/]assets[\\/]/.test(fp)) res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    else if (/[\\/]models[\\/]/.test(fp)) res.setHeader("Cache-Control", "public, max-age=2592000");
+  } }));
   // The Check-in page is its own installable app: its page head carries the Check-in name, icon and manifest from the first byte,
   // so "Install" on that page never installs the Work Hub by mistake.
   app.get(/^\/kiosk\/?$/, (req, res) => {

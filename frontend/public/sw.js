@@ -6,7 +6,7 @@
 
 // v2: network-first. The old version served a saved copy of the page forever, which went blank
 // after an update because the saved page pointed at files that no longer existed.
-const CACHE_NAME = "clinic-work-hub-shell-v2";
+const CACHE_NAME = "clinic-work-hub-shell-v3";
 
 self.addEventListener("install", () => { self.skipWaiting(); });
 
@@ -23,6 +23,11 @@ self.addEventListener("fetch", (event) => {
   // Never cache API calls or private files -- data must always come fresh from the server.
   if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/webhook/") || url.pathname.startsWith("/uploads/")) return;
 
+  // The face models (6 MB) and the hashed app files never change under the same name: open them from the phone's saved copy, so check-in starts at once.
+  if (url.pathname.startsWith("/models/") || url.pathname.startsWith("/assets/")) {
+    event.respondWith(caches.match(event.request).then((hit) => hit || fetch(event.request).then((res) => { if (res.ok) { const copy = res.clone(); caches.open(CACHE_NAME).then((c) => c.put(event.request, copy)); } return res; })));
+    return;
+  }
   // Always try the network first; only fall back to the saved copy when offline.
   event.respondWith(
     fetch(event.request)

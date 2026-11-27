@@ -3,13 +3,22 @@ let lib = null;
 export async function loadFace() {
   if (lib) return lib;
   const fa = await import("@vladmandic/face-api");
-  await fa.nets.tinyFaceDetector.loadFromUri("/models");
-  await fa.nets.faceLandmark68TinyNet.loadFromUri("/models");
-  await fa.nets.faceRecognitionNet.loadFromUri("/models");
+  await Promise.all([ // all three models download and load together, not one after the other
+    fa.nets.tinyFaceDetector.loadFromUri("/models"),
+    fa.nets.faceLandmark68TinyNet.loadFromUri("/models"),
+    fa.nets.faceRecognitionNet.loadFromUri("/models"),
+  ]);
   lib = fa;
-  // Some phones cannot run the fast (GPU) mode and the scanner then fails quietly. Test once; if it fails, use the slower mode that works everywhere.
-  try { const c = document.createElement("canvas"); c.width = c.height = 64; await fa.detectSingleFace(c, opts(fa)).withFaceLandmarks(true); }
-  catch { await slowMode(); }
+  // Warm-up: run every net once now, so the first real face is scanned at full speed (the first run compiles the GPU programs and is slow).
+  // Some phones cannot run the fast (GPU) mode and the scanner then fails quietly. If the warm-up fails, use the slower mode that works everywhere.
+  const warm = async () => {
+    const c = document.createElement("canvas"); c.width = c.height = 160;
+    const x = c.getContext("2d"); x.fillStyle = "#888"; x.fillRect(0, 0, 160, 160);
+    await fa.detectSingleFace(c, opts(fa)).withFaceLandmarks(true);
+    await fa.nets.faceLandmark68TinyNet.detectLandmarks(c);
+    await fa.nets.faceRecognitionNet.computeFaceDescriptor(c);
+  };
+  try { await warm(); } catch { await slowMode(); try { await warm(); } catch {} }
   return fa;
 }
 /** Switch to the slower scanner that works on every phone. */
