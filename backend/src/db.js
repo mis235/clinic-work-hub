@@ -520,6 +520,8 @@ db.exec(`CREATE TABLE IF NOT EXISTS kiosk_phones (
   last_seen TEXT,
   blocked_at TEXT
 )`);
+ensureColumn("kiosk_phones", "scan_mode", "scan_mode TEXT");
+ensureColumn("kiosk_phones", "ready_ms", "ready_ms INTEGER");
 ensureColumn("attendance", "note", "note TEXT");
 ensureColumn("attendance", "selfie_path", "selfie_path TEXT");
 ensureColumn("users", "shift_start", "shift_start TEXT");

@@ -2,6 +2,7 @@
 let lib = null;
 export async function loadFace() {
   if (lib) return lib;
+  const t0 = performance.now();
   const fa = await import("@vladmandic/face-api");
   await Promise.all([ // all three models download and load together, not one after the other
     fa.nets.tinyFaceDetector.loadFromUri("/models"),
@@ -14,11 +15,12 @@ export async function loadFace() {
   const warm = async () => {
     const c = document.createElement("canvas"); c.width = c.height = 160;
     const x = c.getContext("2d"); x.fillStyle = "#888"; x.fillRect(0, 0, 160, 160);
-    await fa.detectSingleFace(c, opts(fa)).withFaceLandmarks(true);
+    await fa.detectSingleFace(c, new fa.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.55 })).withFaceLandmarks(true); // 224 is the size the check-in scan uses first, so its GPU programs are ready
     await fa.nets.faceLandmark68TinyNet.detectLandmarks(c);
     await fa.nets.faceRecognitionNet.computeFaceDescriptor(c);
   };
   try { await warm(); } catch { await slowMode(); try { await warm(); } catch {} }
+  try { window.__scan = { b: fa.tf.getBackend(), ms: Math.round(performance.now() - t0) }; } catch {} // reported to the admin: which scanner mode this phone uses and how long it took to get ready
   return fa;
 }
 /** Switch to the slower scanner that works on every phone. */

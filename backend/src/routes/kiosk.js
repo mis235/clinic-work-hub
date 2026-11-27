@@ -54,6 +54,8 @@ function requireKiosk(req, res, next) {
       if (ph) db.prepare("UPDATE kiosk_phones SET last_seen = datetime('now'), device_id = ? WHERE id = ?").run(dev.id, pid);
       else db.prepare("INSERT INTO kiosk_phones (id, device_id, label, last_seen) VALUES (?,?,?,datetime('now'))").run(pid, dev.id, phoneLabel(req.headers["user-agent"]));
       req.phoneId = pid;
+      const si = /^(webgl|cpu|wasm|webgpu);(\d{1,6})$/.exec(String(req.headers["x-scan-info"] || ""));
+      if (si) db.prepare("UPDATE kiosk_phones SET scan_mode = ?, ready_ms = ? WHERE id = ?").run(si[1], Number(si[2]), pid);
     }
     db.prepare("UPDATE kiosk_devices SET last_seen = datetime('now') WHERE id = ?").run(dev.id);
     req.kiosk = dev; next();
@@ -141,7 +143,7 @@ router.get("/shared-link", requireAuth, requirePermission("staff:manage"), (req,
 });
 // Every phone that has opened the link, with today's punch-ins.
 router.get("/phones", requireAuth, requirePermission("staff:manage"), (req, res) => {
-  res.json(db.prepare(`SELECT p.id, p.label, p.first_seen, p.last_seen, p.blocked_at,
+  res.json(db.prepare(`SELECT p.id, p.label, p.first_seen, p.last_seen, p.blocked_at, p.scan_mode, p.ready_ms,
       (SELECT COUNT(*) FROM face_checkins f WHERE f.phone_id = p.id AND f.undone_at IS NULL AND date(f.created_at,'+5 hours','+30 minutes') = ?) AS today
     FROM kiosk_phones p ORDER BY p.last_seen DESC`).all(istNow().toISOString().slice(0, 10)));
 });

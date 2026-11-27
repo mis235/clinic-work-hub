@@ -216,7 +216,7 @@ function FacePanel({ date, people, isAdmin, flash }) {
             <button className="btn btn-primary btn-sm" onClick={() => { try { navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 2500); } catch {} }}>{copied ? "Copied" : "Copy"}</button>
           </div>}
           {phones.map((p) => (
-            <div key={p.id} className="task-row"><div><div className="title">{p.label}{p.blocked_at ? " · off" : ""}</div><div className="meta">Last used {p.last_seen ? new Date(p.last_seen.replace(" ", "T") + "Z").toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "never"} · {p.today} today</div></div>
+            <div key={p.id} className="task-row"><div><div className="title">{p.label}{p.blocked_at ? " · off" : ""}</div><div className="meta">Last used {p.last_seen ? new Date(p.last_seen.replace(" ", "T") + "Z").toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "never"} · {p.today} today{p.scan_mode ? ` · ${p.scan_mode === "cpu" ? "Slow scanner" : "Fast scanner"}, ready in ${Math.max(1, Math.round((p.ready_ms || 0) / 1000))} s` : ""}</div></div>
               <button className="btn btn-ghost btn-sm" onClick={async () => { await api.saveKioskPhone(p.id, { blocked: !p.blocked_at }); load(); }}>{p.blocked_at ? "Switch on" : "Switch off"}</button></div>
           ))}
         </div>

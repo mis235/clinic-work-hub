@@ -502,7 +502,9 @@ try {
     const ping = (pid) => fetch(base + "/api/kiosk/ping", { headers: { ...ua, "x-phone-id": pid } });
     ok("the shared link works on a phone", (await ping("phone-aaaa-0001")).status === 200);
     await ping("phone-bbbb-0002");
+    await fetch(base + "/api/kiosk/ping", { headers: { ...ua, "x-phone-id": "phone-bbbb-0002", "x-scan-info": "webgl;6400" } });
     const ph = (await call("GET", "/api/kiosk/phones", null, admin)).body;
+    ok("a phone reports its scanner mode and start-up time", ph.some((p) => p.id === "phone-bbbb-0002" && p.scan_mode === "webgl" && p.ready_ms === 6400));
     ok("each phone on the shared link is listed", ph.length >= 2 && ph.some((p) => p.id === "phone-aaaa-0001" && /iPhone/.test(p.label)));
     await call("PUT", "/api/kiosk/phones/phone-aaaa-0001", { blocked: true }, admin);
     ok("one phone can be switched off alone", (await ping("phone-aaaa-0001")).status === 401 && (await ping("phone-bbbb-0002")).status === 200);

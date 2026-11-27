@@ -465,7 +465,7 @@ export const kioskApi = {
   },
   async call(path, body) {
     const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 15000); // a stuck weak connection must fail, not hang
-    let res; try { res = await fetch(`${BASE}/api/kiosk/${path}`, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json", Authorization: `Bearer ${kioskApi.key()}`, "x-phone-id": kioskApi.phoneId() }, body: body ? JSON.stringify(body) : undefined, signal: ctl.signal }); } finally { clearTimeout(timer); }
+    let res; try { res = await fetch(`${BASE}/api/kiosk/${path}`, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json", Authorization: `Bearer ${kioskApi.key()}`, "x-phone-id": kioskApi.phoneId(), "x-scan-info": window.__scan ? `${window.__scan.b};${window.__scan.ms}` : "" }, body: body ? JSON.stringify(body) : undefined, signal: ctl.signal }); } finally { clearTimeout(timer); }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw Object.assign(new Error(data.error || `Request failed (${res.status})`), { status: res.status });
     return data;

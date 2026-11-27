@@ -70,6 +70,7 @@ export default function KioskPage() {
         setOnline(true);
         geoOn = !!info.geo; if (geoOn) startGeo();
         if (info.enrolled === 0) { setState({ phase: "error", text: "No faces are enrolled yet. Ask the admin to enroll staff faces first." }); return; }
+        setState({ phase: "start", text: "Getting ready…", sub: "Loading the face scanner" });
         await faceP;
         const camErr = await camP; if (camErr) throw camErr;
         await ensureCamera();
