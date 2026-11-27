@@ -43,7 +43,7 @@ export async function scanFace(video, mode = "enroll") {
   const run = (size, th) => fa.detectSingleFace(video, new fa.TinyFaceDetectorOptions({ inputSize: size, scoreThreshold: th })).withFaceLandmarks(true).withFaceDescriptor();
   // A face held close to the camera is only found at a smaller scan size, a far one at a bigger size: try several, keep the best.
   let r = null;
-  for (const size of enroll ? [320, 224, 160] : [320, 224, 416, 160]) {
+  for (const size of enroll ? [320, 224, 160] : [224, 320, 160, 416]) { // 224 first: a face at arm's length is large, and 224 scans about twice as fast as 320
     const x = await run(size, 0.5);
     if (x && (!r || x.detection.score > r.detection.score)) r = x;
     if (r && r.detection.score >= (enroll ? 0.8 : 0.6)) break;

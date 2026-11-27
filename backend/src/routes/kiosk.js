@@ -18,6 +18,8 @@ const SNAP_DIR = path.join(DATA, "private", "checkin-snaps");
 fs.mkdirSync(SNAP_DIR, { recursive: true });
 const MATCH_DISTANCE = Number(process.env.FACE_MATCH_DISTANCE || 0.35); // 0.35 = a 65% match or better; lower = stricter (0.5 let look-alike colleagues through)
 const MATCH_MARGIN = Number(process.env.FACE_MATCH_MARGIN || 0.08); // the best person must beat the next person by at least this much
+const FAST_DISTANCE = Number(process.env.FACE_FAST_DISTANCE || 0.30); // one clear look this close (and clearly ahead of everyone else) is accepted at once
+const FAST_MARGIN = Number(process.env.FACE_FAST_MARGIN || 0.12);
 const UNIQUE_DISTANCE = Number(process.env.FACE_UNIQUE_DISTANCE || 0.45); // two people closer than this are treated as the same face
 const MIN_GAP_MIN = Number(process.env.MIN_STAY_MINUTES || 60);        // a second look within this many minutes is not a logout
 import { isLateArrival, syncLateFines, shiftWindow, dayStatus } from "./leave.js";
@@ -214,11 +216,16 @@ router.post("/checkin", requireKiosk, (req, res) => {
   const looks = Array.isArray(req.body?.descriptors) && req.body.descriptors.length === 2 && req.body.descriptors.every(okDesc) ? req.body.descriptors : [descriptor];
   const ranks = looks.map(rankFor);
   for (const ranked of ranks) {
-    if (!ranked[0] || ranked[0].distance > MATCH_DISTANCE) return res.json({ matched: false });
+    if (!ranked[0] || ranked[0].distance > MATCH_DISTANCE) return res.json(req.body?.fast === true && looks.length === 1 ? { matched: false, again: true } : { matched: false });
     // Two different people both fit: refuse rather than mark the wrong person.
-    if (ranked[1] && ranked[1].distance - ranked[0].distance < MATCH_MARGIN) return res.json({ matched: false, ambiguous: true });
+    if (ranked[1] && ranked[1].distance - ranked[0].distance < MATCH_MARGIN) return res.json(req.body?.fast === true && looks.length === 1 ? { matched: false, again: true } : { matched: false, ambiguous: true });
   }
   if (ranks.length === 2 && ranks[0][0].userId !== ranks[1][0].userId) return res.json({ matched: false, ambiguous: true });
+  // Fast path: the phone sends ONE look first. A very clear match is accepted at once; anything less clear asks for a second look (nothing is recorded yet).
+  if (req.body?.fast === true && ranks.length === 1) {
+    const r0 = ranks[0];
+    if (r0[0].distance > FAST_DISTANCE || (r0[1] && r0[1].distance - r0[0].distance < FAST_MARGIN)) return res.json({ matched: false, again: true });
+  }
   const best = { ...ranks[0][0], distance: ranks.reduce((t, r) => t + r[0].distance, 0) / ranks.length };
 
   const now = process.env.NODE_ENV === "test" && req.headers["x-test-now"] ? new Date(String(req.headers["x-test-now"]) + "Z") : istNow(), date = now.toISOString().slice(0, 10), hhmm = now.toISOString().slice(11, 16);

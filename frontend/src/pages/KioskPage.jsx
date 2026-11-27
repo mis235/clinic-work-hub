@@ -118,9 +118,18 @@ export default function KioskPage() {
             if (!f || !f.ok) { prev = null; setState((s) => (s.phase === "result" || s.phase === "confirm" ? s : { phase: "look", text: "Look at the camera" })); continue; }
             if (Date.now() - last.at < (last.hold ?? 2800)) { prev = null; continue; } // keep showing the last result for a moment
             if (geoOn && (!pos || Date.now() - pos.at > 10 * 60000)) { setState({ phase: "error", text: posErr === 1 ? "Location is blocked" : "Getting the clinic location…", sub: posErr === 1 ? "Allow Location for this website (iPhone: Settings → Privacy → Location Services → Safari Websites), then try again." : "Please wait a moment." }); await sleep(1500); continue; }
-            if (!prev || Date.now() - prev.at > 2500) { prev = { d: f.descriptor, at: Date.now() }; setState({ phase: "check", text: "Checking…" }); continue; }
+            const snap = snapshotJpeg(video.current, 200), posBody = geoOn && pos ? { lat: pos.lat, lng: pos.lng, acc: pos.acc } : undefined;
+            if (prev && Date.now() - prev.at > 2500) prev = null;
+            // First look: sent alone. A very clear match is accepted by the server at once; otherwise it asks for a second look, and both must agree.
+            if (!prev) {
+              setState({ phase: "check", text: "Checking…" });
+              const r0 = await kioskApi.call("checkin", { descriptor: f.descriptor, fast: true, snapshot: snap, pos: posBody });
+              setOnline(true);
+              if (r0.again) { prev = { d: f.descriptor, at: Date.now() }; continue; }
+              last = { at: Date.now() }; showResult(r0, { descriptor: f.descriptor, fast: true, snapshot: snap, pos: posBody }); continue;
+            }
             const f1 = { descriptor: prev.d }, f2 = f; prev = null;
-            const body = { descriptor: f1.descriptor, descriptors: [f1.descriptor, f2.descriptor], snapshot: snapshotJpeg(video.current, 200), pos: geoOn && pos ? { lat: pos.lat, lng: pos.lng, acc: pos.acc } : undefined };
+            const body = { descriptor: f1.descriptor, descriptors: [f1.descriptor, f2.descriptor], snapshot: snap, pos: posBody };
             const r = await kioskApi.call("checkin", body);
             setOnline(true);
             last = { at: Date.now() };

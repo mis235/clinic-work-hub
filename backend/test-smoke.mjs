@@ -473,6 +473,21 @@ try {
         ok("HR cannot cancel an older check-in while a later one stands", !old || (await call("POST", `/api/kiosk/log/${u2.undoId}/undo`, null, admin)).status === 400);
         ok("HR can cancel the latest check-in from the log", !last || (await call("POST", `/api/kiosk/log/${last.id}/undo`, null, admin)).body?.ok === true);
       }
+      {
+        // fast path: one clear look is accepted at once; a less clear look asks for a second one and records nothing
+        const near = (k) => fdesc(121).map((v, i) => v + (i < 128 ? k / Math.sqrt(128) : 0));
+        const D1 = "2026-01-06";
+        const f1 = await scan(121, "09:10", { descriptor: near(0.05), fast: true }, D1);
+        ok("one very clear look is accepted at once", f1.matched === true && f1.kind === "in", JSON.stringify(f1));
+        const D2 = "2026-01-07";
+        const f2 = await scan(121, "09:10", { descriptor: near(0.33), fast: true }, D2);
+        ok("a less clear single look asks for a second look and records nothing", f2.matched === false && f2.again === true && !f2.inTime, JSON.stringify(f2));
+        const f3 = await scan(121, "09:10", { descriptor: near(0.33), descriptors: [near(0.33), near(0.32)] }, D2);
+        ok("two looks of that kind are accepted", f3.matched === true && f3.kind === "in", JSON.stringify(f3));
+        const D3 = "2026-01-08";
+        const f4 = await scan(121, "09:10", { descriptor: fdesc(777), fast: true }, D3);
+        ok("a stranger on the fast path is never recorded", f4.matched === false && !f4.inTime, JSON.stringify(f4));
+      }
       ok("another phone's check-in cannot be cancelled", (await kcall("/api/kiosk/undo", { id: "nope" })).status === 404);
       await call("DELETE", `/api/kiosk/enroll/${sp[0].id}`, null, admin);
     }
