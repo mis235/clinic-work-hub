@@ -45,78 +45,95 @@ export default function ChecklistDashboard({ user }) {
 
   if (err && !d) return <div className="empty">{err}</div>;
   if (!d) return <div className="empty">Loading…</div>;
-  const s = d.summary, max = 100;
-  const st = sheet?.status;
+  const s = d.summary;
+  const total = s.totalChecklists ?? s.expected ?? 0, pending = Math.max(0, total - s.submitted - s.inProgress);
+  const roster = d.roster || [];
+  const nSub = roster.filter((r) => r.status === "submitted").length, nOpen = roster.length - nSub;
+  const rows = roster.filter((r) => (statusF === "all" || (statusF === "submitted" ? r.status === "submitted" : r.status !== "submitted"))
+    && (secF === "all" || r.sections.some((x) => x.name.toLowerCase() === secF.toLowerCase() && x.done > 0))
+    && (!q.trim() || (r.owners.join(" ") + " " + (r.submittedBy || "") + " " + r.roleName).toLowerCase().includes(q.trim().toLowerCase())));
+  const tasksPct = s.tasksTotal ? Math.round(((s.tasksDone ?? 0) / s.tasksTotal) * 100) : 0;
+  const dayLabel = (iso) => new Date(iso + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+  const seg = (list, val, set) => <div className="cd-seg">{list.map(([k, l, n]) => <button key={k} className={val === k ? "on" : ""} onClick={() => set(k)}>{l}{n != null && <em>{n}</em>}</button>)}</div>;
 
   return (
-    <>
-      <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-        <div className="meta">Live checklist progress. Refreshes by itself.</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <input className="field" type="date" style={{ width: 170 }} value={date} max={todayIST()} onChange={(e) => setDate(e.target.value)} />
-          <button className="btn btn-outline btn-sm" onClick={() => api.downloadChecklistXlsx(todayIST().slice(0, 8) + "01", todayIST())}>Excel · this month</button>
+    <div className="cd">
+      <div className="cd-bar-top">
+        <div className="cd-date">
+          <input className="field" type="date" value={date} max={todayIST()} onChange={(e) => setDate(e.target.value)} />
+          {date !== todayIST() && <button className="btn btn-outline btn-sm" onClick={() => setDate(todayIST())}>Today</button>}
+          <span className="cd-day">{dayLabel(date)}</span>
+        </div>
+        <div className="cd-tools">
+          <input className="field" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search staff" />
+          <button className="btn btn-outline btn-sm" onClick={() => api.downloadChecklistXlsx(todayIST().slice(0, 8) + "01", todayIST())}>Excel · This month</button>
           <button className="btn btn-outline btn-sm" onClick={() => api.downloadChecklistXlsx(new Date(Date.now() + 19800000 - 90 * 86400000).toISOString().slice(0, 10), todayIST())}>Excel · 3 months</button>
         </div>
       </div>
 
-      <div className="meta" style={{ marginBottom: 6 }}>Search staff</div>
-      <input className="field" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Type a name…" style={{ maxWidth: 520, marginBottom: 10 }} />
-      <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginBottom: 12 }}>
-        <div><div className="meta">Status</div><div className="pill-row">{[["all", "All"], ["submitted", "Submitted"], ["pending", "Pending"]].map(([k, l]) => <button key={k} className={`pill ${statusF === k ? "active" : ""}`} onClick={() => setStatusF(k)}>{l}</button>)}</div></div>
-        <div><div className="meta">Section touched</div><div className="pill-row">{[["all", "All"], ["Opening", "Opening"], ["During the Day", "During the Day"], ["End of Day", "End of Day"]].map(([k, l]) => <button key={k} className={`pill ${secF === k ? "active" : ""}`} onClick={() => setSecF(k)}>{l}</button>)}</div></div>
+      <div className="cd-kpis">
+        <div className="cd-kpi ok"><span>Submitted</span><b>{s.submitted}</b><small>of {total} checklists</small></div>
+        <div className={`cd-kpi ${pending ? "warn" : "ok"}`}><span>Pending</span><b>{pending}</b><small>not started</small></div>
+        <div className="cd-kpi info"><span>In progress</span><b>{s.inProgress}</b><small>being filled</small></div>
+        <div className={`cd-kpi ${s.late ? "bad" : ""}`}><span>Late</span><b>{s.late ?? 0}</b><small>submitted after 8 PM</small></div>
+      </div>
+      <div className="cd-strip">
+        <div><span>Tasks completed</span><b>{s.tasksDone ?? 0} / {s.tasksTotal ?? 0}</b><i className="cd-mini"><u style={{ width: `${tasksPct}%` }} /></i></div>
+        <div><span>Evidence photos</span><b>{s.photos}</b></div>
+        <div><span>Incomplete sections</span><b>{s.incompleteSections ?? 0}</b></div>
       </div>
 
-      <div className="dept-grid tile-grid">
-        {[["Total checklists", s.totalChecklists ?? s.expected], ["Submitted today", s.submitted], ["Pending", Math.max(0, (s.totalChecklists ?? s.expected) - s.submitted - s.inProgress)], ["In progress", s.inProgress],
-          ["Tasks completed (clinic-wide)", `${s.tasksDone ?? 0} / ${s.tasksTotal ?? 0}`], ["Evidence photos", s.photos], ["Incomplete sections", s.incompleteSections ?? 0], ["Late submissions (after 8 PM)", s.late ?? 0]].map(([l, v]) => (
-          <div key={l} className="dept-card"><div className="meta">{l}</div><div className="title" style={{ fontSize: 24 }}>{v}</div></div>
-        ))}
+      <div className="cd-card">
+        <div className="cd-filters">
+          {seg([["all", "All", roster.length], ["submitted", "Submitted", nSub], ["pending", "Pending", nOpen]], statusF, setStatusF)}
+          {seg([["all", "All sections"], ["Opening", "Opening"], ["During the Day", "During the Day"], ["End of Day", "End of Day"]], secF, setSecF)}
+        </div>
+        <div className="cd-scroll">
+          <table className="cd-table">
+            <thead><tr><th>Staff</th><th>Role</th><th>Status</th><th>Progress</th><th>Sections</th><th>Photos</th><th>Time</th><th>Submitted by</th></tr></thead>
+            <tbody>
+              {rows.length === 0 && <tr><td colSpan={8} className="cd-none">No checklists match.</td></tr>}
+              {rows.map((r) => (
+                <React.Fragment key={r.roleName}>
+                  <tr className={r.items.length ? "click" : ""} onClick={() => r.items.length && setOpen(open === r.roleName ? null : r.roleName)}>
+                    <td className="cd-name">{r.owners.join(" / ") || "—"}{r.items.length ? <i className={`cd-caret ${open === r.roleName ? "up" : ""}`} /> : null}</td>
+                    <td className="cd-role">{r.roleName}</td>
+                    <td><span className={`cd-pill ${r.status === "submitted" ? "ok" : r.status === "in_progress" ? "info" : "warn"}`}>{r.status === "submitted" ? "Submitted" : r.status === "in_progress" ? "In progress" : "Pending"}</span></td>
+                    <td>{r.pct == null ? <span className="cd-dash">—</span> : <div className="cd-prog"><i className="cd-mini"><u className={r.pct >= 90 ? "ok" : r.pct >= 60 ? "mid" : "low"} style={{ width: `${r.pct}%` }} /></i><span>{r.completed}/{r.total} · {r.pct}%</span></div>}</td>
+                    <td>{r.sections.length ? <div className="cd-chips">{r.sections.map((x) => <span key={x.name} className={`cd-chip ${x.done === x.total ? "ok" : ""}`}>{x.name} {x.done}/{x.total}</span>)}</div> : <span className="cd-dash">—</span>}</td>
+                    <td>{r.items.length ? r.photos : <span className="cd-dash">—</span>}</td>
+                    <td>{r.time || <span className="cd-dash">—</span>}{r.late ? <span className="cd-chip bad">Late</span> : null}</td>
+                    <td>{r.submittedBy ? <>{r.submittedBy}{r.coveredBy ? <small className="cd-sub">covering</small> : null}</> : <span className="cd-dash">—</span>}</td>
+                  </tr>
+                  {open === r.roleName && (
+                    <tr className="cd-open"><td colSpan={8}>
+                      <div className="cd-items">{r.items.map((i, k) => <div key={k} className={i.done ? "on" : ""}><i className="cd-tick" /><span>{i.text}</span>{i.photoUrl && <a href={assetUrl(i.photoUrl)} target="_blank" rel="noreferrer">Photo</a>}</div>)}</div>
+                    </td></tr>)}
+                </React.Fragment>))}
+            </tbody>
+          </table>
+        </div>
+        <div className="cd-foot">Updated {new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}{s.fromSheet ? ` · ${s.fromSheet} from the old Google form` : ""}</div>
       </div>
 
-      <div className="card" style={{ marginBottom: 16, overflowX: "auto" }}>
-        <table className="reg-table" style={{ width: "100%", minWidth: 760 }}>
-          <thead><tr><th>Staff</th><th>Role</th><th>Status</th><th>Done</th><th>Total</th><th>Completion</th><th>Sections touched</th><th>Photos</th><th>Time</th><th>Submitted by</th></tr></thead>
-          <tbody>
-            {(d.roster || []).filter((r) => (statusF === "all" || (statusF === "submitted" ? r.status === "submitted" : r.status !== "submitted"))
-              && (secF === "all" || r.sections.some((x) => x.name.toLowerCase() === secF.toLowerCase() && x.done > 0))
-              && (!q.trim() || (r.owners.join(" ") + " " + (r.submittedBy || "") + " " + r.roleName).toLowerCase().includes(q.trim().toLowerCase()))).map((r) => (
-              <React.Fragment key={r.roleName}>
-                <tr style={{ cursor: r.items.length ? "pointer" : "default" }} onClick={() => r.items.length && setOpen(open === r.roleName ? null : r.roleName)}>
-                  <td><b>{r.owners.join(" / ") || "—"}</b>{r.items.length ? " ▾" : ""}</td>
-                  <td>{r.roleName}</td>
-                  <td><span className={`badge ${r.status === "submitted" ? "done" : r.status === "in_progress" ? "progress" : "overdue"}`}>{r.status === "submitted" ? "✓ Submitted" : r.status === "in_progress" ? "In progress" : "⏳ Pending"}</span></td>
-                  <td>{r.completed ?? "—"}</td><td>{r.total ?? "—"}</td>
-                  <td>{r.pct == null ? "—" : <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 70, height: 7, background: "var(--line)", borderRadius: 4, overflow: "hidden", display: "inline-block" }}><span style={{ display: "block", height: "100%", width: `${r.pct}%`, background: "var(--primary)" }} /></span>{r.pct}%</span>}</td>
-                  <td>{r.sections.length ? r.sections.map((x) => <div key={x.name} className="meta" style={{ whiteSpace: "nowrap" }}>{x.done === x.total ? "✓" : "•"} {x.name} ({x.done}/{x.total})</div>) : "—"}</td>
-                  <td>{r.items.length ? r.photos : "—"}</td>
-                  <td>{r.time || "—"}{r.late ? " ⚠" : ""}</td>
-                  <td>{r.submittedBy ? <>{r.submittedBy}{r.coveredBy ? <div className="meta">covering</div> : null}</> : "—"}</td>
-                </tr>
-                {open === r.roleName && (
-                  <tr><td colSpan={10} style={{ background: "var(--bg, #fafafa)" }}>
-                    {r.items.map((i, k) => <div key={k} style={{ fontSize: 13, padding: "2px 0" }}>{i.done ? "✅" : "⬜"} <span style={{ opacity: i.done ? 1 : 0.7 }}>{i.text}</span>{i.photoUrl && <a href={assetUrl(i.photoUrl)} target="_blank" rel="noreferrer"> 📷</a>}</div>)}
-                  </td></tr>)}
-              </React.Fragment>))}
-          </tbody>
-        </table>
-        <div className="meta" style={{ marginTop: 8 }}>Last loaded {new Date().toLocaleTimeString("en-IN")} · refreshes every 30 seconds{s.fromSheet ? ` · ${s.fromSheet} from the old Google form` : ""}</div>
-      </div>
-
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="title" style={{ marginBottom: 8 }}>Last {d.trend.length} days — checklists submitted and average completion</div>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 120 }}>
-          {d.trend.map((t) => (
-            <div key={t.date} title={`${t.date}: ${t.submitted} submitted, ${t.avgPct ?? 0}% done`} onClick={() => setDate(t.date)} style={{ flex: 1, cursor: "pointer", display: "flex", flexDirection: "column", justifyContent: "flex-end", height: "100%" }}>
-              <div style={{ background: t.date === d.date ? "var(--primary-dark, #0b5c55)" : "var(--primary)", borderRadius: 4, height: `${((t.avgPct || 0) / max) * 100}%`, minHeight: t.submitted ? 3 : 0 }} />
-              <div className="meta" style={{ fontSize: 9.5, textAlign: "center", marginTop: 3 }}>{t.date.slice(8)}</div>
-            </div>
-          ))}
+      <div className="cd-card">
+        <div className="cd-head"><b>Last {d.trend.length} days</b><span>Average completion</span></div>
+        <div className="cd-chart">
+          <div className="cd-y"><span>100%</span><span>50%</span><span>0%</span></div>
+          <div className="cd-plot">
+            {d.trend.map((t) => (
+              <button key={t.date} className={`cd-col ${t.date === d.date ? "on" : ""}`} title={`${dayLabel(t.date)}: ${t.submitted} submitted, ${t.avgPct ?? 0}% average`} onClick={() => setDate(t.date)}>
+                <span className="cd-zone"><span className="cd-val">{t.submitted ? `${t.avgPct ?? 0}%` : ""}</span><i style={{ height: Math.max(t.submitted ? 3 : 0, (t.avgPct || 0) * 1.4) }} /></span>
+                <em>{t.date.slice(8)}<small>{new Date(t.date + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "narrow", timeZone: "UTC" })}</small></em>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {canAssign && asg && (
         <details className="card" style={{ marginBottom: 16 }}>
-          <summary className="title" style={{ cursor: "pointer" }}>⚙ Admin: choose who fills each checklist</summary>
+          <summary className="title" style={{ cursor: "pointer" }}>Assign checklists</summary>
           {asg.roles.map((r) => (
             <details key={r.roleName} style={{ borderTop: "1px solid var(--line)", padding: "8px 0" }}>
               <summary style={{ cursor: "pointer" }}><b>{r.roleName}</b> <span className="meta">— {[...new Set([...r.own, ...r.assigned])].map((id) => asg.staff.find((x) => x.id === id)?.name).filter(Boolean).join(", ") || "nobody yet"}</span></summary>
@@ -128,6 +145,6 @@ export default function ChecklistDashboard({ user }) {
               </div>
             </details>))}
         </details>)}
-    </>
+    </div>
   );
 }
