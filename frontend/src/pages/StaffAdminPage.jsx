@@ -21,7 +21,7 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
   const [editing, setEditing] = useState(null);
   const [dept, setDept] = useState("All");
   const [q, setQ] = useState("");
-  const [view, setViewState] = useState(() => { try { return ["tiles", "groups"].includes(localStorage.getItem("staffView")) ? localStorage.getItem("staffView") : "list"; } catch { return "list"; } });
+  const [view, setViewState] = useState(() => { try { return ["list", "groups"].includes(localStorage.getItem("staffView")) ? localStorage.getItem("staffView") : "tiles"; } catch { return "tiles"; } });
   const setView = (v) => { setViewState(v); try { localStorage.setItem("staffView", v); } catch {} };
   const [toast, setToast] = useState(null);
   const [photoVer, setPhotoVer] = useState(0);
