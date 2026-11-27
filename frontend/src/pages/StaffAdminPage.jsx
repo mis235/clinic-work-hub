@@ -21,6 +21,8 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
   const [editing, setEditing] = useState(null);
   const [dept, setDept] = useState("All");
   const [q, setQ] = useState("");
+  const [view, setViewState] = useState(() => { try { return localStorage.getItem("staffView") === "tiles" ? "tiles" : "list"; } catch { return "list"; } });
+  const setView = (v) => { setViewState(v); try { localStorage.setItem("staffView", v); } catch {} };
   const [toast, setToast] = useState(null);
   const [photoVer, setPhotoVer] = useState(0);
   const [faceFor, setFaceFor] = useState(null);
@@ -67,14 +69,42 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
 
         {importing && <StaffImport onClose={() => setImporting(false)} onDone={() => refresh()} />}
         {pasting && <StaffListImport onClose={() => setPasting(false)} onDone={(m) => { setPasting(false); flash(m); refresh(); }} />}
-        <div className="pill-row">
+        <div className="pill-row" style={{ alignItems: "center" }}>
+          <div className="cd-seg" style={{ marginRight: 6 }}><button className={view === "list" ? "on" : ""} onClick={() => setView("list")}>List</button><button className={view === "tiles" ? "on" : ""} onClick={() => setView("tiles")}>Tiles</button></div>
           {removedCount > 0 && <button className={`pill ${showRemoved ? "active" : ""}`} onClick={() => setShowRemoved((x) => !x)}>{showRemoved ? "← Back to active staff" : `Removed staff (${removedCount})`}</button>}
           {!showRemoved && depts.map((d) => <button key={d} className={`pill ${dept === d ? "active" : ""}`} onClick={() => setDept(d)}>{d}</button>)}
         </div>
 
         {roster === null && <div className="empty">Loading…</div>}
         {roster && shown.length === 0 && <div className="empty">No staff found.</div>}
-        {shown.length > 0 && (
+        {shown.length > 0 && view === "tiles" && (
+          <div className="st-tiles">
+            {shown.map((s) => {
+              const f = faces[s.id], faceOk = f && !f.same_as;
+              return (
+                <div key={s.id} className="st-tile">
+                  {(s.role === "admin" || s.role === "manager") && <span className={`badge ${s.role === "admin" ? "accepted" : "sent"} st-tag`}>{s.role}</span>}
+                  <Avatar id={s.id} name={s.name} hasPhoto={!!s.has_photo} size={60} v={photoVer} />
+                  <span className="link st-tn" onClick={() => onOpenProfile(s.id)}>{s.name}</span>
+                  <small className="st-td">{s.designation || "No designation"}</small>
+                  <span className="st-tc">{[s.department, s.employee_code].filter(Boolean).join(" · ") || "—"}</span>
+                  <span className={`st-tf ${!s.active ? "" : faceOk ? "ok" : "warn"}`}><i />{!s.active ? "Inactive" : f?.same_as ? `Same as ${f.same_as}` : f ? "Face enrolled" : "Face not enrolled"}</span>
+                  <div className="st-act st-tact">
+                    <button className="st-ic" title="View profile" aria-label="View profile" onClick={() => onOpenProfile(s.id)}><Icon name="eye" size={16} /></button>
+                    {s.active
+                      ? <>
+                          <button className="st-ic" title="Edit details" aria-label="Edit details" onClick={() => setEditing(s)}><Icon name="pencil" size={16} /></button>
+                          <button className="st-ic" title={f ? "Re-enroll face" : "Enroll face"} aria-label={f ? "Re-enroll face" : "Enroll face"} onClick={() => setFaceFor(s)}><Icon name="fingerprint" size={16} /></button>
+                          {s.id !== user.id && <button className="st-rm" onClick={() => remove(s)}>Remove</button>}
+                        </>
+                      : <button className="btn btn-outline btn-sm" onClick={async () => { await api.restoreStaff(s.id); flash(`${s.name} restored.`); refresh(); }}>Restore</button>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {shown.length > 0 && view === "list" && (
           <div className="st-list">
             <div className="st-row st-head"><span>Staff</span><span>Department</span><span>ID</span><span>Phone</span><span>Reports to</span><span>Face</span><span /></div>
             {shown.map((s) => {

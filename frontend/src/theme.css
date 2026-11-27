@@ -1594,3 +1594,16 @@ html.kiosk-lock .kiosk-msg p { font-size: 12.5px; margin-top: 2px; }
   .st-row>.st-c{display:none}
   .st-mob{display:block!important}
 }
+
+/* Staff Profiles: tile view */
+.st-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.st-tile{position:relative;background:#fff;border:1px solid #eee4f3;border-radius:18px;box-shadow:0 6px 18px rgba(120,90,170,.07);padding:18px 14px 10px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:3px;transition:box-shadow .15s,transform .15s}
+.st-tile:hover{box-shadow:0 10px 26px rgba(120,90,170,.16);transform:translateY(-1px)}
+.st-tag{position:absolute;top:10px;right:10px;font-size:10.5px!important;padding:1px 8px!important;text-transform:capitalize}
+.st-tn{margin-top:8px;font-weight:700;font-size:14px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st-td{color:#8a7a99;font-size:12px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st-tc{font-size:12px;color:#6c5a82;background:#f4eefa;border-radius:99px;padding:2px 10px;margin-top:4px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st-tf{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#8a7a99;margin-top:6px}
+.st-tf i{width:8px;height:8px;border-radius:99px;background:#c9bcd9}
+.st-tf.ok{color:#15803d}.st-tf.ok i{background:#22a06b}.st-tf.warn{color:#b45309}.st-tf.warn i{background:#e0952f}
+.st-tact{margin-top:8px;padding-top:8px;border-top:1px solid #f1eaf7;width:100%;justify-content:center}
