@@ -80,7 +80,39 @@ export async function startCamera(video) {
 export const cameraHelp = (e) => e?.message === "INSECURE"
   ? "The camera is blocked because this address is not secure. Open the https:// link created on Attendance → Face attendance (on the phone tap Advanced → Proceed once), or use the app on the computer at localhost."
   : /denied|Permission|NotAllowed/i.test(e?.name + e?.message) ? "Camera permission was denied. Allow the camera for this site and try again." : `Camera problem: ${e?.message || e}`;
-export function snapshotJpeg(video, w = 240) {
+export function snapshotJpeg(video, w = 240, q = 0.7) {
   const c = document.createElement("canvas"); c.width = w; c.height = Math.round(w * (video.videoHeight || 480) / (video.videoWidth || 640));
-  c.getContext("2d").drawImage(video, 0, 0, c.width, c.height); return c.toDataURL("image/jpeg", 0.7);
+  c.getContext("2d").drawImage(video, 0, 0, c.width, c.height); return c.toDataURL("image/jpeg", q);
+}
+
+// ---- Server-side face checking: the phone only finds a face (tiny model) and sends a photo; the server does the recognising. ----
+let det = null;
+export async function loadDetector() {
+  if (det) return det;
+  const t0 = performance.now(), fa = await import("@vladmandic/face-api");
+  await fa.nets.tinyFaceDetector.loadFromUri("/models");
+  const warm = async () => { const c = document.createElement("canvas"); c.width = c.height = 160; const x = c.getContext("2d"); x.fillStyle = "#888"; x.fillRect(0, 0, 160, 160); await fa.detectSingleFace(c, new fa.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 })); };
+  try { await warm(); } catch { try { await fa.tf.setBackend("cpu"); await fa.tf.ready(); await warm(); } catch {} } // a phone that cannot use the fast mode uses the slow one
+  det = fa;
+  try { window.__scan = { b: fa.tf.getBackend(), ms: Math.round(performance.now() - t0) }; } catch {}
+  return fa;
+}
+/** Find a face in the camera picture (nothing is recognised here). Result: { ok, why, image }.  why = none | far | close | off | soft.
+ *  image = a JPEG of the camera picture, ready to send to the server. */
+export async function lookFace(video, mode = "kiosk") {
+  const fa = await loadDetector(), enroll = mode === "enroll";
+  let r = null;
+  for (const size of [224, 320, 160]) { // a face at arm's length is found at 224 (fast); a close or far one needs another size
+    const x = await fa.detectSingleFace(video, new fa.TinyFaceDetectorOptions({ inputSize: size, scoreThreshold: 0.5 }));
+    if (x && (!r || x.score > r.score)) r = x;
+    if (r && r.score >= 0.6) break;
+  }
+  if (!r) return { ok: false, why: "none" };
+  const vw = video.videoWidth || 640, vh = video.videoHeight || 480, b = r.box, cx = (b.x + b.width / 2) / vw, cy = (b.y + b.height / 2) / vh;
+  let why = "";
+  if (r.score < (enroll ? 0.7 : 0.55)) why = "soft";
+  else if (b.width / vw < (enroll ? 0.22 : 0.2)) why = "far";
+  else if (!enroll && b.width / vw > 0.82) why = "close";
+  else if (cx < 0.15 || cx > 0.85 || cy < 0.1 || cy > 0.9) why = "off";
+  return why ? { ok: false, why } : { ok: true, why: "", image: snapshotJpeg(video, 480, 0.82) };
 }

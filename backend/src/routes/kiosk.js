@@ -11,6 +11,7 @@ import db from "../db.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
 import { MARKS } from "./attendance.js"; // also makes sure the attendance_marks table exists
 import { lanAddresses, HTTPS_PORT, httpsRunning } from "../https.js";
+import { analyze, similarity, okEmbedding, thumb, loadEngine } from "../faceEngine.js";
 
 const router = Router();
 const DATA = process.env.DATA_DIR || path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -29,6 +30,34 @@ import { engage } from "../engage.js";
 const secret = () => process.env.JWT_SECRET;
 const istNow = () => new Date(Date.now() + 19800000);
 const dist = (a, b) => Math.sqrt(a.reduce((s, v, i) => s + (v - b[i]) ** 2, 0));
+
+// ---- v2 face engine (server side): scores are "similarity" 0..1, 1 = same face. Different people almost always score under 0.30, the same person 0.5 to 0.95.
+const V2_ACCEPT = Number(process.env.FACE_V2_ACCEPT || 0.50);   // one clear look at or above this (and clearly ahead of everyone else) is accepted at once
+const V2_LOOSE = Number(process.env.FACE_V2_LOOSE || 0.38);     // between this and ACCEPT: needs a second look that agrees
+const V2_MARGIN = Number(process.env.FACE_V2_MARGIN || 0.12);   // the best person must lead the next person by this much
+const V2_DUP = Number(process.env.FACE_V2_DUP || 0.55);         // a new face this similar to a saved face is "already enrolled"
+const V2_SAME = Number(process.env.FACE_V2_SAME || 0.75);       // above this the two are surely the same person (cannot be forced)
+const toJpeg = (s) => { const m = /^data:image\/(?:jpeg|jpg|png);base64,([A-Za-z0-9+/=]+)$/.exec(String(s || "")); return m && m[1].length < 2_500_000 ? Buffer.from(m[1], "base64") : null; };
+const pending = new Map(); // phone -> { userId, at }: a first look that was good but not clear enough alone
+const hasEmb = (r) => { try { const e = JSON.parse(r.embeddings || "[]"); return Array.isArray(e) && e.length > 0; } catch { return false; } };
+function v2Templates() { return db.prepare("SELECT t.user_id, t.embeddings, u.name FROM face_templates t JOIN users u ON u.id = t.user_id WHERE u.active = 1 AND t.embeddings IS NOT NULL").all().map((t) => ({ userId: t.user_id, name: t.name, list: JSON.parse(t.embeddings) })).filter((t) => t.list.length); }
+const v2Rank = (emb, tpls) => tpls.map((t) => ({ userId: t.userId, name: t.name, sim: Math.max(...t.list.map((x) => similarity(emb, x))) })).sort((a, b) => b.sim - a.sim);
+// Is this set of new face prints already registered to somebody else? Returns { userId, name, sim } or null.
+function v2OtherOwner(embs, exceptUserId) {
+  let best = null;
+  for (const t of v2Templates()) {
+    if (t.userId === exceptUserId) continue;
+    const per = embs.map((e) => Math.max(...t.list.map((x) => similarity(e, x)))).sort((a, b) => a - b), sim = per[Math.floor(per.length / 2)]; // median of each new picture's best match
+    if (sim >= V2_DUP && (!best || sim > best.sim)) best = { userId: t.userId, name: t.name, sim };
+  }
+  return best;
+}
+async function v2Analyze(images, strict) { // [{ ok, why, embedding }]
+  const out = [];
+  for (const im of images.slice(0, 10)) { const buf = toJpeg(im); out.push(buf ? await analyze(buf, { strict }) : { ok: false, why: "none" }); }
+  return out;
+}
+const WHY = { none: "no face was seen", multiple: "more than one face was in the picture", far: "the face was too far away", close: "the face was too close", off: "the face was not in the middle", soft: "the face was not clear", turned: "the face was turned away" };
 const okDesc = (d) => Array.isArray(d) && d.length === 128 && d.every((x) => typeof x === "number" && Number.isFinite(x));
 
 // Face attendance is for the clinic phone only: a computer or laptop opening the same link is refused.
@@ -82,23 +111,54 @@ function otherOwnerOfFace(list, exceptUserId) {
 }
 const SAME_PERSON = Number(process.env.FACE_SAME_PERSON || 0.3); // closer than this: never allowed to save as two people
 router.get("/enrolled", requireAuth, requirePermission("staff:manage"), (req, res) => {
-  const rows = db.prepare("SELECT t.user_id, t.enrolled_at, t.descriptors FROM face_templates t JOIN users u ON u.id = t.user_id WHERE u.active = 1").all();
+  const rows = db.prepare("SELECT t.user_id, t.enrolled_at, t.descriptors, t.embeddings FROM face_templates t JOIN users u ON u.id = t.user_id WHERE u.active = 1").all();
   res.json(rows.map((r) => {
-    const dup = otherOwnerOfFace(JSON.parse(r.descriptors), r.user_id);
-    return { user_id: r.user_id, enrolled_at: r.enrolled_at, samples: JSON.parse(r.descriptors).length, same_as: dup?.name || null };
+    if (hasEmb(r)) { const e = JSON.parse(r.embeddings), dup = v2OtherOwner(e, r.user_id); return { user_id: r.user_id, enrolled_at: r.enrolled_at, samples: e.length, v2: true, same_as: dup?.name || null }; }
+    return { user_id: r.user_id, enrolled_at: r.enrolled_at, samples: JSON.parse(r.descriptors).length, v2: false, old: true, same_as: null }; // saved with the old scanner: register again
   }));
 });
 // Used while adding staff, before saving: is this face already registered?
-router.post("/check-duplicate", requireAuth, requirePermission("staff:manage"), (req, res) => {
+router.post("/check-duplicate", requireAuth, requirePermission("staff:manage"), async (req, res) => {
+  const images = (Array.isArray(req.body?.images) ? req.body.images : Array.isArray(req.body?.descriptors) && typeof req.body.descriptors[0] === "string" ? req.body.descriptors : []).slice(0, 10);
+  if (images.length) {
+    try {
+      const good = (await v2Analyze(images, true)).filter((a) => a.ok).map((a) => a.embedding);
+      if (!good.length) return res.status(400).json({ error: "No clear face" });
+      const dup = v2OtherOwner(good, req.body?.exceptUserId);
+      return res.json({ duplicate: !!dup, name: dup?.name || null });
+    } catch (e) { console.error("face engine:", e.message); return res.status(503).json({ error: "The face checker is not ready. Please try again in a minute." }); }
+  }
   const list = (req.body?.descriptors || []).filter(okDesc).slice(0, 8);
   if (!list.length) return res.status(400).json({ error: "No clear face" });
   const dup = otherOwnerOfFace(list, req.body?.exceptUserId);
   res.json({ duplicate: !!dup, name: dup?.name || null });
 });
-router.post("/enroll/:userId", requireAuth, requirePermission("staff:manage"), (req, res) => {
+router.post("/enroll/:userId", requireAuth, requirePermission("staff:manage"), async (req, res) => {
+  const images = Array.isArray(req.body?.images) ? req.body.images : Array.isArray(req.body?.descriptors) && typeof req.body.descriptors[0] === "string" ? req.body.descriptors : null;
+  if (!db.prepare("SELECT 1 FROM users WHERE id = ? AND active = 1").get(req.params.userId)) return res.status(404).json({ error: "Staff member not found" });
+  if (images) { // v2: photos in, the server makes the face prints
+    try {
+      const all = await v2Analyze(images, true), good = all.filter((a) => a.ok).map((a) => a.embedding);
+      if (good.length < 4) {
+        const why = all.filter((a) => !a.ok).map((a) => a.why).sort((a, b) => all.filter((x) => x.why === b).length - all.filter((x) => x.why === a).length)[0];
+        return res.status(400).json({ error: `Not enough clear pictures (${good.length} of ${all.length}${why ? `: ${WHY[why] || why}` : ""}). Try again in good light, looking at the camera.` });
+      }
+      // All pictures must be the same face: a low match between two of them means two people, or junk, were mixed in.
+      let low = 1; for (let i = 0; i < good.length; i++) for (let j = i + 1; j < good.length; j++) low = Math.min(low, similarity(good[i], good[j]));
+      if (low < 0.35) return res.status(400).json({ error: "The pictures were not all of the same face. Only the person being registered should be in front of the camera. Please try again." });
+      const dup = v2OtherOwner(good, req.params.userId);
+      if (dup && !(req.body?.force === true && dup.sim < V2_SAME)) {
+        const pct = Math.round(dup.sim * 100);
+        return res.status(409).json({ error: `This face looks the same as ${dup.name}'s saved face (${pct}% alike).`, similar: { userId: dup.userId, name: dup.name, distance: `${pct}% alike`, canForce: dup.sim < V2_SAME } });
+      }
+      db.prepare(`INSERT INTO face_templates (user_id, descriptors, embeddings, enrolled_by) VALUES (?,?,?,?)
+        ON CONFLICT(user_id) DO UPDATE SET descriptors = excluded.descriptors, embeddings = excluded.embeddings, enrolled_by = excluded.enrolled_by, enrolled_at = datetime('now')`)
+        .run(req.params.userId, "[]", JSON.stringify(good.slice(0, 8).map((e) => e.map((v) => Math.round(v * 1e5) / 1e5))), req.user.userId);
+      return res.json({ ok: true, samples: Math.min(8, good.length) });
+    } catch (e) { console.error("face engine:", e.message); return res.status(503).json({ error: "The face checker is not ready. Please try again in a minute." }); }
+  }
   const list = (req.body?.descriptors || []).filter(okDesc).slice(0, 8);
   if (list.length < 3) return res.status(400).json({ error: "Not enough clear face samples. Try again in good light, looking at the camera." });
-  if (!db.prepare("SELECT 1 FROM users WHERE id = ? AND active = 1").get(req.params.userId)) return res.status(404).json({ error: "Staff member not found" });
   // All samples must be the same face: a wide spread means two people, or junk pictures, were mixed in.
   let spread = 0; for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) spread = Math.max(spread, dist(list[i], list[j]));
   if (spread > 0.7) return res.status(400).json({ error: "The pictures were not all of the same face. Only the person being registered should be in front of the camera. Please try again." });
@@ -110,8 +170,8 @@ router.post("/enroll/:userId", requireAuth, requirePermission("staff:manage"), (
       similar: { userId: dup.userId, name: dup.name, distance: dup.distance, canForce: dup.distance >= SAME_PERSON },
     });
   }
-  db.prepare(`INSERT INTO face_templates (user_id, descriptors, enrolled_by) VALUES (?,?,?)
-    ON CONFLICT(user_id) DO UPDATE SET descriptors = excluded.descriptors, enrolled_by = excluded.enrolled_by, enrolled_at = datetime('now')`)
+  db.prepare(`INSERT INTO face_templates (user_id, descriptors, embeddings, enrolled_by) VALUES (?,?,NULL,?)
+    ON CONFLICT(user_id) DO UPDATE SET descriptors = excluded.descriptors, embeddings = NULL, enrolled_by = excluded.enrolled_by, enrolled_at = datetime('now')`)
     .run(req.params.userId, JSON.stringify(list), req.user.userId);
   res.json({ ok: true, samples: list.length });
 });
@@ -200,11 +260,17 @@ router.put("/geo", requireAuth, requirePermission("staff:manage"), (req, res) =>
   res.json(geoOut(geoCfg()));
 });
 
-router.get("/ping", requireKiosk, (req, res) => res.json({ ok: true, label: req.kiosk.label, enrolled: db.prepare("SELECT COUNT(*) n FROM face_templates").get().n, geo: geoCfg().on }));
+loadEngine().catch((e) => console.error("face engine not ready:", e.message)); // load the face models in the background at start-up
+router.get("/ping", requireKiosk, (req, res) => res.json({ ok: true, label: req.kiosk.label, enrolled: db.prepare("SELECT COUNT(*) n FROM face_templates").get().n, enrolledV2: db.prepare("SELECT COUNT(*) n FROM face_templates WHERE embeddings IS NOT NULL").get().n, geo: geoCfg().on }));
 
 router.post("/checkin", requireKiosk, (req, res) => {
-  const { descriptor, snapshot, pos } = req.body || {};
-  if (!okDesc(descriptor)) return res.status(400).json({ error: "No clear face seen" });
+  checkin(req, res).catch((e) => { console.error("checkin:", e.message); if (!res.headersSent) res.status(500).json({ error: "Something went wrong. Please try again." }); });
+});
+async function checkin(req, res) {
+  const { descriptor, pos } = req.body || {};
+  let snapshot = req.body?.snapshot;
+  const v2 = typeof req.body?.image === "string";
+  if (!v2 && !okDesc(descriptor)) return res.status(400).json({ error: "No clear face seen" });
   const g = geoCfg();
   if (g.on) { // only at the clinic: no look, no mark, when the phone is away or does not share its location
     const la = Number(pos?.lat), lo = Number(pos?.lng), acc = Math.min(100, Math.max(0, Number(pos?.acc) || 0));
@@ -212,23 +278,39 @@ router.post("/checkin", requireKiosk, (req, res) => {
     const away = Math.round(Math.min(...g.points.map((p) => metres(p.lat, p.lng, la, lo))));
     if (away - acc > g.radius) return res.json({ matched: false, outside: true, away });
   }
-  const tpls = db.prepare("SELECT t.user_id, t.descriptors, u.name FROM face_templates t JOIN users u ON u.id = t.user_id WHERE u.active = 1").all().map((t) => ({ ...t, list: JSON.parse(t.descriptors) }));
-  const rankFor = (desc) => tpls.map((t) => { let d = Infinity; for (const x of t.list) d = Math.min(d, dist(desc, x)); return { userId: t.user_id, name: t.name, distance: d }; }).sort((a, b) => a.distance - b.distance);
-  // The phone sends two looks taken a moment apart: both must point to the same person, each clearly (one blurry look can never mark someone).
-  const looks = Array.isArray(req.body?.descriptors) && req.body.descriptors.length === 2 && req.body.descriptors.every(okDesc) ? req.body.descriptors : [descriptor];
-  const ranks = looks.map(rankFor);
-  for (const ranked of ranks) {
-    if (!ranked[0] || ranked[0].distance > MATCH_DISTANCE) return res.json(req.body?.fast === true && looks.length === 1 ? { matched: false, again: true } : { matched: false });
-    // Two different people both fit: refuse rather than mark the wrong person.
-    if (ranked[1] && ranked[1].distance - ranked[0].distance < MATCH_MARGIN) return res.json(req.body?.fast === true && looks.length === 1 ? { matched: false, again: true } : { matched: false, ambiguous: true });
+  let best;
+  if (v2) { // photo from the phone: the server finds the face and makes its face print
+    const buf = toJpeg(req.body.image);
+    if (!buf) return res.status(400).json({ error: "No clear face seen" });
+    let a;
+    try { a = await analyze(buf); } catch (e) { console.error("face engine:", e.message); return res.status(503).json({ error: "The face checker is starting. Please try again." }); }
+    if (!a.ok) return res.json({ matched: false, noface: true, why: a.why });
+    const rank = v2Rank(a.embedding, v2Templates()), t0 = rank[0], sim = t0 ? t0.sim : -1, margin = rank[1] ? sim - rank[1].sim : 1, key = req.phoneId || req.kiosk.id, pend = pending.get(key);
+    if (!t0 || sim < V2_LOOSE) { pending.delete(key); return res.json({ matched: false }); }
+    if (margin < V2_MARGIN) { pending.delete(key); return res.json({ matched: false, ambiguous: true }); }
+    if (sim < V2_ACCEPT && !(pend && pend.userId === t0.userId && Date.now() - pend.at < 6000)) { pending.set(key, { userId: t0.userId, at: Date.now() }); return res.json({ matched: false, again: true }); } // good but not clear alone: one more look must agree
+    pending.delete(key);
+    best = { userId: t0.userId, name: t0.name, distance: 1 - sim }; // the log shows (1 - distance) as the match %
+    try { snapshot = "data:image/jpeg;base64," + (await thumb(buf)).toString("base64"); } catch {}
+  } else {
+    const tpls = db.prepare("SELECT t.user_id, t.descriptors, u.name FROM face_templates t JOIN users u ON u.id = t.user_id WHERE u.active = 1").all().map((t) => ({ ...t, list: JSON.parse(t.descriptors) }));
+    const rankFor = (desc) => tpls.map((t) => { let d = Infinity; for (const x of t.list) d = Math.min(d, dist(desc, x)); return { userId: t.user_id, name: t.name, distance: d }; }).sort((a, b) => a.distance - b.distance);
+    // The phone sends two looks taken a moment apart: both must point to the same person, each clearly (one blurry look can never mark someone).
+    const looks = Array.isArray(req.body?.descriptors) && req.body.descriptors.length === 2 && req.body.descriptors.every(okDesc) ? req.body.descriptors : [descriptor];
+    const ranks = looks.map(rankFor);
+    for (const ranked of ranks) {
+      if (!ranked[0] || ranked[0].distance > MATCH_DISTANCE) return res.json(req.body?.fast === true && looks.length === 1 ? { matched: false, again: true } : { matched: false });
+      // Two different people both fit: refuse rather than mark the wrong person.
+      if (ranked[1] && ranked[1].distance - ranked[0].distance < MATCH_MARGIN) return res.json(req.body?.fast === true && looks.length === 1 ? { matched: false, again: true } : { matched: false, ambiguous: true });
+    }
+    if (ranks.length === 2 && ranks[0][0].userId !== ranks[1][0].userId) return res.json({ matched: false, ambiguous: true });
+    // Fast path: the phone sends ONE look first. A very clear match is accepted at once; anything less clear asks for a second look (nothing is recorded yet).
+    if (req.body?.fast === true && ranks.length === 1) {
+      const r0 = ranks[0];
+      if (r0[0].distance > FAST_DISTANCE || (r0[1] && r0[1].distance - r0[0].distance < FAST_MARGIN)) return res.json({ matched: false, again: true });
+    }
+    best = { ...ranks[0][0], distance: ranks.reduce((t, r) => t + r[0].distance, 0) / ranks.length };
   }
-  if (ranks.length === 2 && ranks[0][0].userId !== ranks[1][0].userId) return res.json({ matched: false, ambiguous: true });
-  // Fast path: the phone sends ONE look first. A very clear match is accepted at once; anything less clear asks for a second look (nothing is recorded yet).
-  if (req.body?.fast === true && ranks.length === 1) {
-    const r0 = ranks[0];
-    if (r0[0].distance > FAST_DISTANCE || (r0[1] && r0[1].distance - r0[0].distance < FAST_MARGIN)) return res.json({ matched: false, again: true });
-  }
-  const best = { ...ranks[0][0], distance: ranks.reduce((t, r) => t + r[0].distance, 0) / ranks.length };
 
   const now = process.env.NODE_ENV === "test" && req.headers["x-test-now"] ? new Date(String(req.headers["x-test-now"]) + "Z") : istNow(), date = now.toISOString().slice(0, 10), hhmm = now.toISOString().slice(11, 16);
   const mins = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
@@ -282,7 +364,7 @@ router.post("/checkin", requireKiosk, (req, res) => {
   }
   const lateMin = kind === "in" && mark === "L" && inTime ? Math.max(0, mins(inTime) - mins(win.start)) : 0;
   res.json({ matched: true, name: best.name, kind, mark, late: lateMin, label: MARKS[mark], time: kind === "out" ? outTime : inTime, inTime, outTime, workedMinutes: worked, already, noMorningCheckin: noIn, message: note ? note.body : null, undoId: already ? null : ckId });
-});
+}
 
 // "Not me": the person on screen is not the person who looked. Cancels that one In Time (only the latest one, within 3 minutes) and puts the day back as it was.
 function undoCheckin(c) {

@@ -244,8 +244,8 @@ function FacePanel({ date, people, isAdmin, flash }) {
             <div key={p.id} className="task-row">
               <div><div className="title">{p.name}</div><div className="meta">{p.designation || p.department}</div></div>
               <div className="right" style={{ gap: 8 }}>
-                <span className={`badge ${enrolled[p.id]?.same_as ? "overdue" : enrolled[p.id] ? "done" : "sent"}`}>{enrolled[p.id]?.same_as ? `Same face as ${enrolled[p.id].same_as}` : enrolled[p.id] ? "Enrolled" : "Not enrolled"}</span>
-                <button className="btn btn-outline btn-sm" onClick={() => setEnrolling(p)}>{enrolled[p.id] ? "Re-enroll" : "Enroll face"}</button>
+                <span className={`badge ${enrolled[p.id]?.same_as || enrolled[p.id]?.old ? "overdue" : enrolled[p.id] ? "done" : "sent"}`}>{enrolled[p.id]?.same_as ? `Same face as ${enrolled[p.id].same_as}` : enrolled[p.id]?.old ? "Register again" : enrolled[p.id] ? "Enrolled" : "Not enrolled"}</span>
+                <button className="btn btn-outline btn-sm" onClick={() => setEnrolling(p)}>{enrolled[p.id] && !enrolled[p.id].old ? "Re-enroll" : "Enroll face"}</button>
               </div>
             </div>
           ))}

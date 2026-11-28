@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import Doll from "../components/Doll.jsx";
 import { kioskApi } from "../api.js";
-import { scanFace, startCamera, cameraHelp, loadFace, snapshotJpeg } from "../face.js";
+import { lookFace, startCamera, cameraHelp, loadDetector } from "../face.js";
 
 // Clinic-phone screen: staff look at the camera and are marked present. No login, no buttons for staff.
 const t12 = (t) => { if (!t) return ""; const [h, m] = String(t).split(":").map(Number); return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
@@ -85,7 +85,7 @@ export default function KioskPage() {
       try {
         if (!kioskApi.key()) throw new Error("NOKEY");
         // Everything starts at the same time: the face models, the camera and the server check. (Before, they ran one after the other.)
-        const faceP = (async () => { for (let i = 0; ; i++) { try { return await loadFace(); } catch (e) { if (i >= 5 || dead) throw e; await sleep(3000); } } })();
+        const faceP = (async () => { for (let i = 0; ; i++) { try { return await loadDetector(); } catch (e) { if (i >= 5 || dead) throw e; await sleep(3000); } } })();
         faceP.catch(() => {});
         const camP = ensureCamera().then(() => null, (e) => e);
         let info;
@@ -95,8 +95,8 @@ export default function KioskPage() {
         }
         setOnline(true);
         geoOn = !!info.geo; if (geoOn) startGeo();
-        if (info.enrolled === 0) { setState({ phase: "error", text: "No faces are enrolled yet. Ask the admin to enroll staff faces first." }); return; }
-        setState({ phase: "start", text: "Getting ready…", sub: "Loading the face scanner" });
+        if ((info.enrolledV2 ?? info.enrolled) === 0) { setState({ phase: "error", text: info.enrolled > 0 ? "Faces must be registered again for the new scanner. Ask the admin to register the staff faces." : "No faces are enrolled yet. Ask the admin to enroll staff faces first." }); return; }
+        setState({ phase: "start", text: "Getting ready…", sub: "Starting the camera" });
         await faceP;
         const camErr = await camP; if (camErr) throw camErr;
         await ensureCamera();
@@ -141,28 +141,24 @@ export default function KioskPage() {
           await sleep(prev ? 30 : 150); // a face is in view: scan flat out; nobody there: relax
           try {
             await ensureCamera();
-            const f = await scanFace(video.current, "kiosk").catch(() => null);
-            if (!f || !f.ok) { prev = null; const tip = f?.why === "far" ? "Come a little closer" : f?.why === "close" ? "Move back a little" : "Look at the camera"; setState((s) => (s.phase === "result" || s.phase === "confirm" ? s : s.text === tip ? s : { phase: "look", text: tip })); continue; }
+            const f = await lookFace(video.current, "kiosk").catch(() => null);
+            if (!f || !f.ok) { prev = null; const tip = f?.why === "far" ? "Come a little closer" : f?.why === "close" ? "Move back a little" : f?.why === "off" ? "Move to the middle" : f?.why === "soft" ? "Hold still, look at the camera" : "Look at the camera"; setState((s) => (s.phase === "result" || s.phase === "confirm" ? s : s.text === tip ? s : { phase: "look", text: tip })); continue; }
             if (Date.now() - last.at < (last.hold ?? 2800)) { prev = null; continue; } // keep showing the last result for a moment
-            if (geoOn && (!pos || Date.now() - pos.at > 10 * 60000)) { setState({ phase: "error", text: posErr === 1 ? "Location is blocked" : "Getting the clinic location…", sub: posErr === 1 ? "Allow Location for this website (iPhone: Settings → Privacy → Location Services → Safari Websites), then try again." : "Please wait a moment." }); await sleep(1500); continue; }
-            const snap = snapshotJpeg(video.current, 200), posBody = geoOn && pos ? { lat: pos.lat, lng: pos.lng, acc: pos.acc } : undefined;
-            if (prev && Date.now() - prev.at > 2500) prev = null;
-            // First look: sent alone. A very clear match is accepted by the server at once; otherwise it asks for a second look, and both must agree.
-            if (!prev) {
-              setState({ phase: "check", text: "Checking…" });
-              const r0 = await kioskApi.call("checkin", { descriptor: f.descriptor, fast: true, snapshot: snap, pos: posBody });
-              setOnline(true);
-              if (r0.again) { prev = { d: f.descriptor, at: Date.now() }; continue; }
-              last = { at: Date.now() }; showResult(r0, { descriptor: f.descriptor, fast: true, snapshot: snap, pos: posBody }); continue;
-            }
-            const f1 = { descriptor: prev.d }, f2 = f; prev = null;
-            const body = { descriptor: f1.descriptor, descriptors: [f1.descriptor, f2.descriptor], snapshot: snap, pos: posBody };
+            if (geoOn && (!pos || Date.now() - pos.at > 10 * 60000)) { setState({ phase: "error", text: posErr === 1 ? "Location is blocked" : "Getting the clinic location…", sub: posErr === 1 ? "Allow Location for this website (iPhone: Settings → Privacy → Location Services → Safari Websites), then try again." : "Please wait a moment." }); await sleep(2000); continue; }
+            const posBody = geoOn && pos ? { lat: pos.lat, lng: pos.lng, acc: pos.acc } : undefined, body = { image: f.image, pos: posBody };
+            // The photo goes to the server, which finds the face, recognises it and answers in a fraction of a second.
+            // If the look is good but not clear enough alone, the server says "again" and the next frame is sent at once.
+            setState((st) => (st.phase === "check" ? st : { phase: "check", text: "Checking…" }));
             const r = await kioskApi.call("checkin", body);
             setOnline(true);
+            if (r.again) { prev = { at: Date.now() }; continue; }
+            prev = null;
+            if (r.noface) { last = { at: Date.now(), hold: 300 }; const tip = r.why === "multiple" ? "One person at a time" : r.why === "far" ? "Come a little closer" : r.why === "close" ? "Move back a little" : r.why === "turned" ? "Look straight at the camera" : "Look at the camera"; setState({ phase: "look", text: tip }); continue; }
             last = { at: Date.now() };
             showResult(r, body);
           } catch (e) {
             if (dead) return;
+            if (e.status === 503) { setState({ phase: "check", text: "Getting ready…" }); await sleep(2000); continue; } // the face checker on the server is just starting
             if (!net(e)) throw e; // the server refused (phone switched off, bad key): stop and say so
             // Weak or no internet: the person is not marked yet. Stay on screen and try the same face again in a moment.
             setOnline(false); last = { at: Date.now() - 3000 };

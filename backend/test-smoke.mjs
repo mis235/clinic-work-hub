@@ -492,6 +492,35 @@ try {
       await call("DELETE", `/api/kiosk/enroll/${sp[0].id}`, null, admin);
     }
   }
+  { // v2 face engine: real photos, matching done on the server
+    const fx = (n) => "data:image/jpeg;base64," + fs.readFileSync(path.join("test-fixtures", "face", n)).toString("base64");
+    const peeps = allU.filter((u) => u.role === "staff" && ![mkd.body.id, faceOther.id].includes(u.id));
+    if (peeps.length >= 2) {
+      const [pa, pb] = peeps, today2 = new Date(Date.now() + 19800000).toISOString().slice(0, 10);
+      await call("DELETE", `/api/kiosk/enroll/${pa.id}`, null, admin); await call("DELETE", `/api/kiosk/enroll/${pb.id}`, null, admin);
+      ok("v2: a group photo or a wall is not a face", (await call("POST", `/api/kiosk/enroll/${pa.id}`, { images: [fx("group.jpg"), fx("group.jpg"), fx("group.jpg"), fx("group.jpg")] }, admin)).status === 400);
+      const ea = await call("POST", `/api/kiosk/enroll/${pa.id}`, { images: ["a1", "a2", "a3", "a4", "a5"].map((n) => fx(n + ".jpg")) }, admin);
+      ok("v2: a face is registered from photos", ea.status === 200 && ea.body.samples >= 4, JSON.stringify(ea.body));
+      const dupv = await call("POST", `/api/kiosk/enroll/${pb.id}`, { images: ["a1", "a2", "a3", "a4"].map((n) => fx(n + ".jpg")) }, admin);
+      ok("v2: the same face cannot be registered for a second person", dupv.status === 409 && dupv.body.similar?.name, JSON.stringify(dupv.body));
+      const eb = await call("POST", `/api/kiosk/enroll/${pb.id}`, { images: ["b1", "b2", "b3", "b4", "b5"].map((n) => fx(n + ".jpg")) }, admin);
+      ok("v2: a different face is registered to another person", eb.status === 200, JSON.stringify(eb.body));
+      const en = (await call("GET", "/api/kiosk/enrolled", null, admin)).body;
+      ok("v2: the admin list says which faces use the new scanner", en.find((x) => x.user_id === pa.id)?.v2 === true);
+      const kd2 = await call("POST", "/api/kiosk/devices", { label: "v2 phone" }, admin);
+      const sc2 = (img, day, at, extra = {}) => fetch(base + "/api/kiosk/checkin", { method: "POST", headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X)", "x-test-now": `${day}T${at}`, Authorization: `Bearer ${kd2.body.key}` }, body: JSON.stringify({ image: img, ...extra }) }).then((r) => r.json());
+      const D = "2026-02-10";
+      const r1 = await sc2(fx("a6.jpg"), D, "09:10");
+      ok("v2: a blurred photo of person A is recognised as A", r1.matched === true && r1.name === pa.name && r1.kind === "in", JSON.stringify(r1));
+      const r2 = await sc2(fx("b4.jpg"), D, "09:12");
+      ok("v2: person B is recognised as B, not A", r2.matched === true && r2.name === pb.name, JSON.stringify(r2));
+      const r3 = await sc2(fx("group.jpg"), D, "09:14");
+      ok("v2: a group is never marked", r3.matched === false && r3.why === "multiple", JSON.stringify(r3));
+      const ml = (await call("GET", `/api/kiosk/log?date=${today2}`, null, admin)).body;
+      ok("v2: the log keeps a match percentage", Array.isArray(ml));
+      await call("DELETE", `/api/kiosk/enroll/${pa.id}`, null, admin); await call("DELETE", `/api/kiosk/enroll/${pb.id}`, null, admin);
+    }
+  }
   const brd2 = (await call("GET", "/api/attendance/board", null, admin)).body;
   ok("the face check-in shows on the attendance board", ["P", "L"].includes(brd2.rows.find((r) => r.id === mkd.body.id)?.mark));
   ok("face check-in is refused on a computer", (await fetch(base + "/api/kiosk/checkin", { method: "POST", headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120", Authorization: `Bearer ${kdev.body.key}` }, body: JSON.stringify({ descriptor: fdesc(1) }) })).status === 403);

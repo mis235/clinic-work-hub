@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { scanFace, startCamera, cameraHelp, loadFace, snapshotJpeg, frameBrightness, slowMode, faceDist } from "../face.js";
+import { lookFace, startCamera, cameraHelp, loadDetector, snapshotJpeg, frameBrightness } from "../face.js";
 
 const WHY = {
   none: "No face in view. Point the front camera at the face, about an arm's length away.",
@@ -25,7 +25,7 @@ export default function FaceCapture({ who, need = 5, onCaptured, disabled }) {
   useEffect(() => {
     let dead = false;
     (async () => {
-      try { await loadFace(); stopRef.current = await startCamera(video.current); if (!dead) { setReady(true); setMsg(`Ask ${who || "the person"} to look at the camera, then press Start.`); } }
+      try { await loadDetector(); stopRef.current = await startCamera(video.current); if (!dead) { setReady(true); setMsg(`Ask ${who || "the person"} to look at the camera, then press Start.`); } }
       catch (e) { if (!dead) setErr(cameraHelp(e)); }
     })();
     return () => { dead = true; stopRef.current?.(); };
@@ -39,7 +39,7 @@ export default function FaceCapture({ who, need = 5, onCaptured, disabled }) {
       while (!dead) {
         await new Promise((x) => setTimeout(x, 800));
         if (busyRef.current || dead) continue;
-        try { const r = await scanFace(video.current, "enroll"); if (!dead && !busyRef.current) setLive(r.ok ? { ok: true, text: "Face found. Press Start." } : { ok: false, text: reasonText(r.why) }); } catch {}
+        try { const r = await lookFace(video.current, "enroll"); if (!dead && !busyRef.current) setLive(r.ok ? { ok: true, text: "Face found. Press Start." } : { ok: false, text: reasonText(r.why) }); } catch {}
       }
     })();
     return () => { dead = true; };
@@ -54,31 +54,28 @@ export default function FaceCapture({ who, need = 5, onCaptured, disabled }) {
 
   async function start() {
     busyRef.current = true; setBusy(true); setErr(""); setN(0); setLive(null);
-    const samples = []; let tries = 0, photo = null, crashes = 0, lastErr = null, rejected = 0;
-    while (samples.length < need && tries < 90) {
+    const samples = []; let tries = 0, photo = null, crashes = 0, lastErr = null;
+    while (samples.length < need + 1 && tries < 90) { // a few clear pictures; the server checks they are all one face
       tries++;
       let r = null;
-      try { r = await scanFace(video.current, "enroll"); crashes = 0; } catch (e) { lastErr = e; if (++crashes === 3) { setMsg("Switching to the slower scanner…"); await slowMode(); } }
+      try { r = await lookFace(video.current, "enroll"); crashes = 0; } catch (e) { lastErr = e; crashes++; }
       if (r?.ok) {
-        // Every new sample must be the same face as the ones already taken.
-        if (samples.length && samples.some((d) => faceDist(d, r.descriptor) > 0.6)) { rejected++; setMsg("Only one person in front of the camera, please."); await new Promise((x) => setTimeout(x, 300)); continue; }
-        samples.push(r.descriptor); setN(samples.length);
+        samples.push(r.image); setN(Math.min(samples.length, need));
         if (!photo && samples.length === 2) photo = snapshotJpeg(video.current, 480); // a clean picture for the profile
-        setMsg("Good. Keep still and turn your head very slightly…"); await new Promise((x) => setTimeout(x, 500));
+        setMsg("Good. Keep still and turn your head very slightly…"); await new Promise((x) => setTimeout(x, 450));
       } else {
-        setMsg(lastErr && crashes > 0 ? "The face scanner is still starting. Please wait…" : reasonText(r?.why || "none"));
+        setMsg(lastErr && crashes > 0 ? "The face finder is still starting. Please wait…" : reasonText(r?.why || "none"));
         await new Promise((x) => setTimeout(x, 250));
       }
     }
     if (samples.length < need) {
-      setErr(lastErr && !samples.length && !rejected ? `The face scanner could not run on this phone (${lastErr.message || lastErr}). Try Chrome on another phone or a computer.`
-        : rejected > 3 ? "More than one face was seen. Only the person being registered should be in front of the camera. Press Start again."
+      setErr(lastErr && !samples.length ? `The camera could not be used on this phone (${lastErr.message || lastErr}). Try Chrome on another phone or a computer.`
         : "A clear face was not found for long enough. Point the front camera at the face in good light, fill about a third of the box, look straight, and press Start again.");
       busyRef.current = false; setBusy(false); return;
     }
     const blob = photo ? await (await fetch(photo)).blob() : null;
     busyRef.current = false; setBusy(false);
-    try { await onCaptured({ descriptors: samples, photo: blob }); } catch (e) { setErr(e.message); }
+    try { await onCaptured({ descriptors: samples, photo: blob }) /* "descriptors" now holds the pictures; the server makes the face prints */; } catch (e) { setErr(e.message); }
   }
 
   return (

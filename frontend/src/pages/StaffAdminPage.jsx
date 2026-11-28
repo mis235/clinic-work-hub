@@ -86,18 +86,18 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
               <header><b>{name}</b><span>{list.length} {list.length === 1 ? "person" : "people"}</span><em>{list.filter((p) => p.active && faces[p.id] && !faces[p.id].same_as).length} face enrolled</em></header>
               <div className="st-gl">
                 {list.map((p) => {
-                  const f = faces[p.id], faceOk = f && !f.same_as;
+                  const f = faces[p.id], faceOk = f && !f.same_as && !f.old;
                   return (
                     <div key={p.id} className="st-gi">
                       <Avatar id={p.id} name={p.name} hasPhoto={!!p.has_photo} size={36} v={photoVer} />
                       <div className="st-nm"><div><span className="link" onClick={() => onOpenProfile(p.id)}>{p.name}</span></div><small>{p.designation || "No designation"}</small></div>
-                      <span className={`st-dot ${!p.active ? "" : faceOk ? "ok" : "warn"}`} title={!p.active ? "Inactive" : f?.same_as ? `Same as ${f.same_as}` : f ? "Face enrolled" : "Face not enrolled"} />
+                      <span className={`st-dot ${!p.active ? "" : faceOk ? "ok" : "warn"}`} title={!p.active ? "Inactive" : f?.same_as ? `Same as ${f.same_as}` : f?.old ? "Register face again" : f?.old ? "Register face again" : f ? "Face enrolled" : "Face not enrolled"} />
                       <div className="st-act">
                         <button className="st-ic" title="View profile" aria-label="View profile" onClick={() => onOpenProfile(p.id)}><Icon name="eye" size={16} /></button>
                         {p.active
                           ? <>
                               <button className="st-ic" title="Edit details" aria-label="Edit details" onClick={() => setEditing(p)}><Icon name="pencil" size={16} /></button>
-                              <button className="st-ic" title={f ? "Re-enroll face" : "Enroll face"} aria-label={f ? "Re-enroll face" : "Enroll face"} onClick={() => setFaceFor(p)}><Icon name="fingerprint" size={16} /></button>
+                              <button className="st-ic" title={f && !f.old ? "Re-enroll face" : "Enroll face"} aria-label={f ? "Re-enroll face" : "Enroll face"} onClick={() => setFaceFor(p)}><Icon name="fingerprint" size={16} /></button>
                               {p.id !== user.id && <button className="st-rm" onClick={() => remove(p)}>Remove</button>}
                             </>
                           : <button className="btn btn-outline btn-sm" onClick={async () => { await api.restoreStaff(p.id); flash(`${p.name} restored.`); refresh(); }}>Restore</button>}
@@ -112,7 +112,7 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
         {shown.length > 0 && view === "tiles" && (
           <div className="st-tiles">
             {shown.map((s) => {
-              const f = faces[s.id], faceOk = f && !f.same_as;
+              const f = faces[s.id], faceOk = f && !f.same_as && !f.old;
               return (
                 <div key={s.id} className="st-tile">
                   {(s.role === "admin" || s.role === "manager") && <span className={`badge ${s.role === "admin" ? "accepted" : "sent"} st-tag`}>{s.role}</span>}
@@ -120,13 +120,13 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
                   <span className="link st-tn" onClick={() => onOpenProfile(s.id)}>{s.name}</span>
                   <small className="st-td">{s.designation || "No designation"}</small>
                   <span className="st-tc">{[s.department, s.employee_code].filter(Boolean).join(" · ") || "—"}</span>
-                  <span className={`st-tf ${!s.active ? "" : faceOk ? "ok" : "warn"}`}><i />{!s.active ? "Inactive" : f?.same_as ? `Same as ${f.same_as}` : f ? "Face enrolled" : "Face not enrolled"}</span>
+                  <span className={`st-tf ${!s.active ? "" : faceOk ? "ok" : "warn"}`}><i />{!s.active ? "Inactive" : f?.same_as ? `Same as ${f.same_as}` : f?.old ? "Register face again" : f ? "Face enrolled" : "Face not enrolled"}</span>
                   <div className="st-act st-tact">
                     <button className="st-ic" title="View profile" aria-label="View profile" onClick={() => onOpenProfile(s.id)}><Icon name="eye" size={16} /></button>
                     {s.active
                       ? <>
                           <button className="st-ic" title="Edit details" aria-label="Edit details" onClick={() => setEditing(s)}><Icon name="pencil" size={16} /></button>
-                          <button className="st-ic" title={f ? "Re-enroll face" : "Enroll face"} aria-label={f ? "Re-enroll face" : "Enroll face"} onClick={() => setFaceFor(s)}><Icon name="fingerprint" size={16} /></button>
+                          <button className="st-ic" title={f && !f.old ? "Re-enroll face" : "Enroll face"} aria-label={f ? "Re-enroll face" : "Enroll face"} onClick={() => setFaceFor(s)}><Icon name="fingerprint" size={16} /></button>
                           {s.id !== user.id && <button className="st-rm" onClick={() => remove(s)}>Remove</button>}
                         </>
                       : <button className="btn btn-outline btn-sm" onClick={async () => { await api.restoreStaff(s.id); flash(`${s.name} restored.`); refresh(); }}>Restore</button>}
@@ -141,7 +141,7 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
             <div className="st-row st-head"><span>Staff</span><span>Department</span><span>ID</span><span>Phone</span><span>Reports to</span><span>Face</span><span /></div>
             {shown.map((s) => {
               const realPhone = s.phone && !s.phone.startsWith("+9190000200");
-              const f = faces[s.id], faceOk = f && !f.same_as;
+              const f = faces[s.id], faceOk = f && !f.same_as && !f.old;
               return (
                 <div key={s.id} className="st-row">
                   <div className="st-who">
@@ -156,13 +156,13 @@ export default function StaffAdminPage({ user, onLogout, onBack, onOpenProfile }
                   <span className="st-c">{s.employee_code || "—"}</span>
                   <span className={`st-c ${realPhone ? "" : "warn"}`}>{realPhone ? s.phone : "Not added"}</span>
                   <span className="st-c">{s.reporting_to || "—"}</span>
-                  <span className={`st-c st-face ${!s.active ? "" : faceOk ? "ok" : "warn"}`}>{!s.active ? "—" : f?.same_as ? `Same as ${f.same_as}` : f ? "Enrolled" : "Not enrolled"}</span>
+                  <span className={`st-c st-face ${!s.active ? "" : faceOk ? "ok" : "warn"}`}>{!s.active ? "—" : f?.same_as ? `Same as ${f.same_as}` : f?.old ? "Register again" : f ? "Enrolled" : "Not enrolled"}</span>
                   <div className="st-act">
                     <button className="st-ic" title="View profile" aria-label="View profile" onClick={() => onOpenProfile(s.id)}><Icon name="eye" size={16} /></button>
                     {s.active
                       ? <>
                           <button className="st-ic" title="Edit details" aria-label="Edit details" onClick={() => setEditing(s)}><Icon name="pencil" size={16} /></button>
-                          <button className="st-ic" title={f ? "Re-enroll face" : "Enroll face"} aria-label={f ? "Re-enroll face" : "Enroll face"} onClick={() => setFaceFor(s)}><Icon name="fingerprint" size={16} /></button>
+                          <button className="st-ic" title={f && !f.old ? "Re-enroll face" : "Enroll face"} aria-label={f ? "Re-enroll face" : "Enroll face"} onClick={() => setFaceFor(s)}><Icon name="fingerprint" size={16} /></button>
                           {s.id !== user.id && <button className="st-rm" onClick={() => remove(s)}>Remove</button>}
                         </>
                       : <button className="btn btn-outline btn-sm" onClick={async () => { await api.restoreStaff(s.id); flash(`${s.name} restored.`); refresh(); }}>Restore</button>}

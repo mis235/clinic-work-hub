@@ -4,7 +4,8 @@ WORKDIR /app
 # build tools: better-sqlite3 has no ready-made file for this Node version, so it is compiled
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
 COPY backend/package*.json backend/
-RUN cd backend && npm ci --omit=dev --no-audit --no-fund
+# onnxruntime-node (the face engine) ships its server files inside the package: skip its optional GPU download
+RUN cd backend && ONNXRUNTIME_NODE_INSTALL=skip npm ci --omit=dev --no-audit --no-fund
 COPY frontend/package*.json frontend/
 RUN cd frontend && npm ci --no-audit --no-fund
 COPY frontend frontend
